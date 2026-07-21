@@ -92,6 +92,51 @@ Open the GUI at `http://localhost:3000`.
    SHA-256 — plus a download button. The same file is also sitting in
    `<your-project>/build-output/`.
 
+## Command-line usage (no GUI required)
+
+For a quick one-off build, or CI-style usage, `cli/` is a standalone, dependency-light
+C++ binary — the command is `ebl` (short for "expo-local-builder") — that talks to the
+Docker Engine API directly over its unix socket — no orchestrator/GUI process, no
+Node.js runtime, just this one native executable.
+
+**Build prerequisites (once):** `cmake`, a C++17 compiler, and the libcurl + OpenSSL
+development headers:
+
+```bash
+sudo apt-get install -y build-essential cmake libcurl4-openssl-dev libssl-dev
+```
+
+```bash
+cd expo-builder-local
+make install-cli          # builds it and installs to ~/.local/bin (no sudo)
+
+cd /path/to/your/expo/app
+ebl .      # builds the current directory: debug-signed APK, auto engine, and a summary at the end
+```
+
+The first run also builds the runner image automatically if it isn't already present
+(same one-time ~10-20 minute cost as `make build-image`) — the CLI binary bundles its
+own copy of `docker/runner/`, so this works even if you only copied the compiled `ebl`
+executable elsewhere. It shares the same Gradle/npm cache volumes as GUI-triggered
+builds, so switching between the two is cheap.
+
+Useful flags (`ebl --help` for the full list):
+
+```bash
+ebl . --artifact aab --profile production \
+  --release --keystore ./release.jks --key-alias upload \
+  --store-password "$STORE_PW" --key-password "$KEY_PW"
+
+ebl . --engine eas --expo-token "$EXPO_TOKEN"
+```
+
+Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
+environment variables over the `--store-password` etc. flags where you can — flag
+values are more likely to end up in your shell history.
+
+Note: CLI builds aren't recorded in the GUI's build history (the two are intentionally
+independent) — use the GUI when you want the live dashboard and a persistent history.
+
 ## Build engines
 
 | Engine | How | Needs an Expo account? |

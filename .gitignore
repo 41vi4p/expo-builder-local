@@ -7,6 +7,9 @@ orchestrator/node_modules/
 orchestrator/dist/
 orchestrator/*.tsbuildinfo
 
+# CLI (C++/CMake) — build/ holds CMake's cache/objects plus its copy of docker/runner/
+cli/build/
+
 # Persisted build data (SQLite db, logs, uploaded keystores) — never commit these
 data/
 *.db

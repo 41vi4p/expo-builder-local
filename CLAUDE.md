@@ -31,20 +31,54 @@ expo-builder-local/
 │   └── scripts/               (signing helpers: patch-android-signing.js, write-eas-credentials.js)
 ├── orchestrator/          ← backend: Fastify + dockerode + better-sqlite3 + ws
 │   └── src/{routes,docker,build,store,ws,util}/
-└── expo-builder-gui/      ← frontend: Next.js 16 (App Router, Tailwind v4)
-    └── {app,components,lib}/
+├── expo-builder-gui/      ← frontend: Next.js 16 (App Router, Tailwind v4)
+│   └── {app,components,lib}/
+└── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed)
+    ├── CMakeLists.txt
+    └── src/{main,docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
 ```
+
+## 🖥️ CLI package (`cli/`)
+
+A standalone **C++17** binary — command name **`ebl`** (short for "expo-local-builder",
+deliberately distinct from the `expo-builder-local` project/repo name) — built with
+CMake, depending only on libcurl and OpenSSL, that talks to the Docker Engine API
+directly over `/var/run/docker.sock`. No orchestrator, no GUI, no Node.js runtime at
+all. Key pieces:
+
+- `http_client.*` — thin libcurl wrapper using `CURLOPT_UNIX_SOCKET_PATH` (the same
+  mechanism the real `docker` CLI uses to talk to the daemon over its socket).
+- `json.*` — a small hand-written JSON value/parser/serializer (not a vendored
+  library — kept deliberately minimal, just enough for Docker API bodies and
+  package.json/eas.json reads).
+- `tar_writer.*` — builds an in-memory USTAR archive of `docker/runner/` to POST as
+  the build context to `/build`, so the CLI can build the runner image itself.
+- `docker_client.*` — the actual Engine API calls (image list/build, volume create,
+  container create/attach/start/wait/remove) built on the two above.
+- `detect.*` / `metrics.*` — reimplementations of `orchestrator/src/build/detect.ts`
+  and `metrics.ts` (same rules, different language) — keep them in sync by hand if
+  either changes.
+- `runner_context.*` — locates the bundled `docker/runner/` copy at runtime via
+  `/proc/self/exe`, so a compiled/installed binary works without the rest of this repo
+  present (CMake copies `docker/runner/` into the build dir at configure time; see
+  `CMakeLists.txt`).
+
+`attachAndStream` blocks on a libcurl call until the container's output stream closes
+— it runs on its own `std::thread` while the main thread starts/waits on the
+container (see `main.cpp`); don't collapse that back onto one thread, it'll deadlock
+(attach would never return control to let the container start).
 
 ## 🔄 Version management
 
 Unlike the three apps under the repo root (which version independently), the
-orchestrator and the GUI **always ship together** as one product and share **one
-version number** — a build only works when both are compatible, so tracking them
-separately would just invite drift.
+orchestrator, the GUI, and the CLI **always ship together** as one product and share
+**one version number** — a build only works when all three are compatible, so
+tracking them separately would just invite drift.
 
-- **Canonical source:** `orchestrator/package.json` `version` and
-  `expo-builder-gui/package.json` `version` — **always bump both to the same value in
-  the same change.**
+- **Canonical source:** `orchestrator/package.json`'s `version`,
+  `expo-builder-gui/package.json`'s `version`, and `cli/CMakeLists.txt`'s
+  `project(... VERSION x.y.z ...)` — **always bump all three to the same value in the
+  same change**, even if a given change only touched one of them.
 - **Bump rule (SemVer), applied automatically for every change, however small:**
   - `fix:` / `style:` / `refactor:` / docs/config-only change → **PATCH** (+0.0.1)
   - `feat:` / new endpoint / new component / new capability → **MINOR** (+0.1.0, reset PATCH)
@@ -52,7 +86,7 @@ separately would just invite drift.
     requiring a fresh volume) → **MAJOR** (+1.0.0)
 - **After every code change to anything under `expo-builder-local/`:**
   1. Make the change.
-  2. Bump both `package.json` versions (they must always match).
+  2. Bump all three version fields (they must always match).
   3. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
   4. If the change is user-visible or structural, add a short summary to the repo
      root's `/CHANGELOG.md` too (this project's entry in the shared changelog),
