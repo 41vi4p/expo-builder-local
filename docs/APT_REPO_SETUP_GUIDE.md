@@ -56,7 +56,7 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 | Secret | Value |
 |---|---|
-| `APT_GPG_PRIVATE_KEY` | The full contents of `ebl-release-signing-key.asc` (including the `-----BEGIN/END PGP PRIVATE KEY BLOCK-----` lines) |
+| `GPG_PRIVATE_KEY` | The full contents of `ebl-release-signing-key.asc` (including the `-----BEGIN/END PGP PRIVATE KEY BLOCK-----` lines) |
 
 If this secret is missing, the workflow's signing step fails loudly (`::error::`)
 rather than silently publishing an unsigned repo.

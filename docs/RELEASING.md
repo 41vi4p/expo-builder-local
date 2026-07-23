@@ -19,7 +19,7 @@ publish APT repository"), which:
 
 None of the signing steps run without the one-time setup in
 **[`APT_REPO_SETUP_GUIDE.md`](./APT_REPO_SETUP_GUIDE.md)** (generate a GPG key,
-register `APT_GPG_PRIVATE_KEY` as a repo secret, commit `docs/apt/pubkey.gpg`, enable
+register `GPG_PRIVATE_KEY` as a repo secret, commit `docs/apt/pubkey.gpg`, enable
 GitHub Pages) — do that first if you haven't. If the signing key isn't configured yet,
 the workflow fails fast with a clear `::error::` rather than quietly publishing
 something unsigned.
