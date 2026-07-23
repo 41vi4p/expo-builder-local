@@ -1,0 +1,32 @@
+name: CI
+
+# Minimal build check: does the frontend (expo-builder-gui) still build? Runs on
+# every push and pull request. Deliberately scoped to just this — no CLI/orchestrator
+# build checks, no test suite.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gui-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expo-builder-local/expo-builder-gui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: expo-builder-local
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: expo-builder-local/expo-builder-gui/package-lock.json
+
+      - run: npm ci
+      - run: npm run build

@@ -27,14 +27,21 @@ expo-builder-local/
 │   ├── CHANGELOG.md              ← version history for this tool (see below)
 │   ├── RELEASING.md              ← release process: what the workflow does, how to cut a tag
 │   ├── APT_REPO_SETUP_GUIDE.md   ← one-time: generate the GPG signing key, enable GitHub Pages
+│   ├── DOCKER.md                 ← one-time: Docker Hub access token + repo secrets for docker-publish.yml
 │   └── apt/pubkey.gpg            ← committed once APT_REPO_SETUP_GUIDE.md is done (public key only)
 ├── .github/workflows/
-│   └── release.yml        ← "Build and publish APT repository": tag-triggered, builds the .deb
-│                             inside a pinned ubuntu:24.04, assembles + GPG-signs a real APT repo
-│                             tree, publishes it to gh-pages/apt, also attaches the .deb to a
-│                             GitHub Release as a direct-download fallback
+│   ├── release.yml        ← "Build and publish APT repository": tag-triggered, builds the .deb
+│   │                         inside a pinned ubuntu:24.04, assembles + GPG-signs a real APT repo
+│   │                         tree, publishes it to gh-pages/apt, also attaches the .deb to a
+│   │                         GitHub Release as a direct-download fallback
+│   ├── docker-publish.yml ← "Build and publish Docker images": tag-triggered, matrix over the 3
+│   │                         images (runner/orchestrator/web), linux/amd64 only (no QEMU/multi-arch
+│   │                         — the runner's Android SDK download would be slow+untested under
+│   │                         emulation), pushed via docker/build-push-action
+│   └── ci.yml              ← push/PR: just `npm run build` in expo-builder-gui — deliberately
+│                              minimal, no CLI/orchestrator build check
 ├── scripts/
-│   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images
+│   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images by hand
 ├── docker/runner/         ← Android toolchain image (Node 22 LTS + JDK 17 + SDK + eas-cli)
 │   ├── Dockerfile
 │   ├── docker-entrypoint.sh   (UID/GID re-homing)

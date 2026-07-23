@@ -23,7 +23,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NPM_CONFIG_CACHE=/cache/npm
 
 # --- OS deps + JDK 17 -----------------------------------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# `apt-get upgrade` patches any CVEs already fixed upstream for packages baked into
+# the ubuntu:24.04 base layer itself, not just the ones we explicitly install below.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       curl ca-certificates unzip zip git openssh-client build-essential \
       python3 file gosu openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*

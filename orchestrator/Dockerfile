@@ -6,6 +6,9 @@
 # doesn't reliably have. Node 22 is still an actively maintained LTS.
 FROM node:22-alpine AS deps
 WORKDIR /app
+# Patch any CVEs already fixed upstream for packages baked into the node:22-alpine
+# base layer itself (not just what we explicitly apk add below).
+RUN apk upgrade --no-cache
 # better-sqlite3 ships prebuilt binaries for most platforms; these toolchain packages
 # are a fallback in case npm has to compile it from source for this platform/Node combo.
 RUN apk add --no-cache python3 make g++
@@ -20,6 +23,7 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk upgrade --no-cache
 # `git` is used (best-effort, non-fatal if absent) to attach commit/branch metadata to
 # each build's metrics; `docker-cli` is NOT needed — we talk to the daemon over the
 # mounted socket via dockerode, not the CLI.

@@ -3,6 +3,71 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.5.1 — Patch base-OS packages in all three Docker images
+
+**Date:** 2026-07-23
+**Type:** Security
+
+- Every image now upgrades its base-distro packages at build time, not just the
+  ones we explicitly install — a stock `ubuntu:24.04`/`node:22-alpine` layer can
+  already have known CVEs fixed upstream that our targeted `apt-get
+  install`/`apk add` calls never touch.
+- `docker/runner/Dockerfile` (Ubuntu 24.04): added `apt-get upgrade -y` right after
+  the initial `apt-get update`, before installing our own packages, in the same
+  layer (so the layer cache still invalidates together and `rm -rf
+  /var/lib/apt/lists/*` still cleans up after both).
+- `orchestrator/Dockerfile` and `expo-builder-gui/Dockerfile` (both `node:22-alpine`,
+  both the `deps` and `runtime` stages): added `apk upgrade --no-cache` as the first
+  step in each stage, ahead of any `apk add`/`COPY`. `--no-cache` fetches a
+  temporary index instead of persisting `/var/cache/apk`, matching how `apk add
+  --no-cache` was already used elsewhere in these files, so image size is unaffected.
+- No functional/API changes — this only affects what's baked into the base OS
+  layers of published images going forward.
+
+**Files modified:** `docker/runner/Dockerfile`, `orchestrator/Dockerfile`,
+`expo-builder-gui/Dockerfile`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt`
+
+## v0.5.0 — Automated Docker Hub publishing + CI build check
+
+**Date:** 2026-07-23
+**Type:** Feature
+
+- New `.github/workflows/docker-publish.yml` ("Build and publish Docker images"):
+  builds and pushes all three images (runner, orchestrator, web) to Docker Hub on
+  every `v*` tag, via a matrix over three different build contexts (adapting a
+  single-image reference workflow, since this project has three). `linux/amd64`
+  only, deliberately — no QEMU/multi-arch, since the runner image's full Android
+  SDK/NDK download would be slow and untested under cross-platform emulation.
+  Per-image GHA build-cache scoping (`scope=${{ matrix.image }}`) so the three
+  parallel matrix legs don't collide over one shared cache namespace. Fails fast if
+  `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets aren't set, same pattern as
+  `release.yml`'s existing checks. New `docs/DOCKER.md` for the one-time secret
+  setup. `scripts/publish-images.sh` (the manual path) is unchanged and still useful
+  for local-only builds.
+- New `.github/workflows/ci.yml`: a deliberately minimal build-verification check —
+  `npm run build` in `expo-builder-gui/` on every push/PR. No CLI or orchestrator
+  build check, no test suite, by explicit request — this is meant to catch obvious
+  frontend breakage fast, not replace `release.yml`'s more thorough (and much
+  slower) release-time verification.
+- Fixed a real, live vulnerability along the way: Dependabot flagged PostCSS's
+  unescaped-`</style>` XSS (GHSA-qx2v-qp2m-jg93, patched in 8.5.10) in
+  `expo-builder-gui`. Root cause, confirmed directly (not just from the alert text):
+  `next@16.2.10` pins postcss to an *exact* `8.4.31`, which npm can't dedupe against
+  the already-safe top-level `8.5.x` Tailwind needs, leaving a vulnerable nested
+  copy at `next/node_modules/postcss`. Fixed with an npm `overrides` entry
+  (`"postcss": "^8.5.10"`) — forces the nested copy to the safe, already-proven-
+  working version without touching Next's own version at all, unlike Dependabot's
+  auto-suggested fix path (which would have downgraded Next to 9.3.3). Verified: only
+  one deduped `postcss` version remains in the tree, `npm audit` no longer flags it,
+  and `npm run build` still succeeds.
+
+**Files modified:** new `.github/workflows/docker-publish.yml`, new
+`.github/workflows/ci.yml`, new `docs/DOCKER.md`; `expo-builder-gui/package.json`
+(`overrides.postcss`), `expo-builder-gui/package-lock.json`; `README.md` ("Docker Hub
+images" section), `CLAUDE.md`; `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
+
 ## v0.4.3 — Fix: root-owned build output blocked the next step
 
 **Date:** 2026-07-23

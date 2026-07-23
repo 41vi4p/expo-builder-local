@@ -168,12 +168,17 @@ via `ebl config` or the `DOCKERHUB_NAMESPACE` env var before publishing):
   the `ORCHESTRATOR_URL` env var — not baked in at build time, so one published image
   works regardless of what port a given user picks).
 
-Build (and optionally push) all three:
+Build (and optionally push) all three by hand:
 
 ```bash
 DOCKERHUB_NAMESPACE=yourusername ./scripts/publish-images.sh          # build only
 DOCKERHUB_NAMESPACE=yourusername ./scripts/publish-images.sh --push   # build + push (needs `docker login` first)
 ```
+
+...or automatically: `.github/workflows/docker-publish.yml` builds and pushes all
+three (`linux/amd64`) on every `v*` tag once `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`
+repo secrets are set — see [`docs/DOCKER.md`](./docs/DOCKER.md) for the one-time
+setup.
 
 `ebl build`/`ebl setup`/`ebl start` all prefer pulling from the configured namespace,
 falling back to a local build (for the runner image only — orchestrator/web have no
