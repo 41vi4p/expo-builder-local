@@ -218,7 +218,7 @@ Building the CLI for local iteration:
 
 ```bash
 make install-cli   # builds (CMake/C++) and installs to ~/.local/bin — see Makefile for CLI_BUILD_DIR
-make deb           # builds a .deb locally (unsigned unless you've set up dpkg-sig yourself)
+make deb           # builds an unsigned .deb locally — real signing happens in CI, see docs/RELEASING.md
 ```
 
 ## Path handling (important)
