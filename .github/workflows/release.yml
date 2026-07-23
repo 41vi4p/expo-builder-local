@@ -42,7 +42,13 @@ jobs:
       - name: Build .deb inside a pinned Ubuntu 24.04 container
         run: |
           set -e
-          docker run --rm -v "$PWD":/repo -w /repo/cli ubuntu:24.04 bash -c '
+          # Bind-mounted at the SAME absolute path inside the container as outside it
+          # (not /repo) — CMake bakes absolute paths into the generated
+          # cmake_install.cmake at configure time, and the next step runs `cmake
+          # --install` on this same build/ directory *outside* the container, on the
+          # bare runner. A different mount path here would make that install script
+          # reference paths that don't exist outside the container.
+          docker run --rm -v "$PWD":"$PWD" -w "$PWD/cli" ubuntu:24.04 bash -c '
             set -e
             apt-get update -qq
             apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev dpkg-dev file

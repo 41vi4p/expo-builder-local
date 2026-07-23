@@ -3,6 +3,30 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.4.2 — Fix: install-tree staging failed outside the build container
+
+**Date:** 2026-07-23
+**Type:** Fix
+
+- The v0.4.1 release workflow got further but failed at "Stage a plain install tree":
+  `file INSTALL cannot find "/repo/cli/build/ebl": No such file or directory.` Root
+  cause: the previous step configured/built inside a container with the repo
+  bind-mounted at `/repo`, and CMake bakes the build directory's *absolute* path into
+  the generated `cmake_install.cmake` (verified directly — `grep`'d a locally-built
+  `cmake_install.cmake` and confirmed it hardcodes `file(INSTALL ... FILES
+  "<exact build dir>/ebl")`). The next step then ran `cmake --install` on that same
+  `cli/build/` directory *outside* the container, on the bare runner, where it sits at
+  a different absolute path (`$GITHUB_WORKSPACE/...`) — so the baked-in path didn't
+  resolve. The same class of bug this project already documented for Docker bind
+  mounts elsewhere (`ALLOWED_ROOTS` / same-path-both-sides), just inside CI this time.
+- Fix: mount the container at the *same* absolute path on both sides
+  (`-v "$PWD":"$PWD" -w "$PWD/cli"` instead of `-v "$PWD":/repo -w /repo/cli`), so
+  anything CMake bakes in during the in-container configure/build step stays valid
+  when later steps touch the same directory outside the container.
+
+**Files modified:** `.github/workflows/release.yml`; `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
+
 ## v0.4.1 — Fix: `.deb` build missing `file` in the pinned container
 
 **Date:** 2026-07-23
