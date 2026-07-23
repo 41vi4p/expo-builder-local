@@ -1,0 +1,34 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: amd64
+Codename: stable
+Components: main
+Date: Thu, 23 Jul 2026 05:43:23 +0000
+Description: expo-builder-local APT repository (the ebl CLI)
+Label: expo-builder-local
+Origin: expo-builder-local
+Suite: stable
+MD5Sum:
+ a98acf2cf4031d0088e9d1e5f6716c6c              221 Release
+ db436eba35e28d665b5608ad3602dc49              661 main/binary-amd64/Packages
+ e88ee332d9c17084fba3fb077f2bf93b              477 main/binary-amd64/Packages.gz
+SHA1:
+ d63589d8c35840610bd7b919b1c006359961e991              221 Release
+ 8752aa68b9fbb071518357b5087c7dabf27fe29e              661 main/binary-amd64/Packages
+ 4cb68da13616d38d1522ce9043e8fa4b93ed4157              477 main/binary-amd64/Packages.gz
+SHA256:
+ d28d1029e585fbb88285331f3e94da5615250a7f01c7d6ce5758da277430b260              221 Release
+ 08f92f96c593cd0e8ccd101b70d985956bcad6f10002706b5e8d8aee6ca19b74              661 main/binary-amd64/Packages
+ 20787af572064b9268104a6e03ac17b67af1d575cd051bd3c493c306679a8ad7              477 main/binary-amd64/Packages.gz
+SHA512:
+ c3c007f4c0e31ab89b14a154a1139972369fb6c83207222831c0a1582030e1eccae701b38fb6f05f0f9aff8d535efb63e679fdb73482e57788514f7809cd5c14              221 Release
+ ef00ff6b29a2730adbad94ba8a0845343ce99ed2cb56341c19898e1d4b84e58254709f97a5e690cf5b37da6d0a12a5999320bea485b9461399fadb39d3fea24c              661 main/binary-amd64/Packages
+ c6fee275960e29ca7b15eb4d68bfb5dd3fcc4aafbbc5e0734b7dbe72330b271e242fef2cf3625a168d2c3d1a293b0e104d88dc768a837864d64c45f1fe12d499              477 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQRMpD7uBmTs5b0dvfdVhb5Kti4A4gUCamGp+wAKCRBVhb5Kti4A
+4r/PAP4yItQ9O4z0TKjPBZPGPH02niFm0NmEnXMjCYiHH0HWHgEAoaewjANQhhtR
+oI+9yc/6BxtrpXhZzxme9vUG/Ex98wg=
+=ejlJ
+-----END PGP SIGNATURE-----
