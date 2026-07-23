@@ -45,7 +45,7 @@ jobs:
           docker run --rm -v "$PWD":/repo -w /repo/cli ubuntu:24.04 bash -c '
             set -e
             apt-get update -qq
-            apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev dpkg-dev
+            apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev dpkg-dev file
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
             cmake --build build -j"$(nproc)"
             cd build && cpack -G DEB

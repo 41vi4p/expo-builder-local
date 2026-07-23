@@ -3,6 +3,28 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.4.1 — Fix: `.deb` build missing `file` in the pinned container
+
+**Date:** 2026-07-23
+**Type:** Fix
+
+- The first real run of the v0.4.0 release workflow failed: `CPackDeb: file utility
+  is not available. CPACK_DEBIAN_PACKAGE_SHLIBDEPS and
+  CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS options are not available.` CPack's DEB
+  generator shells out to the `file` command to auto-detect runtime library
+  dependencies (`libcurl4t64`, `libssl3t64`, etc.) — present on this host (where it
+  had been validated manually) but not in a minimal `ubuntu:24.04` Docker base image,
+  which is what CI actually builds in.
+- Fix: added `file` to the `apt-get install` line in `.github/workflows/release.yml`'s
+  build step. Reproduced the exact failure and the fix in a fresh `ubuntu:24.04`
+  container locally (not just inferred from the error message) before pushing.
+- The `v0.4.0` tag already points at the broken commit; tags aren't moved once
+  published (no force-push), so this ships as a fresh `v0.4.1` tag instead of
+  retagging `v0.4.0`.
+
+**Files modified:** `.github/workflows/release.yml`; `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
+
 ## v0.4.0 — Signed APT repository via GitHub Pages
 
 **Date:** 2026-07-23
