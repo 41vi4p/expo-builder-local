@@ -61,7 +61,12 @@ RUN yes | sdkmanager --licenses >/dev/null \
 # artifacts written into the bind-mounted host app folder are owned by the host developer,
 # not root. We create a default "builder" user here; docker-entrypoint.sh re-homes it via
 # gosu if the runtime UID/GID differ.
-RUN groupadd -g 1000 builder && useradd -m -u 1000 -g 1000 -s /bin/bash builder \
+# Recent ubuntu:24.04 point releases ship a default non-root "ubuntu" user/group
+# already occupying UID/GID 1000 — remove it first (no-op on older base images that
+# don't have it) so our own UID/GID-1000 "builder" user can be created either way.
+RUN (id -u ubuntu >/dev/null 2>&1 && userdel -r ubuntu || true) \
+    && (getent group ubuntu >/dev/null 2>&1 && groupdel ubuntu || true) \
+    && groupadd -g 1000 builder && useradd -m -u 1000 -g 1000 -s /bin/bash builder \
     && mkdir -p /cache/gradle /cache/npm /work /keystores \
     && chown -R builder:builder /cache /work /opt/android-sdk
 

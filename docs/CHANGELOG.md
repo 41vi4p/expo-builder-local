@@ -23,6 +23,17 @@ Version history for the orchestrator + GUI (versioned together — see
   --no-cache` was already used elsewhere in these files, so image size is unaffected.
 - No functional/API changes — this only affects what's baked into the base OS
   layers of published images going forward.
+- Follow-up fix, found by a real CI run of `docker/runner/Dockerfile`: recent
+  `ubuntu:24.04` point releases ship a default non-root `ubuntu` user/group already
+  occupying UID/GID 1000, which made the existing `groupadd -g 1000 builder` step
+  fail with `groupadd: GID '1000' already exists` (exit code 4) — unrelated to the
+  `apt-get upgrade` change above, just newly exposed by a fresh base-image pull.
+  Fixed by removing the base image's `ubuntu` user/group first (`userdel -r ubuntu`,
+  `groupdel ubuntu`, both no-ops on older base images that don't have them) before
+  creating our own UID/GID-1000 `builder` user. Verified in isolation: a fresh
+  `ubuntu:24.04` container confirms the default `ubuntu:1000:1000` entries exist,
+  and the userdel/groupdel-then-groupadd/useradd sequence completes cleanly,
+  producing the expected `builder` UID/GID 1000.
 
 **Files modified:** `docker/runner/Dockerfile`, `orchestrator/Dockerfile`,
 `expo-builder-gui/Dockerfile`, `orchestrator/package.json`,
