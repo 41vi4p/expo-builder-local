@@ -9,6 +9,14 @@ namespace ebl {
 
 DockerClient::DockerClient(std::string socketPath) : http_(std::move(socketPath)) {}
 
+bool DockerClient::ping() {
+  try {
+    return http_.request("GET", "/_ping").status == 200;
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
 bool DockerClient::imageExists(const std::string& tag) {
   Json filters = Json::object();
   Json refs = Json::array();
@@ -67,6 +75,52 @@ void DockerClient::buildImage(const std::string& contextDir, const std::string& 
   if (status != 200) {
     throw std::runtime_error("Docker build request failed (HTTP " + std::to_string(status) + ")");
   }
+}
+
+void DockerClient::pullImage(const std::string& tag, const std::function<void(const std::string&)>& onLog) {
+  // Docker's pull endpoint takes the repo and tag as separate query params. Split on
+  // the last ':' — but only if nothing after it looks like a "/" (a bare
+  // "registry:port/name" host has no tag, and defaults to "latest").
+  std::string repo = tag;
+  std::string imageTag = "latest";
+  size_t colonPos = tag.rfind(':');
+  if (colonPos != std::string::npos && tag.find('/', colonPos) == std::string::npos) {
+    repo = tag.substr(0, colonPos);
+    imageTag = tag.substr(colonPos + 1);
+  }
+
+  std::string path = "/images/create?fromImage=" + urlEncode(repo) + "&tag=" + urlEncode(imageTag);
+  std::string residual;
+  std::string firstError;
+
+  auto onChunk = [&](const char* data, size_t len) {
+    residual.append(data, len);
+    size_t pos;
+    while ((pos = residual.find('\n')) != std::string::npos) {
+      std::string line = residual.substr(0, pos);
+      residual.erase(0, pos + 1);
+      if (line.empty()) continue;
+
+      Json event;
+      try {
+        event = Json::parse(line);
+      } catch (const JsonError&) {
+        continue;
+      }
+      if (event.contains("error")) {
+        firstError = event.at("error").asString();
+      } else if (event.contains("status")) {
+        std::string status = event.at("status").asString();
+        if (event.contains("id")) status = event.at("id").asString() + ": " + status;
+        if (event.contains("progress")) status += " " + event.at("progress").asString();
+        onLog(status + "\n");
+      }
+    }
+  };
+
+  long status = http_.streamRequest("POST", path, "", {}, onChunk);
+  if (!firstError.empty()) throw std::runtime_error("Failed to pull " + tag + ": " + firstError);
+  if (status != 200) throw std::runtime_error("Pull request for " + tag + " failed (HTTP " + std::to_string(status) + ")");
 }
 
 void DockerClient::ensureVolume(const std::string& name) {
@@ -169,6 +223,99 @@ void DockerClient::removeContainer(const std::string& id) {
   if (res.status != 204 && res.status != 404) {
     throw std::runtime_error("Failed to remove build container (HTTP " + std::to_string(res.status) + "): " + res.body);
   }
+}
+
+void DockerClient::ensureNetwork(const std::string& name) {
+  // Unlike volumes, Docker's network create is NOT idempotent (a duplicate name is a
+  // 409 Conflict), so check first.
+  HttpResponse existing = http_.request("GET", "/networks/" + name);
+  if (existing.status == 200) return;
+
+  Json body = Json::object();
+  body.set("Name", name);
+  body.set("CheckDuplicate", Json(true));
+  HttpResponse res = http_.request("POST", "/networks/create", body.dump(), {"Content-Type: application/json"});
+  if (res.status != 201) {
+    throw std::runtime_error("Failed to create Docker network \"" + name + "\" (HTTP " +
+                              std::to_string(res.status) + "): " + res.body);
+  }
+}
+
+std::optional<std::string> DockerClient::findContainerIdByName(const std::string& name) {
+  HttpResponse res = http_.request("GET", "/containers/" + name + "/json");
+  if (res.status == 404) return std::nullopt;
+  if (res.status != 200) {
+    throw std::runtime_error("Failed to inspect container \"" + name + "\" (HTTP " + std::to_string(res.status) +
+                              "): " + res.body);
+  }
+  return Json::parse(res.body).at("Id").asString();
+}
+
+bool DockerClient::isContainerRunning(const std::string& id) {
+  HttpResponse res = http_.request("GET", "/containers/" + id + "/json");
+  if (res.status != 200) return false;
+  try {
+    return Json::parse(res.body).at("State").at("Running").asBool(false);
+  } catch (const JsonError&) {
+    return false;
+  }
+}
+
+std::string DockerClient::createServiceContainer(const ServiceContainerSpec& spec) {
+  removeContainerByName(spec.name);
+  if (!spec.network.empty()) ensureNetwork(spec.network);
+
+  Json env = Json::array();
+  for (const auto& e : spec.env) env.push_back(Json(e));
+
+  Json binds = Json::array();
+  for (const auto& b : spec.binds) binds.push_back(Json(b));
+
+  Json exposedPorts = Json::object();
+  Json portBindings = Json::object();
+  for (const auto& [containerPort, hostPort] : spec.portBindings) {
+    exposedPorts.set(containerPort, Json::object());
+    Json bindingArray = Json::array();
+    Json binding = Json::object();
+    binding.set("HostIp", Json("127.0.0.1"));
+    binding.set("HostPort", Json(hostPort));
+    bindingArray.push_back(binding);
+    portBindings.set(containerPort, bindingArray);
+  }
+
+  Json restartPolicy = Json::object();
+  restartPolicy.set("Name", Json("unless-stopped"));
+
+  Json hostConfig = Json::object();
+  hostConfig.set("Binds", binds);
+  hostConfig.set("PortBindings", portBindings);
+  hostConfig.set("RestartPolicy", restartPolicy);
+  if (!spec.network.empty()) hostConfig.set("NetworkMode", Json(spec.network));
+
+  Json body = Json::object();
+  body.set("Image", Json(spec.image));
+  body.set("Env", env);
+  body.set("ExposedPorts", exposedPorts);
+  body.set("HostConfig", hostConfig);
+
+  std::string path = "/containers/create?name=" + urlEncode(spec.name);
+  HttpResponse res = http_.request("POST", path, body.dump(), {"Content-Type: application/json"});
+  if (res.status != 201) {
+    std::string message = res.body;
+    try {
+      Json errJson = Json::parse(res.body);
+      if (errJson.contains("message")) message = errJson.at("message").asString();
+    } catch (const JsonError&) {
+    }
+    throw std::runtime_error("Failed to create \"" + spec.name + "\" (HTTP " + std::to_string(res.status) +
+                              "): " + message);
+  }
+  return Json::parse(res.body).at("Id").asString();
+}
+
+void DockerClient::removeContainerByName(const std::string& name) {
+  auto id = findContainerIdByName(name);
+  if (id) removeContainer(*id);
 }
 
 }  // namespace ebl

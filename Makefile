@@ -1,4 +1,4 @@
-.PHONY: help env build-image up down logs restart clean ps install-cli
+.PHONY: help env build-image up down logs restart clean ps install-cli publish-images publish-images-push deb
 
 help:
 	@echo "expo-builder-local"
@@ -12,6 +12,9 @@ help:
 	@echo "  make ps           Show status of the builder's containers"
 	@echo "  make clean        Stop everything and remove the data/cache volumes (destructive)"
 	@echo "  make install-cli  Build (CMake/C++) and install the 'ebl' CLI to ~/.local/bin"
+	@echo "  make deb          Build a signed-locally-if-configured .deb package for the CLI"
+	@echo "  make publish-images       Build the 3 Docker Hub images locally (no push)"
+	@echo "  make publish-images-push  Build AND push them — needs DOCKERHUB_NAMESPACE + docker login"
 
 env:
 	@test -f .env || (cp .env.example .env && echo "Created .env — edit it before running 'make up'")
@@ -54,3 +57,17 @@ install-cli:
 	@echo ""
 	@echo "Installed to $(HOME)/.local/bin/ebl"
 	@echo "Make sure ~/.local/bin is on your PATH, then try: ebl --help"
+
+deb:
+	cmake -S cli -B $(CLI_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
+	cmake --build $(CLI_BUILD_DIR) -j
+	cd $(CLI_BUILD_DIR) && cpack -G DEB
+	@echo ""
+	@echo "Package(s):"
+	@ls -1 $(CLI_BUILD_DIR)/*.deb
+
+publish-images:
+	./scripts/publish-images.sh
+
+publish-images-push:
+	./scripts/publish-images.sh --push

@@ -115,6 +115,27 @@ long HttpClient::streamRequest(const std::string& method, const std::string& pat
   return status;
 }
 
+HttpResponse httpGetTcp(const std::string& url, long timeoutSeconds) {
+  CURL* curl = curl_easy_init();
+  if (!curl) throw std::runtime_error("Failed to initialize a libcurl handle");
+
+  HttpResponse response;
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, bufferWriteCallback);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSeconds);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+  CURLcode res = curl_easy_perform(curl);
+  if (res == CURLE_OK) {
+    long status = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    response.status = status;
+  }  // else: leave status at 0 — connection refused/timed out, treated as "not up yet"
+  curl_easy_cleanup(curl);
+  return response;
+}
+
 std::string urlEncode(const std::string& value) {
   static const char* hex = "0123456789ABCDEF";
   std::string out;

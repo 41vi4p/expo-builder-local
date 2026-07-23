@@ -19,11 +19,22 @@ See [README.md](./README.md) for architecture, setup, and usage. This file cover
 expo-builder-local/
 ├── CLAUDE.md              ← you are here
 ├── README.md              ← setup, usage, architecture, security notes
-├── docker-compose.yml     ← wires up web + orchestrator; builds the runner image
+├── docker-compose.yml     ← local-dev path: wires up web + orchestrator; builds the runner image
+├── install.sh             ← one-line CLI installer (prefers the hosted APT repo, else .deb/tarball)
 ├── .env.example
 ├── Makefile
 ├── docs/
-│   └── CHANGELOG.md       ← version history for this tool (see below)
+│   ├── CHANGELOG.md              ← version history for this tool (see below)
+│   ├── RELEASING.md              ← release process: what the workflow does, how to cut a tag
+│   ├── APT_REPO_SETUP_GUIDE.md   ← one-time: generate the GPG signing key, enable GitHub Pages
+│   └── apt/pubkey.gpg            ← committed once APT_REPO_SETUP_GUIDE.md is done (public key only)
+├── .github/workflows/
+│   └── release.yml        ← "Build and publish APT repository": tag-triggered, builds the .deb
+│                             inside a pinned ubuntu:24.04, assembles + GPG-signs a real APT repo
+│                             tree, publishes it to gh-pages/apt, also attaches the .deb to a
+│                             GitHub Release as a direct-download fallback
+├── scripts/
+│   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images
 ├── docker/runner/         ← Android toolchain image (Node 22 LTS + JDK 17 + SDK + eas-cli)
 │   ├── Dockerfile
 │   ├── docker-entrypoint.sh   (UID/GID re-homing)
@@ -32,10 +43,15 @@ expo-builder-local/
 ├── orchestrator/          ← backend: Fastify + dockerode + better-sqlite3 + ws
 │   └── src/{routes,docker,build,store,ws,util}/
 ├── expo-builder-gui/      ← frontend: Next.js 16 (App Router, Tailwind v4)
+│   ├── docker-entrypoint.sh   (substitutes ORCHESTRATOR_URL into the compiled bundle at container start)
 │   └── {app,components,lib}/
 └── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed)
-    ├── CMakeLists.txt
-    └── src/{main,docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
+    ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator)
+    └── src/
+        ├── main.cpp                    (subcommand dispatch only)
+        ├── commands/                  (build, setup, config, start+stop — one file per subcommand)
+        ├── config_store.*, crypto.*, base64.*   (encrypted ~/.config/ebl/config.json)
+        └── {docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
 ```
 
 ## 🖥️ CLI package (`cli/`)
@@ -44,17 +60,28 @@ A standalone **C++17** binary — command name **`ebl`** (short for "expo-local-
 deliberately distinct from the `expo-builder-local` project/repo name) — built with
 CMake, depending only on libcurl and OpenSSL, that talks to the Docker Engine API
 directly over `/var/run/docker.sock`. No orchestrator, no GUI, no Node.js runtime at
-all. Key pieces:
+all. Subcommands live under `commands/` (`build.*`, `setup.*`, `config.*`, `start.*`
+— the last of these also implements `stop`); `main.cpp` is just dispatch. Shared
+building blocks:
 
 - `http_client.*` — thin libcurl wrapper using `CURLOPT_UNIX_SOCKET_PATH` (the same
-  mechanism the real `docker` CLI uses to talk to the daemon over its socket).
+  mechanism the real `docker` CLI uses to talk to the daemon over its socket) plus a
+  plain-TCP `httpGetTcp` used only for polling the orchestrator's health endpoint.
 - `json.*` — a small hand-written JSON value/parser/serializer (not a vendored
   library — kept deliberately minimal, just enough for Docker API bodies and
   package.json/eas.json reads).
 - `tar_writer.*` — builds an in-memory USTAR archive of `docker/runner/` to POST as
-  the build context to `/build`, so the CLI can build the runner image itself.
-- `docker_client.*` — the actual Engine API calls (image list/build, volume create,
-  container create/attach/start/wait/remove) built on the two above.
+  the build context to `/build`, so `ebl build`/`ebl setup` can build the runner image
+  itself when it isn't published yet.
+- `docker_client.*` — the actual Engine API calls: one-shot build containers (image
+  list/build/pull, volume create, container create/attach/start/wait/remove) *and*
+  long-running service containers (`ServiceContainerSpec`, network create, find-by-
+  name, running-check) used by `ebl start`/`stop`.
+- `config_store.*` — `EblConfig` (projects folder, ports, Docker Hub namespace, Expo
+  token, generated orchestrator `MASTER_KEY`) persisted at `~/.config/ebl/config.json`
+  (0600); `crypto.*` (AES-256-GCM via OpenSSL) encrypts the two secret fields using a
+  machine-local key at `~/.config/ebl/machine.key` (0600, generated on first use) —
+  `base64.*` is a small hand-written codec used by both.
 - `detect.*` / `metrics.*` — reimplementations of `orchestrator/src/build/detect.ts`
   and `metrics.ts` (same rules, different language) — keep them in sync by hand if
   either changes.
@@ -65,8 +92,17 @@ all. Key pieces:
 
 `attachAndStream` blocks on a libcurl call until the container's output stream closes
 — it runs on its own `std::thread` while the main thread starts/waits on the
-container (see `main.cpp`); don't collapse that back onto one thread, it'll deadlock
-(attach would never return control to let the container start).
+container (see `commands/build.cpp`); don't collapse that back onto one thread, it'll
+deadlock (attach would never return control to let the container start).
+
+`ebl start` launches the orchestrator + web images **directly via the Docker API**
+(container names `ebl-orchestrator`/`ebl-web`, network `ebl-network`) — deliberately
+not `docker compose`, since an apt/script-installed user won't have this repo checked
+out at all. The web image's orchestrator URL is baked in as the literal placeholder
+`http://__EBL_ORCHESTRATOR_URL__` at build time and substituted for real at container
+*start* by `expo-builder-gui/docker-entrypoint.sh`, reading `ORCHESTRATOR_URL` — this
+is what makes one published image work regardless of which port a given user picks;
+don't reintroduce a build-time `NEXT_PUBLIC_ORCHESTRATOR_URL` ARG.
 
 ## 🔄 Version management
 
@@ -116,10 +152,19 @@ tracking them separately would just invite drift.
   `ALLOWED_ROOTS` and the compose bind mount for `HOST_PROJECTS_ROOT` must always be
   the identical host path.
 - `docker/runner/build-entrypoint.sh` emits a small marker protocol on stdout
-  (`@@PHASE:`, `@@PROGRESS:`, `@@ENGINE:`, `@@ARTIFACT:`, `@@ERROR:`) that
-  `orchestrator/src/build/progress.ts` and `manager.ts` parse — if you add a new build
-  phase or change engine behavior, update the phase weight tables in `progress.ts` and
-  the phase sequence in `expo-builder-gui/components/BuildTimeline.tsx` together.
+  (`@@PHASE:`, `@@PROGRESS:`, `@@ENGINE:`, `@@BUILD_NUMBER:`, `@@ARTIFACT:`,
+  `@@ERROR:`) that both `orchestrator/src/build/progress.ts`/`manager.ts` (GUI path)
+  and `cli/src/commands/build.cpp` (CLI path) parse independently — if you add a new
+  build phase, marker, or change engine behavior, update **both** consumers, plus the
+  phase weight tables in `progress.ts` and the phase sequence in
+  `expo-builder-gui/components/BuildTimeline.tsx`.
+- Every build's artifact lands in `<project>/ebl_builds/v<app-version>-build<n>/` —
+  `n` comes from `ebl_builds/.build-counter`, a bare-integer file
+  `build-entrypoint.sh` increments itself (not something either the CLI or the
+  orchestrator computes) — see its "collect" phase. `ebl_builds/` is added to the
+  project's own `.gitignore` on first build (also from `build-entrypoint.sh`, in its
+  "setup" phase) — this is a property of the *project being built*, not of
+  expo-builder-local's own repo.
 - Any value that looks like a secret (keystore passwords, an app's own `.env`/`eas.json`
   values, `EXPO_TOKEN`) must stay covered by `orchestrator/src/util/redact.ts` — when
   adding a new source of secret material, add it to the redactor's input list in

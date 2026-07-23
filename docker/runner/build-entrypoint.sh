@@ -7,7 +7,9 @@
 #   @@PHASE:<id>:<label>       a new phase started
 #   @@PROGRESS:<0-100>         coarse progress within the current phase
 #   @@ENGINE:<eas|gradle>      which engine was actually used (after auto-resolution)
-#   @@ARTIFACT:<path>          final artifact path (inside the bind-mounted APP_DIR)
+#   @@BUILD_NUMBER:<n>         this project's monotonic build counter, post-increment
+#   @@ARTIFACT:<path>          final artifact path (inside the bind-mounted APP_DIR,
+#                              under ebl_builds/v<version>-build<n>/)
 #   @@DURATION:<seconds>       total wall-clock build time
 #   @@ERROR:<message>          fatal error, human-readable
 #
@@ -22,7 +24,11 @@ set -eo pipefail
 : "${ENGINE:=auto}"           # auto | eas | gradle
 : "${SIGNING_MODE:=debug}"    # debug | release
 SCRIPTS_DIR="/usr/local/lib/expo-builder"
-BUILD_OUTPUT_DIR="${APP_DIR}/build-output"
+# Scratch space for intermediate engine output (the eas engine's --output target) —
+# deliberately NOT on the host bind mount, so nothing but the final ebl_builds/
+# folder ever appears in the developer's project directory.
+BUILD_OUTPUT_DIR="/tmp/ebl-scratch"
+EBL_BUILDS_DIR="${APP_DIR}/ebl_builds"
 START_TS=$(date +%s)
 
 phase()    { echo "@@PHASE:$1:$2"; }
@@ -56,6 +62,15 @@ phase setup "Preparing project"
 # legacy-peer-deps unless it already has its own .npmrc opinion about it.
 if [ ! -f .npmrc ]; then
   echo "legacy-peer-deps=true" > .npmrc
+fi
+
+# Every build's output lands in ebl_builds/ inside the project — make sure it's
+# gitignored from the very first build, so nobody accidentally commits a stack of
+# APKs/AABs. Idempotent: only appends the line if it isn't already present.
+if [ -f .gitignore ]; then
+  grep -qxF "ebl_builds/" .gitignore || echo "ebl_builds/" >> .gitignore
+else
+  echo "ebl_builds/" > .gitignore
 fi
 progress 100
 
@@ -145,11 +160,27 @@ fi
 phase collect "Collecting artifact"
 APP_NAME="$(node -pe "require('./package.json').name || 'app'")"
 APP_VERSION="$(node -pe "require('./package.json').version || '0.0.0'")"
-TS="$(date +%Y%m%d-%H%M%S)"
-FINAL_NAME="${APP_NAME}-${APP_VERSION}-${PROFILE}-${TS}.${ARTIFACT_TYPE}"
-FINAL_PATH="${BUILD_OUTPUT_DIR}/${FINAL_NAME}"
+
+# A simple monotonic build counter, scoped to this project (not the app's own
+# version) — every build gets a unique, human-referenceable "build N", regardless of
+# how many times a given app version gets rebuilt. Stored as a bare integer so it's
+# trivial to read/bump without a JSON dependency in this shell script.
+mkdir -p "${EBL_BUILDS_DIR}"
+COUNTER_FILE="${EBL_BUILDS_DIR}/.build-counter"
+PREV_BUILD_NUMBER=0
+[ -f "${COUNTER_FILE}" ] && PREV_BUILD_NUMBER="$(cat "${COUNTER_FILE}")"
+BUILD_NUMBER=$((PREV_BUILD_NUMBER + 1))
+echo "${BUILD_NUMBER}" > "${COUNTER_FILE}"
+
+BUILD_SUBDIR="v${APP_VERSION}-build${BUILD_NUMBER}"
+BUILD_DIR="${EBL_BUILDS_DIR}/${BUILD_SUBDIR}"
+mkdir -p "${BUILD_DIR}"
+
+FINAL_NAME="${APP_NAME}-${PROFILE}.${ARTIFACT_TYPE}"
+FINAL_PATH="${BUILD_DIR}/${FINAL_NAME}"
 cp "${ARTIFACT_PATH}" "${FINAL_PATH}"
 progress 100
+echo "@@BUILD_NUMBER:${BUILD_NUMBER}"
 echo "@@ARTIFACT:${FINAL_PATH}"
 
 END_TS=$(date +%s)

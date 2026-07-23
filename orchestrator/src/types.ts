@@ -42,6 +42,7 @@ export interface BuildRecord {
   artifactPath: string | null;
   artifactSizeBytes: number | null;
   artifactSha256: string | null;
+  buildNumber: number | null;
   versionName: string | null;
   versionCode: string | null;
   applicationId: string | null;

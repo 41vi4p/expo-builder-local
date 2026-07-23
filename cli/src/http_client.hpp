@@ -43,4 +43,10 @@ private:
  * query-string values like the image tag or a JSON `filters` blob. */
 std::string urlEncode(const std::string& value);
 
+/** A plain TCP HTTP GET (e.g. http://localhost:4001/api/health) — unlike HttpClient,
+ * this does NOT go over the Docker unix socket. Used only for polling the
+ * orchestrator's health endpoint from `ebl start`. Never throws: connection
+ * failures surface as status 0, so a caller can poll in a simple loop. */
+HttpResponse httpGetTcp(const std::string& url, long timeoutSeconds = 3);
+
 }  // namespace ebl

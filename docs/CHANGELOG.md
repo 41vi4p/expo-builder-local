@@ -3,6 +3,132 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.4.0 — Signed APT repository via GitHub Pages
+
+**Date:** 2026-07-23
+**Type:** Feature
+
+- **Real, signed APT repository**, not just a downloadable `.deb`: `.github/
+  workflows/release.yml` (renamed "Build and publish APT repository") now assembles a
+  proper repo tree (`pool/`, `dists/stable/main/binary-amd64/{Packages,Packages.gz}`)
+  and GPG-signs the `Release` file (`Release.gpg` + `InRelease`) the way `apt` itself
+  verifies — checked automatically on every install once a user has added the repo,
+  not just an optional manual `dpkg-sig --verify`. Published to the `gh-pages` branch
+  under `/apt` via `peaceiris/actions-gh-pages`, served at
+  `https://41vi4p.github.io/expo-builder-local/apt`. Supersedes the previous
+  `dpkg-sig`-signed-single-`.deb` approach from v0.3.0.
+- The `.deb` is still built with our existing CMake+CPack pipeline (not switched to
+  `fpm`/Ruby) — kept `dpkg-shlibdeps` auto-detecting runtime deps — but now runs
+  inside a pinned `ubuntu:24.04` container in CI, matching the host this was
+  validated against locally, for reproducibility.
+- The workflow still also creates a GitHub Release with the `.deb` + a plain tarball +
+  `SHA256SUMS.txt` attached, as a direct-download fallback for anyone who'd rather not
+  add the repo.
+- `install.sh` now prefers adding the hosted repo (checks the repo is actually live
+  first) over downloading a one-off `.deb`, so installs default to the path that also
+  gets future releases via a plain `apt upgrade`; falls back to the old direct-
+  download behavior if the repo isn't reachable yet or `apt` isn't available.
+- New `docs/APT_REPO_SETUP_GUIDE.md`: the one-time setup this all depends on —
+  generating a *passphrase-less* signing key (deliberately, to avoid fragile
+  non-interactive-passphrase CI plumbing), registering `APT_GPG_PRIVATE_KEY` as a repo
+  secret, committing the public half at `docs/apt/pubkey.gpg`, enabling GitHub Pages.
+  `docs/RELEASING.md` slimmed down to focus on cutting a release, pointing here for
+  the prerequisite setup instead of duplicating it.
+- The workflow fails fast (`::error::`) if `docs/apt/pubkey.gpg` or the
+  `APT_GPG_PRIVATE_KEY` secret aren't present yet, rather than silently publishing an
+  unsigned or inconsistently-signed repo.
+
+**Files modified:** `.github/workflows/release.yml` (rewritten); new
+`docs/APT_REPO_SETUP_GUIDE.md`, new `docs/apt/README.md` (placeholder for the
+user-supplied `pubkey.gpg`); `docs/RELEASING.md` (slimmed, points to the setup guide);
+`install.sh` (apt-repo-first logic); `README.md` (Quick start + new "APT repository"
+section + troubleshooting entries); `CLAUDE.md`; `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
+
+## v0.3.0 — Docker Hub distribution, CLI subcommands, `ebl_builds/` versioning
+
+**Date:** 2026-07-22
+**Type:** Feature
+
+- **CLI restructured into subcommands**: `ebl setup`, `ebl config`, `ebl start`,
+  `ebl stop`, `ebl build` (the previous bare `ebl [path]` behavior). `main.cpp` is now
+  just dispatch; each subcommand lives under `cli/src/commands/`.
+- **`ebl setup`**: checks whether Docker is installed and reachable; if not, offers
+  (with confirmation) to install it via the official `get.docker.com` convenience
+  script, then pulls the runner/orchestrator/web images.
+- **`ebl config`**: interactive wizard for the projects folder, Expo access token
+  (read with terminal echo disabled), orchestrator/web ports, and Docker Hub
+  namespace. Saved to `~/.config/ebl/config.json` (0600); the token and a generated
+  orchestrator `MASTER_KEY` are AES-256-GCM-encrypted using a machine-local key at
+  `~/.config/ebl/machine.key` (0600, generated on first use) — new `crypto.*`/
+  `base64.*`/`config_store.*` modules.
+- **`ebl start`/`ebl stop`**: run the orchestrator + web GUI as Docker containers
+  directly via the Engine API (`docker_client.*` gained `pullImage`, `ensureNetwork`,
+  `ServiceContainerSpec`/`createServiceContainer`, name-based lookup) — deliberately
+  not `docker compose`, so an apt/script-installed user never needs this repo checked
+  out. Polls both services' health endpoints (new `httpGetTcp` in `http_client.*`)
+  and reports online/not-responding for each.
+- **Runtime-configurable web image**: `expo-builder-gui`'s orchestrator URL used to be
+  baked in at Docker build time (`NEXT_PUBLIC_ORCHESTRATOR_URL` ARG), which can't work
+  for a published image used by people on different ports. Now the build bakes in a
+  literal placeholder (`http://__EBL_ORCHESTRATOR_URL__`) and a new
+  `docker-entrypoint.sh` substitutes the real value from `ORCHESTRATOR_URL` into the
+  compiled bundle at container *start*. `docker-compose.yml`'s `web` service updated
+  to match (env var instead of build arg).
+- **`ebl_builds/` versioned build folders**: `build-entrypoint.sh` now writes each
+  artifact to `ebl_builds/v<app-version>-build<n>/` inside the project, where `n` is a
+  simple per-project counter (`ebl_builds/.build-counter`) — every build gets a
+  stable, human-referenceable number regardless of how many times a given app version
+  gets rebuilt. `ebl_builds/` is auto-added to the project's `.gitignore` on first
+  build. New `@@BUILD_NUMBER:` marker consumed by both the CLI and the orchestrator/
+  GUI (`buildNumber` field threaded through `types.ts`, `db.ts`, `manager.ts`,
+  `MetricsPanel.tsx`). Previously this was `build-output/` with a timestamp-only name.
+- **Docker Hub images**: all three images (`runner`, `orchestrator`, `web`) now build
+  under a configurable namespace (default placeholder `ebllocal` — set your own via
+  `ebl config` or `DOCKERHUB_NAMESPACE`), matching between `docker-compose.yml`,
+  `cli/src/config_store.hpp`'s defaults, and the new `scripts/publish-images.sh`
+  (build + optional `--push`, refuses to push under the placeholder namespace). `ebl
+  build`/`ebl setup`/`ebl start` all prefer pulling from the registry, falling back to
+  a local build only for the runner image (orchestrator/web have no local-build
+  fallback — they're meant to be pre-published).
+- **Signed `.deb` release pipeline**: `cli/CMakeLists.txt` gained CPack DEB packaging
+  (dependencies auto-detected via `dpkg-shlibdeps`, not hand-pinned — verified this
+  correctly picks up `libcurl4t64`/`libssl3t64` on this Ubuntu version rather than the
+  older `libcurl4`/`libssl3` names). New `.github/workflows/release.yml`, triggered on
+  `v*` tags: builds, packages, GPG-signs via `dpkg-sig` (skips signing gracefully if
+  `GPG_PRIVATE_KEY`/`GPG_KEY_ID` secrets aren't set), and publishes a GitHub Release
+  with the `.deb`, a plain tarball (for `install.sh`), and `SHA256SUMS.txt`. New
+  `docs/RELEASING.md` documents generating/registering the signing key end to end.
+- **One-line installer** (`install.sh`): prefers `apt install ./ebl_*.deb` (resolves
+  `libcurl4`/`libssl3` automatically) when `dpkg` is present, else extracts the plain
+  tarball into `~/.local` (or `/usr/local` as root) — no package manager required
+  either way.
+- **Fixed a real, current build break**: `node:lts-alpine` (used by `orchestrator/
+  Dockerfile` and `expo-builder-gui/Dockerfile`) now resolves to Node 24, for which
+  `better-sqlite3` has no prebuilt binary yet — its from-source `node-gyp` rebuild
+  failed fetching headers in this environment. Pinned both to `node:22-alpine`
+  (a specific, currently well-supported LTS) instead of the rolling tag.
+- Verified end-to-end against the real Docker daemon (not just compiled): built both
+  the orchestrator and web images for real, ran `ebl start` against them, confirmed
+  both health checks pass, confirmed the `__EBL_ORCHESTRATOR_URL__` placeholder is
+  fully substituted in the served bundle, and separately tested `ebl setup`'s graceful
+  failure path (pull returns 404 under the unpublished placeholder namespace).
+
+**Files modified:** `cli/src/main.cpp` (rewritten as dispatch), new
+`cli/src/commands/{build,setup,config,start}.{hpp,cpp}`, new
+`cli/src/{config_store,crypto,base64}.{hpp,cpp}`, `cli/src/docker_client.*`
+(pull/network/service-container additions), `cli/src/http_client.*` (`httpGetTcp`),
+`cli/CMakeLists.txt` (CPack DEB config, version bump); `docker/runner/
+build-entrypoint.sh` (`ebl_builds/` versioning + counter + gitignore); `orchestrator/
+src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/types.ts`
++ `components/MetricsPanel.tsx` (`buildNumber` display); `expo-builder-gui/Dockerfile`
++ new `docker-entrypoint.sh` (runtime URL substitution); `orchestrator/Dockerfile`,
+`expo-builder-gui/Dockerfile` (Node 22 pin); `docker-compose.yml`, `.env.example`
+(`DOCKERHUB_NAMESPACE`, `ORCHESTRATOR_URL`); new `scripts/publish-images.sh`, new
+`.github/workflows/release.yml`, new `docs/RELEASING.md`, new `install.sh`;
+`Makefile` (`deb`, `publish-images`, `publish-images-push` targets); `README.md`
+(full rewrite around the new CLI-first quick start); `CLAUDE.md`.
+
 ## v0.2.2 — Fix: bare `ebl` invocation
 
 **Date:** 2026-07-21

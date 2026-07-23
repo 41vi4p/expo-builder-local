@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1.7
-FROM node:lts-alpine AS deps
+# Pinned to a specific major version rather than a rolling "lts" tag — see
+# orchestrator/Dockerfile for why (native-module prebuilt-binary lag on a brand-new
+# LTS). Next.js itself has no native deps, but keeping both images on the same Node
+# major avoids any future surprise.
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
@@ -7,19 +11,24 @@ RUN npm install
 FROM deps AS build
 WORKDIR /app
 COPY . .
-# NEXT_PUBLIC_* variables are inlined into the client bundle at build time, so the
-# orchestrator's browser-facing URL must be known here, not just at container-run
-# time. docker-compose.yml passes it as a build arg (see ORCHESTRATOR_PUBLIC_URL).
-ARG NEXT_PUBLIC_ORCHESTRATOR_URL=http://localhost:4001
-ENV NEXT_PUBLIC_ORCHESTRATOR_URL=${NEXT_PUBLIC_ORCHESTRATOR_URL}
+# NEXT_PUBLIC_* variables are inlined into the client bundle at *build* time, but this
+# image is built once and published for many different users, each potentially
+# choosing a different orchestrator port at `docker run`/`ebl start` time. So we bake
+# in a fixed, distinctive placeholder here instead of a real URL — docker-entrypoint.sh
+# substitutes the real value into the compiled output at container start, from the
+# ORCHESTRATOR_URL env var. (Local docker-compose deployments use the same mechanism —
+# see docker-compose.yml's `web.environment.ORCHESTRATOR_URL`.)
+ENV NEXT_PUBLIC_ORCHESTRATOR_URL=http://__EBL_ORCHESTRATOR_URL__
 RUN npm run build
 
-FROM node:lts-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/public ./public
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

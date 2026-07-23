@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS builds (
   artifact_path TEXT,
   artifact_size_bytes INTEGER,
   artifact_sha256 TEXT,
+  build_number INTEGER,
   version_name TEXT,
   version_code TEXT,
   application_id TEXT,
@@ -108,6 +109,7 @@ function rowToBuild(row: any): BuildRecord {
     artifactPath: row.artifact_path,
     artifactSizeBytes: row.artifact_size_bytes,
     artifactSha256: row.artifact_sha256,
+    buildNumber: row.build_number,
     versionName: row.version_name,
     versionCode: row.version_code,
     applicationId: row.application_id,
@@ -155,13 +157,13 @@ export function insertBuild(build: BuildRecord): void {
       id, app_path, app_name, profile, artifact_type, engine_requested, engine_resolved,
       signing_mode, keystore_id, status, current_phase, current_phase_label, progress,
       error, container_id, created_at, started_at, finished_at, duration_seconds,
-      eta_seconds, artifact_path, artifact_size_bytes, artifact_sha256, version_name,
+      eta_seconds, artifact_path, artifact_size_bytes, artifact_sha256, build_number, version_name,
       version_code, application_id, git_commit, git_branch, previous_artifact_size_bytes
     ) VALUES (
       @id, @appPath, @appName, @profile, @artifactType, @engineRequested, @engineResolved,
       @signingMode, @keystoreId, @status, @currentPhase, @currentPhaseLabel, @progress,
       @error, @containerId, @createdAt, @startedAt, @finishedAt, @durationSeconds,
-      @etaSeconds, @artifactPath, @artifactSizeBytes, @artifactSha256, @versionName,
+      @etaSeconds, @artifactPath, @artifactSizeBytes, @artifactSha256, @buildNumber, @versionName,
       @versionCode, @applicationId, @gitCommit, @gitBranch, @previousArtifactSizeBytes
     )`
   ).run(build);
@@ -183,6 +185,7 @@ const buildColumnMap: Record<string, string> = {
   artifactPath: 'artifact_path',
   artifactSizeBytes: 'artifact_size_bytes',
   artifactSha256: 'artifact_sha256',
+  buildNumber: 'build_number',
   versionName: 'version_name',
   versionCode: 'version_code',
   applicationId: 'application_id',

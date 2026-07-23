@@ -1,0 +1,125 @@
+name: Build and publish APT repository
+
+# Builds the `ebl` .deb inside a pinned ubuntu:24.04 container (matching the host
+# this was validated against locally — see cli/CMakeLists.txt for the CPack DEB
+# config), assembles a signed APT repository tree, and publishes it to the gh-pages
+# branch under /apt so `apt install ebl` works from
+# https://41vi4p.github.io/expo-builder-local/apt. Also attaches the same .deb (plus
+# a plain tarball for install.sh) to a GitHub Release as a direct-download fallback.
+#
+# Requires (set up once via docs/APT_REPO_SETUP_GUIDE.md, not by this workflow):
+#   - repo secret APT_GPG_PRIVATE_KEY: the armored private signing key
+#   - docs/apt/pubkey.gpg committed: the matching public key, published as-is
+#   - GitHub Pages enabled, serving from the gh-pages branch
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expo-builder-local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: expo-builder-local
+
+      - name: Verify public key is committed
+        run: |
+          if [ ! -f docs/apt/pubkey.gpg ]; then
+            echo "::error::docs/apt/pubkey.gpg is missing. Complete docs/APT_REPO_SETUP_GUIDE.md first (generate the GPG key, commit the public half there) before this workflow can publish a signed repo."
+            exit 1
+          fi
+
+      - name: Build .deb inside a pinned Ubuntu 24.04 container
+        run: |
+          set -e
+          docker run --rm -v "$PWD":/repo -w /repo/cli ubuntu:24.04 bash -c '
+            set -e
+            apt-get update -qq
+            apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev dpkg-dev
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+            cmake --build build -j"$(nproc)"
+            cd build && cpack -G DEB
+          '
+          mkdir -p build/packages/deb
+          cp cli/build/ebl_*_amd64.deb build/packages/deb/
+
+      - name: Stage a plain install tree (for install.sh's fallback path)
+        run: |
+          cmake --install cli/build --prefix stage
+          tar -czf "ebl-${GITHUB_REF_NAME:-dev}-linux-amd64.tar.gz" -C stage .
+
+      - name: Assemble APT repository tree
+        run: |
+          set -e
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev apt-utils gnupg
+
+          mkdir -p apt-repo/pool/main/e/ebl
+          cp build/packages/deb/*.deb apt-repo/pool/main/e/ebl/
+          cp docs/apt/pubkey.gpg apt-repo/pubkey.gpg
+
+          mkdir -p apt-repo/dists/stable/main/binary-amd64
+          cd apt-repo
+          dpkg-scanpackages --arch amd64 pool/ > dists/stable/main/binary-amd64/Packages
+          gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+
+      - name: Sign the repository
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          set -e
+          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
+            echo "::error::Secret APT_GPG_PRIVATE_KEY is not set. See docs/APT_REPO_SETUP_GUIDE.md."
+            exit 1
+          fi
+
+          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')"
+
+          cd apt-repo/dists/stable
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="expo-builder-local" \
+            -o APT::FTPArchive::Release::Label="expo-builder-local" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o APT::FTPArchive::Release::Architectures="amd64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="expo-builder-local APT repository (the ebl CLI)" \
+            release . > Release
+
+          gpg --batch --yes --default-key "$KEY_ID" -abs -o Release.gpg Release
+          gpg --batch --yes --default-key "$KEY_ID" --clearsign -o InRelease Release
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: expo-builder-local/apt-repo
+          publish_branch: gh-pages
+          destination_dir: apt
+          keep_files: true
+
+      - name: Checksums
+        run: sha256sum build/packages/deb/*.deb ebl-*-linux-amd64.tar.gz > SHA256SUMS.txt
+
+      - name: Create GitHub Release (direct-download fallback)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "ebl ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            build/packages/deb/*.deb \
+            ebl-*-linux-amd64.tar.gz \
+            SHA256SUMS.txt

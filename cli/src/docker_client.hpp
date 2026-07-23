@@ -3,7 +3,10 @@
 // the tar writer. Mirrors what orchestrator/src/docker/runner.ts does for the
 // GUI/orchestrator, but talking to the daemon directly instead of via dockerode.
 #include <functional>
+#include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "http_client.hpp"
 
@@ -28,9 +31,26 @@ struct BuildParams {
   KeystoreConfig keystore;
 };
 
+/** A long-running service container (orchestrator or web), as opposed to the
+ * one-shot, disposable build containers BuildParams describes. */
+struct ServiceContainerSpec {
+  std::string name;    // deterministic name, e.g. "ebl-orchestrator" — used for lookup/removal
+  std::string image;
+  std::vector<std::string> env;
+  std::vector<std::string> binds;  // "host-path:container-path[:ro]"
+  std::string network;             // network name to attach to (created if missing)
+  // {containerPort ("4001/tcp"), hostPort ("4001")} — published on 127.0.0.1 only.
+  std::vector<std::pair<std::string, std::string>> portBindings;
+};
+
 class DockerClient {
 public:
   explicit DockerClient(std::string socketPath);
+
+  /** True if the Docker daemon is reachable at all over the configured socket —
+   * never throws, used by `ebl setup` to distinguish "not installed"/"not running"
+   * from a real error. */
+  bool ping();
 
   bool imageExists(const std::string& tag);
 
@@ -39,7 +59,13 @@ public:
   void buildImage(const std::string& contextDir, const std::string& tag,
                    const std::function<void(const std::string&)>& onLog);
 
+  /** Pulls `tag` from its registry (Docker Hub unless the tag names another
+   * registry host), invoking onLog for each status line. Throws on failure — e.g.
+   * the tag doesn't exist, or there's no network access. */
+  void pullImage(const std::string& tag, const std::function<void(const std::string&)>& onLog);
+
   void ensureVolume(const std::string& name);
+  void ensureNetwork(const std::string& name);
 
   std::string createContainer(const BuildParams& params, const std::string& runnerImage,
                                const std::string& gradleCacheVolume, const std::string& npmCacheVolume,
@@ -54,6 +80,20 @@ public:
   int waitContainer(const std::string& id);
 
   void removeContainer(const std::string& id);
+
+  // --- long-running service containers (orchestrator, web) -------------------------
+
+  /** nullopt if no container with this name exists (running or stopped). */
+  std::optional<std::string> findContainerIdByName(const std::string& name);
+  bool isContainerRunning(const std::string& id);
+
+  /** Creates (but does not start) a detached, auto-restarting service container.
+   * If a container with this name already exists, it's removed first (fresh config
+   * on every `ebl start`, rather than silently reusing stale settings). */
+  std::string createServiceContainer(const ServiceContainerSpec& spec);
+
+  /** Force-removes the named container if it exists; no-op otherwise. */
+  void removeContainerByName(const std::string& name);
 
 private:
   HttpClient http_;

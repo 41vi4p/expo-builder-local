@@ -1,3 +1,8 @@
+# Image tags default to the "ebllocal" Docker Hub namespace placeholder — the SAME
+# default the CLI (cli/src/config_store.hpp) uses to pull/build these three images.
+# Building here with matching tags means `docker compose build && docker push
+# <tag>` (once you've swapped DOCKERHUB_NAMESPACE for your real namespace and are
+# logged in) publishes exactly what `ebl setup`/`ebl start` will later pull.
 name: expo-builder-local
 
 services:
@@ -10,7 +15,7 @@ services:
     build:
       context: docker/runner
       dockerfile: Dockerfile
-    image: ${RUNNER_IMAGE:-expo-builder-local-runner:latest}
+    image: ${RUNNER_IMAGE:-${DOCKERHUB_NAMESPACE:-ebllocal}/expo-builder-local-runner:latest}
     profiles: ["build-only"]
     command: ["true"]
 
@@ -18,7 +23,7 @@ services:
     build:
       context: orchestrator
       dockerfile: Dockerfile
-    image: expo-builder-local-orchestrator:latest
+    image: ${DOCKERHUB_NAMESPACE:-ebllocal}/expo-builder-local-orchestrator:latest
     restart: unless-stopped
     ports:
       # Bind to 127.0.0.1 by default — this API can create/attach to arbitrary
@@ -31,7 +36,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       DATA_DIR: /data
       DOCKER_SOCKET: /var/run/docker.sock
-      RUNNER_IMAGE: ${RUNNER_IMAGE:-expo-builder-local-runner:latest}
+      RUNNER_IMAGE: ${RUNNER_IMAGE:-${DOCKERHUB_NAMESPACE:-ebllocal}/expo-builder-local-runner:latest}
       GRADLE_CACHE_VOLUME: expo-builder-local_gradle-cache
       NPM_CACHE_VOLUME: expo-builder-local_npm-cache
       # See config.ts: must equal HOST_PROJECTS_ROOT exactly, and the bind mount below
@@ -52,12 +57,16 @@ services:
     build:
       context: expo-builder-gui
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_ORCHESTRATOR_URL: ${ORCHESTRATOR_PUBLIC_URL:-http://localhost:4001}
-    image: expo-builder-local-web:latest
+    image: ${DOCKERHUB_NAMESPACE:-ebllocal}/expo-builder-local-web:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    environment:
+      # Substituted into the compiled JS at container start — see
+      # expo-builder-gui/docker-entrypoint.sh. Must be reachable from the
+      # *browser*, so localhost + the published orchestrator port, not a
+      # container-internal address.
+      ORCHESTRATOR_URL: ${ORCHESTRATOR_PUBLIC_URL:-http://localhost:${ORCHESTRATOR_PORT:-4001}}
     depends_on:
       - orchestrator
 

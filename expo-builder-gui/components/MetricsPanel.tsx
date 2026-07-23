@@ -43,7 +43,9 @@ export default function MetricsPanel({ build }: { build: BuildRecord }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-display text-sm font-semibold">Build metrics</h3>
+        <h3 className="font-display text-sm font-semibold">
+          Build metrics{build.buildNumber != null && <span className="text-text-dim"> · #{build.buildNumber}</span>}
+        </h3>
         <a
           href={artifactUrl(build.id)}
           download
@@ -75,6 +77,7 @@ export default function MetricsPanel({ build }: { build: BuildRecord }) {
         <Row label="Signing" value={build.signingMode === "release" ? "Release (custom keystore)" : "Debug"} />
         {build.gitCommit && <Row label="Git" value={`${build.gitBranch ?? ""}@${build.gitCommit}`} />}
         <Row label="SHA-256" value={<span className="break-all text-xs">{build.artifactSha256 ?? "—"}</span>} />
+        <Row label="Saved to" value={<span className="break-all text-xs">{build.artifactPath ?? "—"}</span>} />
       </div>
     </div>
   );

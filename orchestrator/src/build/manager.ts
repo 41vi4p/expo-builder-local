@@ -77,6 +77,7 @@ export function startBuild(req: StartBuildRequest): BuildRecord {
     artifactPath: null,
     artifactSizeBytes: null,
     artifactSha256: null,
+    buildNumber: null,
     versionName: null,
     versionCode: null,
     applicationId: null,
@@ -148,6 +149,7 @@ async function launchBuild(buildId: string): Promise<void> {
   let resolvedEngine: ResolvedEngine | null = null;
   let artifactPath: string | null = null;
   let lastError: string | null = null;
+  let buildNumber: number | null = null;
 
   let keystoreParam: Parameters<typeof createRunnerContainer>[0]['keystore'];
   if (build.signingMode === 'release' && build.keystoreId) {
@@ -208,6 +210,10 @@ async function launchBuild(buildId: string): Promise<void> {
       }
       if (line.startsWith('@@ARTIFACT:')) {
         artifactPath = line.slice('@@ARTIFACT:'.length).trim();
+        continue;
+      }
+      if (line.startsWith('@@BUILD_NUMBER:')) {
+        buildNumber = Number(line.slice('@@BUILD_NUMBER:'.length).trim());
         continue;
       }
       if (line.startsWith('@@ERROR:')) {
@@ -282,7 +288,7 @@ async function launchBuild(buildId: string): Promise<void> {
       db.updateBuild(buildId, { status: 'cancelled', finishedAt, durationSeconds: Math.round((finishedAt - startedAt) / 1000) });
       buildHub.publish(buildId, { type: 'status', status: 'cancelled' });
     } else if (exitCode === 0 && artifactPath) {
-      await finalizeSuccess(buildId, build, startedAt, finishedAt, artifactPath);
+      await finalizeSuccess(buildId, build, startedAt, finishedAt, artifactPath, buildNumber);
     } else {
       finalizeFailed(
         buildId,
@@ -306,7 +312,8 @@ async function finalizeSuccess(
   build: BuildRecord,
   startedAt: number,
   finishedAt: number,
-  artifactPath: string
+  artifactPath: string,
+  buildNumber: number | null
 ): Promise<void> {
   const previous = db.previousSuccessfulBuild(build.appPath, build.profile, build.artifactType, buildId);
   try {
@@ -318,6 +325,7 @@ async function finalizeSuccess(
       finishedAt,
       durationSeconds: Math.round((finishedAt - startedAt) / 1000),
       artifactPath,
+      buildNumber,
       artifactSizeBytes: metrics.sizeBytes,
       artifactSha256: metrics.sha256,
       versionName: metrics.versionName,

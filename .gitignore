@@ -18,3 +18,5 @@ data/
 
 # OS
 .DS_Store
+ebl-release-signing-key.asc
+
