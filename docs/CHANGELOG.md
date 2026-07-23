@@ -3,6 +3,28 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.4.3 — Fix: root-owned build output blocked the next step
+
+**Date:** 2026-07-23
+**Type:** Fix
+
+- The v0.4.2 fix (same-path bind mount) got `cmake --install` reading the right
+  paths, but it then failed writing `cli/build/install_manifest.txt`: "Permission
+  denied." Root cause: the container runs as root (needed for `apt-get`), so every
+  file it wrote into the bind-mounted `cli/build/` — including via the earlier
+  configure/build/cpack step — was root-owned on the host too; the following step
+  runs as the unprivileged `runner` user, which can't write into a root-owned
+  directory.
+- Fix: capture the host's UID/GID before entering the container
+  (`-e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)"`) and `chown -R
+  "${HOST_UID}:${HOST_GID}" .` the build output as the last thing the container does,
+  while it still has root to do so. Verified the mechanism in isolation (touch a file
+  as root in a bind mount, confirm the chown is visible with the right ownership from
+  the host side) before relying on it, rather than just reasoning about it.
+
+**Files modified:** `.github/workflows/release.yml`; `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
+
 ## v0.4.2 — Fix: install-tree staging failed outside the build container
 
 **Date:** 2026-07-23

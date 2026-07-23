@@ -48,13 +48,20 @@ jobs:
           # --install` on this same build/ directory *outside* the container, on the
           # bare runner. A different mount path here would make that install script
           # reference paths that don't exist outside the container.
-          docker run --rm -v "$PWD":"$PWD" -w "$PWD/cli" ubuntu:24.04 bash -c '
+          # The container runs as root (needed for apt-get), so everything it writes
+          # into the bind-mounted build/ dir is root-owned on the host too — the next
+          # step (`cmake --install`) runs as the unprivileged runner user, so we chown
+          # the output back before the container exits, while we still can.
+          docker run --rm -v "$PWD":"$PWD" -w "$PWD/cli" \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+            ubuntu:24.04 bash -c '
             set -e
             apt-get update -qq
             apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev dpkg-dev file
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
             cmake --build build -j"$(nproc)"
             cd build && cpack -G DEB
+            chown -R "${HOST_UID}:${HOST_GID}" .
           '
           mkdir -p build/packages/deb
           cp cli/build/ebl_*_amd64.deb build/packages/deb/

@@ -1,6 +1,6 @@
 {
   "name": "expo-builder-orchestrator",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "description": "Backend service that spawns and supervises containerized Expo Android builds, streaming logs/stats to the GUI.",
   "type": "commonjs",
