@@ -211,17 +211,20 @@ project's `.gitignore` automatically the first time it's saved, the same way
 
 ## Docker Hub images
 
-Three images, all under one namespace (default placeholder `ebllocal` — set your own
-via `ebl config` or the `DOCKERHUB_NAMESPACE` env var before publishing):
+Three images, all under the `41vi4p` namespace — `ebl build`/`ebl setup`/`ebl start`
+always pull from there, this isn't user-configurable (see
+[Version management](./CLAUDE.md#-version-management) if you're maintaining a fork
+under your own account):
 
-- `<namespace>/expo-builder-local-runner` — the Android toolchain.
-- `<namespace>/expo-builder-local-orchestrator` — the backend.
-- `<namespace>/expo-builder-local-web` — the GUI (runtime-configurable: the
+- `41vi4p/expo-builder-local-runner` — the Android toolchain.
+- `41vi4p/expo-builder-local-orchestrator` — the backend.
+- `41vi4p/expo-builder-local-web` — the GUI (runtime-configurable: the
   orchestrator URL is substituted into the compiled bundle at container *start*, from
   the `ORCHESTRATOR_URL` env var — not baked in at build time, so one published image
   works regardless of what port a given user picks).
 
-Build (and optionally push) all three by hand:
+If you're maintaining your own fork and need to publish under a different namespace,
+build (and optionally push) all three by hand:
 
 ```bash
 DOCKERHUB_NAMESPACE=yourusername ./scripts/publish-images.sh          # build only
@@ -231,12 +234,12 @@ DOCKERHUB_NAMESPACE=yourusername ./scripts/publish-images.sh --push   # build + 
 ...or automatically: `.github/workflows/docker-publish.yml` builds and pushes all
 three (`linux/amd64`) on every `v*` tag once `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`
 repo secrets are set — see [`docs/DOCKER.md`](./docs/DOCKER.md) for the one-time
-setup.
+setup. Note this only affects the docker-compose local-dev path (`DOCKERHUB_NAMESPACE`
+in `.env`) — the `ebl` CLI itself always targets `41vi4p` regardless.
 
-`ebl build`/`ebl setup`/`ebl start` all prefer pulling from the configured namespace,
-falling back to a local build (for the runner image only — orchestrator/web have no
-local-build fallback, since they're meant to be pre-published; build them from this
-repo via the script above if you need them before they're published).
+`ebl build` falls back to a local build if the runner image isn't pulled yet (the
+only one of the three with a local-build fallback — orchestrator/web are meant to be
+pre-published).
 
 ## APT repository
 
