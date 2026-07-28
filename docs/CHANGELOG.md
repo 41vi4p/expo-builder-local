@@ -3,6 +3,38 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.7.2 — Dependency security patches (GUI)
+
+**Date:** 2026-07-28
+**Type:** Security
+
+- `next`/`eslint-config-next` bumped `16.2.10` → `16.2.12` (patch release) —
+  fixes several HIGH-severity `next audit` advisories (App Router middleware
+  bypass, Server Action DoS/SSRF, cache confusion, image-optimization DoS).
+- `@typescript-eslint/typescript-estree`'s transitive `minimatch`/`brace-expansion`
+  resolved up to `10.2.6`/`5.0.8` (both already within its declared `^10.2.2`
+  range — `npm update`, no version bump needed) — fixes GHSA-mh99-v99m-4gvg
+  (brace-expansion DoS) for that path.
+- **Deliberately left unpatched**, with reasoning:
+  - `eslint@9.39.5`'s own `minimatch@3.1.5` (and the same via
+    `eslint-plugin-import`/`-jsx-a11y`/`-react`, all still declaring
+    `minimatch@^3.1.2`) — no upstream fix exists yet short of `npm audit fix
+    --force`'s suggested `eslint@10.8.0`, a breaking major bump that isn't
+    guaranteed to fully clear this anyway (the `eslint-plugin-*` packages would
+    still need their own independent minimatch-range bump). This is
+    devDependency-only tooling (`npm run lint`), never shipped or run in
+    production — lower priority than the two fixed above.
+  - `sharp <0.35.0` (libvips CVEs), bundled transitively by `next` itself — no
+    `next` 16.x release (including the just-applied 16.2.12, the latest) fixes
+    this yet; `npm audit fix --force`'s suggested fix is downgrading to
+    `next@14.2.35`, a two-major-version rollback that would almost certainly
+    break this app and isn't a reasonable trade-off for a libvips CVE. This app
+    doesn't use `next/image` anywhere (checked), so the vulnerable `sharp`
+    binary sits in `node_modules` but is never actually invoked at runtime.
+  - Revisit both next time `npm audit` is run — waiting on upstream releases.
+
+**Files modified:** `expo-builder-gui/package.json`, `expo-builder-gui/package-lock.json`
+
 ## v0.7.1 — GUI About page
 
 **Date:** 2026-07-28
