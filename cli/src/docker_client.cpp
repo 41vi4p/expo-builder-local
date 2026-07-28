@@ -77,7 +77,9 @@ void DockerClient::buildImage(const std::string& contextDir, const std::string& 
   }
 }
 
-void DockerClient::pullImage(const std::string& tag, const std::function<void(const std::string&)>& onLog) {
+void DockerClient::pullImage(const std::string& tag,
+                              const std::function<void(const std::string& id, const std::string& status,
+                                                        const std::string& progress)>& onEvent) {
   // Docker's pull endpoint takes the repo and tag as separate query params. Split on
   // the last ':' — but only if nothing after it looks like a "/" (a bare
   // "registry:port/name" host has no tag, and defaults to "latest").
@@ -111,9 +113,9 @@ void DockerClient::pullImage(const std::string& tag, const std::function<void(co
         firstError = event.at("error").asString();
       } else if (event.contains("status")) {
         std::string status = event.at("status").asString();
-        if (event.contains("id")) status = event.at("id").asString() + ": " + status;
-        if (event.contains("progress")) status += " " + event.at("progress").asString();
-        onLog(status + "\n");
+        std::string id = event.contains("id") ? event.at("id").asString() : "";
+        std::string progress = event.contains("progress") ? event.at("progress").asString() : "";
+        onEvent(id, status, progress);
       }
     }
   };

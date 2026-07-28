@@ -16,6 +16,7 @@
 #include "../detect.hpp"
 #include "../docker_client.hpp"
 #include "../metrics.hpp"
+#include "../pull_progress.hpp"
 #include "../runner_context.hpp"
 
 namespace fs = std::filesystem;
@@ -166,7 +167,10 @@ void ensureRunnerImage(DockerClient& docker, const std::string& tag) {
 
   std::cout << ebl::color::yellow("Runner image \"" + tag + "\" not found locally — trying to pull it...") << "\n";
   try {
-    docker.pullImage(tag, [](const std::string& line) { std::cout << line << std::flush; });
+    ebl::PullProgressRenderer progress;
+    docker.pullImage(tag, [&progress](const std::string& id, const std::string& status, const std::string& p) {
+      progress.onEvent(id, status, p);
+    });
     std::cout << ebl::color::green("Pulled \"" + tag + "\".") << "\n";
     return;
   } catch (const std::exception& e) {

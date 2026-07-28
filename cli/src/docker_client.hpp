@@ -60,9 +60,13 @@ public:
                    const std::function<void(const std::string&)>& onLog);
 
   /** Pulls `tag` from its registry (Docker Hub unless the tag names another
-   * registry host), invoking onLog for each status line. Throws on failure — e.g.
-   * the tag doesn't exist, or there's no network access. */
-  void pullImage(const std::string& tag, const std::function<void(const std::string&)>& onLog);
+   * registry host), invoking onEvent for each status line: (layer id, status,
+   * progress) — id/progress are empty when the daemon's event doesn't carry them
+   * (e.g. an overall "Pulling from ..."/"Status: ..." line). Throws on failure —
+   * e.g. the tag doesn't exist, or there's no network access. */
+  void pullImage(const std::string& tag,
+                  const std::function<void(const std::string& id, const std::string& status,
+                                            const std::string& progress)>& onEvent);
 
   void ensureVolume(const std::string& name);
   void ensureNetwork(const std::string& name);

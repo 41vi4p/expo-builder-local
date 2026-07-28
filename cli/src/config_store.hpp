@@ -11,7 +11,7 @@
 namespace ebl {
 
 struct EblConfig {
-  std::string dockerHubNamespace = "ebllocal";
+  std::string dockerHubNamespace = "41vi4p";
   std::string projectsRoot;
   int orchestratorPort = 4001;
   int webPort = 3000;

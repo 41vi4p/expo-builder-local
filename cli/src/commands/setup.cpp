@@ -10,6 +10,7 @@
 #include "../color.hpp"
 #include "../config_store.hpp"
 #include "../docker_client.hpp"
+#include "../pull_progress.hpp"
 
 namespace ebl::commands {
 
@@ -93,12 +94,13 @@ int runSetup(int argc, char** argv) {
   auto cfg = ebl::loadConfig().value_or(ebl::EblConfig{});
 
   std::cout << ebl::color::bold("Pulling images (namespace: " + cfg.dockerHubNamespace + ")...") << "\n";
-  auto onLog = [](const std::string& line) { std::cout << line << std::flush; };
   bool anyFailed = false;
   for (const auto& tag : {cfg.runnerImage(), cfg.orchestratorImage(), cfg.webImage()}) {
     std::cout << ebl::color::dim("Pulling " + tag + "...") << "\n";
     try {
-      docker.pullImage(tag, onLog);
+      ebl::PullProgressRenderer progress;
+      docker.pullImage(tag, [&progress](const std::string& id, const std::string& status,
+                                         const std::string& p) { progress.onEvent(id, status, p); });
     } catch (const std::exception& e) {
       std::cout << ebl::color::yellow("Could not pull " + tag + ": " + e.what()) << "\n";
       std::cout << ebl::color::dim(

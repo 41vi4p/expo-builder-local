@@ -3,6 +3,54 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.5.5 — `docker pull`-style in-place progress for image pulls
+
+**Date:** 2026-07-28
+**Type:** Enhancement
+
+- `ebl setup`/`ebl start`/`ebl build` (runner-image fallback pull) all printed one
+  new line per Docker pull-progress event, so a fresh pull scrolled the terminal
+  continuously (dozens of lines per layer as it moved through Waiting → Downloading →
+  Verifying Checksum → Extracting → Pull complete).
+- Added `cli/src/pull_progress.{hpp,cpp}` (`PullProgressRenderer`): tracks one line
+  per layer id and redraws it in place with ANSI cursor-up + clear-line + redraw,
+  the same technique `docker pull` itself uses, so each layer occupies exactly one
+  line that updates rather than scrolls. Falls back to plain line-by-line output
+  when stdout isn't a TTY (piped/redirected), matching the real CLI's behavior.
+- `DockerClient::pullImage`'s callback now passes `(id, status, progress)`
+  separately instead of one pre-flattened string, since the renderer needs the
+  layer id to know which line to update — updated all three call sites
+  (`setup.cpp`, `start.cpp`, `build.cpp`) accordingly.
+- Verified against a real fresh pull (`docker rmi` + re-pull): terminal output
+  contains the expected `ESC[nA`/`ESC[2K`/`ESC[nB` sequences updating each layer's
+  line in place.
+
+**Files modified:** `cli/src/pull_progress.hpp`, `cli/src/pull_progress.cpp`,
+`cli/src/docker_client.hpp`, `cli/src/docker_client.cpp`,
+`cli/src/commands/setup.cpp`, `cli/src/commands/start.cpp`,
+`cli/src/commands/build.cpp`, `cli/CMakeLists.txt`
+
+## v0.5.4 — Default Docker Hub namespace: `41vi4p`
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- `cli/src/config_store.hpp`'s `EblConfig::dockerHubNamespace` default was still the
+  placeholder `"ebllocal"`, even though images are actually published under `41vi4p`
+  (confirmed live on Docker Hub, e.g. `41vi4p/expo-builder-local-orchestrator`). A
+  fresh `ebl setup`/`ebl start` with no saved config would try to pull the wrong,
+  nonexistent namespace and fail.
+- Changed the default to `"41vi4p"`. Note this only affects *new* configs — anyone
+  who already ran `ebl config` has `dockerHubNamespace` persisted in
+  `~/.config/ebl/config.json` and needs to re-run `ebl config` (or edit the file) to
+  pick up the new default.
+- `docker-compose.yml`, `.env.example`, and `scripts/publish-images.sh` still use
+  `ebllocal` as their placeholder default deliberately — those are for local
+  contributor builds under a namespace the contributor sets themselves, not for
+  installed-CLI end users pulling published images.
+
+**Files modified:** `cli/src/config_store.hpp`
+
 ## v0.5.2 — README: split APT install into its own copy-pasteable block
 
 **Date:** 2026-07-28

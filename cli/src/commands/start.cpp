@@ -10,6 +10,7 @@
 #include "../config_store.hpp"
 #include "../docker_client.hpp"
 #include "../http_client.hpp"
+#include "../pull_progress.hpp"
 
 namespace ebl::commands {
 
@@ -52,7 +53,10 @@ Options:
 void ensureServiceImage(ebl::DockerClient& docker, const std::string& tag, const char* friendlyName) {
   if (docker.imageExists(tag)) return;
   std::cout << ebl::color::dim("Pulling " + std::string(friendlyName) + " image (" + tag + ")...") << "\n";
-  docker.pullImage(tag, [](const std::string& line) { std::cout << line << std::flush; });
+  ebl::PullProgressRenderer progress;
+  docker.pullImage(tag, [&progress](const std::string& id, const std::string& status, const std::string& p) {
+    progress.onEvent(id, status, p);
+  });
 }
 
 bool waitForHealth(const std::string& url, int attempts, int delayMs) {
