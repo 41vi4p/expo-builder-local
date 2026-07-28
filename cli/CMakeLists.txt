@@ -31,6 +31,7 @@ add_executable(ebl
   src/base64.cpp
   src/crypto.cpp
   src/config_store.cpp
+  src/prompt.cpp
   src/commands/build.cpp
   src/commands/setup.cpp
   src/commands/config.cpp

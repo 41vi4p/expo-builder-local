@@ -1,8 +1,5 @@
 #include "config.hpp"
 
-#include <termios.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
@@ -11,6 +8,7 @@
 
 #include "../color.hpp"
 #include "../config_store.hpp"
+#include "../prompt.hpp"
 
 namespace fs = std::filesystem;
 
@@ -28,51 +26,6 @@ to change a setting; existing values are shown as defaults.
 Options:
   -h, --help   Show this help
 )";
-}
-
-std::string promptString(const std::string& question, const std::string& defaultValue) {
-  std::cout << question;
-  if (!defaultValue.empty()) std::cout << " [" << defaultValue << "]";
-  std::cout << ": " << std::flush;
-  std::string line;
-  std::getline(std::cin, line);
-  return line.empty() ? defaultValue : line;
-}
-
-int promptInt(const std::string& question, int defaultValue) {
-  while (true) {
-    std::string raw = promptString(question, std::to_string(defaultValue));
-    try {
-      return std::stoi(raw);
-    } catch (const std::exception&) {
-      std::cout << ebl::color::red("Enter a whole number.") << "\n";
-    }
-  }
-}
-
-/** Reads a line with terminal echo disabled — used for the Expo token, matching the
- * usual convention for anything token/password-shaped. Falls back to a normal
- * (echoed) read if stdin isn't actually a terminal (e.g. piped input in a script). */
-std::string promptHidden(const std::string& question) {
-  std::cout << question << ": " << std::flush;
-  if (!isatty(fileno(stdin))) {
-    std::string line;
-    std::getline(std::cin, line);
-    return line;
-  }
-
-  termios oldTerm{};
-  tcgetattr(STDIN_FILENO, &oldTerm);
-  termios newTerm = oldTerm;
-  newTerm.c_lflag &= ~ECHO;
-  tcsetattr(STDIN_FILENO, TCSANOW, &newTerm);
-
-  std::string line;
-  std::getline(std::cin, line);
-
-  tcsetattr(STDIN_FILENO, TCSANOW, &oldTerm);
-  std::cout << "\n";
-  return line;
 }
 
 std::string maskedPreview(const std::string& secret) {

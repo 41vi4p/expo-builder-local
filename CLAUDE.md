@@ -58,6 +58,7 @@ expo-builder-local/
         ├── main.cpp                    (subcommand dispatch only)
         ├── commands/                  (build, setup, config, start+stop — one file per subcommand)
         ├── config_store.*, crypto.*, base64.*   (encrypted ~/.config/ebl/config.json)
+        ├── prompt.*                    (promptString/promptInt/promptHidden — shared by config.cpp's wizard and build.cpp's missing-token prompt)
         └── {docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
 ```
 

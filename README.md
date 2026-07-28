@@ -177,10 +177,20 @@ cd /path/to/app-owned-by-project-cell
 ebl build . --engine eas   # picks the "project-cell" token automatically
 ```
 
-Resolution order: `--expo-token`/`EXPO_TOKEN` (explicit override) → the saved token
-for this project's `owner` → the default token from `ebl config` (used for projects
-with no `owner` field, or no matching saved account). The GUI has the same auto-select,
-managed from the build form's "Saved Expo tokens" panel instead of `ebl config`.
+Resolution order: `--expo-token`/`EXPO_TOKEN` (explicit override) → a `.ebl-token`
+file in the project root (see below) → the saved token for this project's `owner`
+→ the default token from `ebl config` (used for projects with no `owner` field, or
+no matching saved account). The GUI has the same auto-select, managed from the
+build form's "Saved Expo tokens" panel instead of `ebl config`.
+
+If none of these resolve and the build engine actually needs a token (`eas`, or
+`auto` when the project has an `eas.json`), `ebl build` prompts for one
+interactively (hidden input, like a password) instead of failing partway through
+the build. You'll then be asked whether to save it to a `.ebl-token` file in the
+project root for next time — useful for a project-specific token you don't want in
+your global `ebl config`, or on a shared/CI machine. That file is added to the
+project's `.gitignore` automatically the first time it's saved, the same way
+`ebl_builds/` is.
 
 ## Signing
 

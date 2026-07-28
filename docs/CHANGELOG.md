@@ -3,7 +3,7 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
-## v0.6.9 — `ebl build` handles Ctrl-C cleanly; runner image no longer follows the configured Docker Hub namespace
+## v0.6.9 — Interactive Expo token prompt + project-local token file; Ctrl-C handling; runner image no longer follows the configured Docker Hub namespace
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -35,8 +35,30 @@ Version history for the orchestrator + GUI (versioned together — see
   build --help` still said the no-config fallback was the bare
   `expo-builder-local-runner:latest`, when it's actually been the namespaced tag
   since that fix).
+- **Also**: `ebl build` gained a project-local, gitignored token file
+  (`.ebl-token`, plaintext, 0600) as a new resolution source, and prompts
+  interactively for a token (hidden input, like `ebl config`'s) when none of the
+  existing sources have one and the engine actually needs one.
+  - Resolution order is now: `--expo-token` → `EXPO_TOKEN` → `.ebl-token` in the
+    project root → the saved per-owner/default token from `ebl config` → (if still
+    empty and needed) an interactive prompt.
+  - "Needed" mirrors `build-entrypoint.sh`'s own `auto` gating (v0.6.6): `eas`
+    always needs one, `auto` needs one only if the project has an `eas.json`,
+    `gradle` never does — so this doesn't prompt for projects that don't use EAS.
+  - After the prompt, offers to save the entered token to `.ebl-token` for future
+    builds of this project; if accepted, also appends `.ebl-token` to the
+    project's `.gitignore` (creating it if missing, skipping if already present) —
+    the same "auto-gitignore a tool-generated file in the project" pattern
+    `ebl_builds/` already uses, just done from the CLI side instead of
+    `build-entrypoint.sh`'s setup phase, since this needs to happen before any
+    container even exists.
+  - `promptString`/`promptInt`/`promptHidden` (previously private to
+    `commands/config.cpp`'s wizard) moved to a new shared `prompt.hpp`/`.cpp` so
+    `build.cpp` doesn't duplicate the termios-based hidden-input logic.
 
-**Files modified:** `cli/src/commands/build.cpp`, `cli/src/config_store.hpp`
+**Files modified:** `cli/src/commands/build.cpp`, `cli/src/config_store.hpp`,
+`cli/src/prompt.hpp` (new), `cli/src/prompt.cpp` (new),
+`cli/src/commands/config.cpp`, `cli/CMakeLists.txt`
 
 ## v0.6.8 — Default build engine changed from `auto` to `eas`
 

@@ -3,6 +3,8 @@
 #include <curl/curl.h>
 #include <unistd.h>
 
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -10,8 +12,10 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -20,6 +24,7 @@
 #include "../detect.hpp"
 #include "../docker_client.hpp"
 #include "../metrics.hpp"
+#include "../prompt.hpp"
 #include "../pull_progress.hpp"
 #include "../runner_context.hpp"
 
@@ -37,6 +42,51 @@ namespace {
 volatile std::sig_atomic_t g_interruptRequested = 0;
 
 void handleInterruptSignal(int /* signum */) { g_interruptRequested = 1; }
+
+// A project-local, gitignored fallback for the Expo token — for a team where
+// different developers/CI machines build the same checkout but don't share
+// `ebl config`'s global ~/.config/ebl state (or don't want a token that broad).
+constexpr const char* kProjectTokenFilename = ".ebl-token";
+
+std::optional<std::string> readProjectTokenFile(const fs::path& appPath) {
+  std::ifstream in(appPath / kProjectTokenFilename, std::ios::binary);
+  if (!in) return std::nullopt;
+  std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  while (!content.empty() && (content.back() == '\n' || content.back() == '\r' || content.back() == ' ')) {
+    content.pop_back();
+  }
+  if (content.empty()) return std::nullopt;
+  return content;
+}
+
+/** Appends `entry` as its own line in <appPath>/.gitignore, unless already present
+ * (exact-line match) — creates the file if it doesn't exist yet. */
+void ensureGitignored(const fs::path& appPath, const std::string& entry) {
+  fs::path gitignorePath = appPath / ".gitignore";
+  std::string existing;
+  {
+    std::ifstream in(gitignorePath, std::ios::binary);
+    if (in) existing.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }
+  std::istringstream lines(existing);
+  std::string line;
+  while (std::getline(lines, line)) {
+    if (line == entry) return;
+  }
+  std::ofstream out(gitignorePath, std::ios::app);
+  if (!existing.empty() && existing.back() != '\n') out << "\n";
+  out << entry << "\n";
+}
+
+void saveProjectTokenFile(const fs::path& appPath, const std::string& token) {
+  fs::path tokenPath = appPath / kProjectTokenFilename;
+  std::ofstream out(tokenPath, std::ios::binary | std::ios::trunc);
+  if (!out) throw std::runtime_error("Could not write " + tokenPath.string());
+  out << token << "\n";
+  out.close();
+  ::chmod(tokenPath.c_str(), S_IRUSR | S_IWUSR);
+  ensureGitignored(appPath, kProjectTokenFilename);
+}
 
 void printUsage() {
   std::cout <<
@@ -62,9 +112,13 @@ Options:
       --key-alias <alias>        Key alias (required with --release)
       --key-password <pw>        Key password (or set EXPO_BUILDER_KEY_PASSWORD;
                                   defaults to the store password)
-      --expo-token <token>       Expo access token, for the eas engine (or set EXPO_TOKEN,
-                                  or the per-owner/default token saved by `ebl config`,
-                                  auto-selected by the project's app.json "owner" field)
+      --expo-token <token>       Expo access token, for the eas engine. Resolved in order:
+                                  this flag, EXPO_TOKEN, a .ebl-token file in the project
+                                  (gitignored automatically — see below), the per-owner/
+                                  default token saved by `ebl config` (auto-selected by the
+                                  project's app.json "owner" field). If none of these and
+                                  the engine needs one, you'll be prompted interactively,
+                                  with the option to save it to .ebl-token for next time.
       --runner-image <tag>       Runner image tag (default: from `ebl config` if set,
                                   else 41vi4p/expo-builder-local-runner:latest)
       --gradle-cache-volume <n>  Docker volume for the Gradle cache
@@ -280,6 +334,9 @@ int runBuild(int argc, char** argv) {
     params.expoToken = *opts.expoToken;
   } else if (auto envToken = envOrNullopt("EXPO_TOKEN")) {
     params.expoToken = *envToken;
+  } else if (auto fileToken = readProjectTokenFile(appPath)) {
+    params.expoToken = *fileToken;
+    std::cout << ebl::color::dim("Using Expo token from " + std::string(kProjectTokenFilename) + ".") << "\n";
   } else if (savedConfig) {
     params.expoToken = savedConfig->expoTokenFor(project.owner);
     bool viaOwner = !project.owner.empty() &&
@@ -287,6 +344,38 @@ int runBuild(int argc, char** argv) {
                                  [&](const ebl::ExpoTokenEntry& e) { return e.owner == project.owner; });
     if (viaOwner) {
       std::cout << ebl::color::dim("Using saved Expo token for owner \"" + project.owner + "\".") << "\n";
+    }
+  }
+
+  // Only the "eas" engine actually needs a token; "auto" needs one exactly when it
+  // would resolve to eas (same eas.json check as build-entrypoint.sh's own auto
+  // resolution — see v0.6.6), and "gradle" never does. Prompting here (rather than
+  // just letting the container fail later with "ENGINE=eas requires an
+  // EXPO_TOKEN") means a missing token doesn't cost you the time spent pulling the
+  // runner image and starting the container first.
+  bool engineNeedsToken = opts.engine == "eas" || (opts.engine == "auto" && fs::exists(appPath / "eas.json"));
+  if (params.expoToken.empty() && engineNeedsToken) {
+    std::cout << ebl::color::yellow("No Expo token found, but the \"" + opts.engine + "\" engine needs one.") << "\n";
+    std::string entered =
+        ebl::promptHidden("Expo access token (from https://expo.dev/accounts/[account]/settings/access-tokens)");
+    if (entered.empty()) {
+      std::cerr << ebl::color::red("No token entered — aborting.") << "\n";
+      return 2;
+    }
+    params.expoToken = entered;
+
+    std::string save = ebl::promptString(
+        "Save this token to " + std::string(kProjectTokenFilename) + " in this project for future builds? [Y/n]",
+        "Y");
+    if (!save.empty() && (save[0] == 'y' || save[0] == 'Y')) {
+      try {
+        saveProjectTokenFile(appPath, entered);
+        std::cout << ebl::color::green("Saved to " + (appPath / kProjectTokenFilename).string() +
+                                        " (added to .gitignore).")
+                  << "\n";
+      } catch (const std::exception& e) {
+        std::cerr << ebl::color::red(std::string("Could not save token file: ") + e.what()) << "\n";
+      }
     }
   }
   if (opts.release && opts.keystore) {
