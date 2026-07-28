@@ -3,6 +3,68 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.8.0 — Windows support (WSL2 wrapper)
+
+**Date:** 2026-07-28
+**Type:** Feature
+
+- New `windows/` — Windows support, deliberately built as a WSL2 wrapper rather
+  than a native Win32 port: Docker Desktop for Windows already runs on a WSL2
+  backend by default, so the actual builds are Linux either way, and Docker
+  Desktop's WSL integration already exposes a working `/var/run/docker.sock`
+  inside an integrated distro. That means the real Linux `ebl` (`cli/`) runs there
+  completely unmodified — no named-pipe transport, no POSIX-path porting, no
+  termios-hidden-input porting.
+  - `windows/launcher/` — `ebl.exe`, a small dependency-free Win32 C++ program
+    (no curl/OpenSSL) that forwards `ebl <args>` into the default WSL distro's
+    `ebl`. Sets `--cd <windows-cwd>` (wsl.exe translates this itself, so relative
+    paths like `ebl build .` need no translation at all) and best-effort
+    translates absolute Windows-path *arguments* (`C:\...` -> `/mnt/c/...`, which
+    wsl.exe does not do for opaque args). stdio/exit-code/Ctrl-C all pass through
+    wsl.exe's own normal console handling — nothing special needed on our end.
+  - `windows/install.ps1` — one-line installer (`irm ... | iex`): checks/installs
+    WSL2 and a distro if needed (explicitly excludes Docker Desktop's own internal
+    `docker-desktop`/`docker-desktop-data` distros from being picked as the
+    target — a real bug caught while testing distro-list parsing, since `wsl -l
+    -q` doesn't order user distros first), installs the real `ebl` inside that
+    distro via the *same* `install.sh`/APT repo every Linux user gets, downloads
+    the `ebl.exe` launcher from this repo's latest GitHub Release, and adds it to
+    the user's PATH.
+  - `windows/uninstall.ps1` — reverses the launcher install; asks before also
+    removing the `ebl` package from inside WSL, since that distro may be used for
+    other things.
+  - `windows/installer/ebl.iss` — an Inno Setup script producing a GUI
+    `ebl-setup.exe`. Deliberately thin: it bundles `ebl.exe` plus the same two
+    `.ps1` files and just runs them (`[Run]`/`[UninstallRun]`), so install logic
+    exists in exactly one place instead of being reimplemented for the GUI path.
+  - Both `.ps1` files were rewritten to pure ASCII after `PSScriptAnalyzer`
+    flagged `PSUseBOMForUnicodeEncodedFile` on their em-dashes — a script invoked
+    via `irm | iex` on Windows PowerShell 5.1 without a BOM can mis-decode
+    non-ASCII characters, so ASCII-only is safer than adding a BOM.
+- CI (`ci.yml`) gained a `windows-latest` job building the launcher (MSVC) and
+  compiling `ebl.iss` (via Chocolatey's Inno Setup package) on every push/PR —
+  this environment has neither a Windows runner nor mingw-w64/passwordless sudo
+  to cross-compile or install it, so this is the only place these two actually
+  get built and verified; reviewed the C++ by hand against documented Win32/CRT
+  signatures instead, and verified the PowerShell by parsing it with
+  `System.Management.Automation.Language.Parser` plus `PSScriptAnalyzer` (both
+  installed portably, no sudo needed) and dry-running the pure-string logic
+  (PATH add/dedupe/remove, distro-list filtering) with mocked inputs.
+- `release.yml` gained a `windows-build-and-publish` job (needs the existing Linux
+  job, since it attaches to the same release rather than creating its own) that
+  builds both Windows artifacts and uploads them to the GitHub Release —
+  `install.ps1` depends on `ebl.exe` being there at
+  `releases/latest/download/ebl.exe`.
+- Version management extended to cover this: `windows/launcher/CMakeLists.txt`
+  and `windows/installer/ebl.iss`'s `MyAppVersion` are now canonical version
+  sources alongside the existing three (see `../CLAUDE.md`).
+
+**Files modified:** `.github/workflows/ci.yml`, `.github/workflows/release.yml`,
+`docs/RELEASING.md`, `../CLAUDE.md`
+
+**Files added:** `windows/launcher/CMakeLists.txt`, `windows/launcher/src/main.cpp`,
+`windows/install.ps1`, `windows/uninstall.ps1`, `windows/installer/ebl.iss`
+
 ## v0.7.2 — Dependency security patches (GUI)
 
 **Date:** 2026-07-28

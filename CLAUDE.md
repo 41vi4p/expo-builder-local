@@ -52,14 +52,32 @@ expo-builder-local/
 ├── expo-builder-gui/      ← frontend: Next.js 16 (App Router, Tailwind v4)
 │   ├── docker-entrypoint.sh   (substitutes ORCHESTRATOR_URL into the compiled bundle at container start)
 │   └── {app,components,lib}/
-└── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed)
-    ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator)
-    └── src/
-        ├── main.cpp                    (subcommand dispatch only)
-        ├── commands/                  (build, setup, config, start+stop — one file per subcommand)
-        ├── config_store.*, crypto.*, base64.*   (encrypted ~/.config/ebl/config.json)
-        ├── prompt.*                    (promptString/promptInt/promptHidden — shared by config.cpp's wizard and build.cpp's missing-token prompt)
-        └── {docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
+├── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed)
+│   ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator)
+│   └── src/
+│       ├── main.cpp                    (subcommand dispatch only)
+│       ├── commands/                  (build, setup, config, start+stop — one file per subcommand)
+│       ├── config_store.*, crypto.*, base64.*   (encrypted ~/.config/ebl/config.json)
+│       ├── prompt.*                    (promptString/promptInt/promptHidden — shared by config.cpp's wizard and build.cpp's missing-token prompt)
+│       └── {docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
+└── windows/               ← Windows support — a WSL2 wrapper, not a native Win32
+    │                         port (Docker Desktop for Windows already runs on WSL2
+    │                         by default, so builds are Linux either way)
+    ├── launcher/           ← `ebl.exe`: forwards `ebl <args>` into the default WSL
+    │   │                     distro's real Linux `ebl` (cli/, unmodified), which
+    │   │                     talks to /var/run/docker.sock exactly as it does on
+    │   │                     native Linux, since Docker Desktop's WSL integration
+    │   │                     already exposes it there
+    │   ├── CMakeLists.txt  (MSVC/MinGW, no curl/OpenSSL — this binary only spawns wsl.exe)
+    │   └── src/main.cpp
+    ├── install.ps1         (one-line installer: WSL2 + distro check, installs ebl
+    │                         inside WSL via the same install.sh every Linux user
+    │                         gets, puts ebl.exe on PATH)
+    ├── uninstall.ps1
+    └── installer/
+        └── ebl.iss         (Inno Setup script → ebl-setup.exe; a thin GUI wrapper
+                              that just bundles and runs the two .ps1 files above —
+                              no separate install logic of its own)
 ```
 
 ## 🖥️ CLI package (`cli/`)
@@ -115,14 +133,17 @@ don't reintroduce a build-time `NEXT_PUBLIC_ORCHESTRATOR_URL` ARG.
 ## 🔄 Version management
 
 Unlike the three apps under the repo root (which version independently), the
-orchestrator, the GUI, and the CLI **always ship together** as one product and share
-**one version number** — a build only works when all three are compatible, so
-tracking them separately would just invite drift.
+orchestrator, the GUI, the CLI, and the Windows launcher/installer **always ship
+together** as one product and share **one version number** — a build only works
+when all of them are compatible, so tracking them separately would just invite
+drift.
 
 - **Canonical source:** `orchestrator/package.json`'s `version`,
-  `expo-builder-gui/package.json`'s `version`, and `cli/CMakeLists.txt`'s
-  `project(... VERSION x.y.z ...)` — **always bump all three to the same value in the
-  same change**, even if a given change only touched one of them.
+  `expo-builder-gui/package.json`'s `version`, `cli/CMakeLists.txt`'s
+  `project(... VERSION x.y.z ...)`, `windows/launcher/CMakeLists.txt`'s
+  `project(... VERSION x.y.z ...)`, and `windows/installer/ebl.iss`'s
+  `MyAppVersion` — **always bump all five to the same value in the same change**,
+  even if a given change only touched one of them.
 - **Bump rule (SemVer), applied automatically for every change, however small:**
   - `fix:` / `style:` / `refactor:` / docs/config-only change → **PATCH** (+0.0.1)
   - `feat:` / new endpoint / new component / new capability → **MINOR** (+0.1.0, reset PATCH)
@@ -130,13 +151,12 @@ tracking them separately would just invite drift.
     requiring a fresh volume) → **MAJOR** (+1.0.0)
 - **After every code change to anything under `expo-builder-local/`:**
   1. Make the change.
-  2. Bump all three version fields (they must always match).
+  2. Bump all five version fields (they must always match).
   3. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
-  4. If the change is user-visible or structural, add a short summary to the repo
-     root's `/CHANGELOG.md` too (this project's entry in the shared changelog),
-     following that file's existing per-app section format.
 - This is not optional busywork — do it as part of the same commit/turn as the code
   change, not as a follow-up.
+- Do **not** add entries to the repo root's `/CHANGELOG.md` for expo-builder-local
+  changes — that file is for the three apps under the repo root, not this project.
 
 ### Changelog entry format (`docs/CHANGELOG.md`)
 

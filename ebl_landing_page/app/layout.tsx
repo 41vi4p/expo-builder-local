@@ -23,7 +23,7 @@ const data = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "expo-builder-local — build signed Android APKs on your own machine",
+  title: "ebl - Expo Builder Local",
   description:
     "Turn a managed Expo project into a signed Android APK/AAB entirely on your own machine, in a disposable Docker container. No EAS quota, no cloud queue.",
 };

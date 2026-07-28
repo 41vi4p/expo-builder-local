@@ -1,8 +1,10 @@
 name: CI
 
-# Minimal build check: does the frontend (expo-builder-gui) still build? Runs on
-# every push and pull request. Deliberately scoped to just this — no CLI/orchestrator
-# build checks, no test suite.
+# Minimal build check: does the frontend (expo-builder-gui) still build, does the
+# Windows launcher (windows/launcher) still build, and does the Inno Setup installer
+# script (windows/installer) still compile? Runs on every push and pull request.
+# Deliberately scoped to just this — no Linux CLI/orchestrator build checks, no test
+# suite.
 
 on:
   push:
@@ -30,3 +32,24 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+
+  windows-launcher-build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: expo-builder-local/windows/launcher
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: expo-builder-local
+
+      # windows-latest ships MSVC + CMake preinstalled — no mingw needed, and MSVC
+      # is what a real release build should use anyway.
+      - run: cmake -S . -B build
+      - run: cmake --build build --config Release
+
+      # windows-latest also ships Chocolatey preinstalled — use it to compile the
+      # Inno Setup installer script (ebl.iss) right after, so a script typo doesn't
+      # only surface at release time.
+      - run: choco install innosetup -y
+      - run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ..\installer\ebl.iss'

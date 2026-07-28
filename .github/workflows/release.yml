@@ -6,6 +6,9 @@ name: Build and publish APT repository
 # branch under /apt so `apt install ebl` works from
 # https://41vi4p.github.io/expo-builder-local/apt. Also attaches the same .deb (plus
 # a plain tarball for install.sh) to a GitHub Release as a direct-download fallback.
+# A second job (windows-build-and-publish) then builds the Windows launcher
+# (windows/launcher) and installer (windows/installer) and attaches those to the
+# same release — see windows/install.ps1's header comment for what those are.
 #
 # Requires (set up once via docs/APT_REPO_SETUP_GUIDE.md, not by this workflow):
 #   - repo secret APT_GPG_PRIVATE_KEY: the armored private signing key
@@ -136,3 +139,41 @@ jobs:
             build/packages/deb/*.deb \
             ebl-*-linux-amd64.tar.gz \
             SHA256SUMS.txt
+
+  windows-build-and-publish:
+    # Runs after build-and-publish so the release already exists — this job only
+    # attaches the Windows artifacts to it via `gh release upload`, it doesn't
+    # create the release itself. See windows/CLAUDE.md (or windows/install.ps1's
+    # header) for what these two files actually are: ebl.exe is the thin WSL2
+    # launcher; ebl-setup.exe is the same install.ps1/uninstall.ps1 wrapped in an
+    # Inno Setup GUI installer.
+    needs: build-and-publish
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: expo-builder-local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: expo-builder-local
+
+      - name: Build the ebl.exe launcher
+        run: |
+          cmake -S windows\launcher -B windows\launcher\build
+          cmake --build windows\launcher\build --config Release
+
+      - name: Build the Inno Setup installer
+        run: |
+          choco install innosetup -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" windows\installer\ebl.iss
+
+      - name: Attach Windows artifacts to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" `
+            windows\launcher\build\Release\ebl.exe `
+            windows\installer\dist\ebl-setup.exe `
+            --clobber
