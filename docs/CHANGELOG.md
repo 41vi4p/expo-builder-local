@@ -3,6 +3,93 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.4 — Fix duplicate React keys / legend entries in resource charts
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- Console error: `Encountered two children with the same key, "Received"` (and
+  similarly for every other series) coming from `ResourceCharts.tsx`'s custom
+  tooltip. Each series is intentionally rendered as both an `Area` (glow fill) and
+  a `Line` (crisp stroke) sharing the same `name` — recharts hands the tooltip one
+  payload entry per rendered component, so two entries share the same name/key per
+  series, and `ChartTooltip` mapped over all of them keyed by `entry.name`.
+- Also explains a smaller cosmetic bug visible in the legends (e.g. "● CPU % ● CPU
+  %", "● Received ● Received") — same root cause, just not previously reported.
+- Fixed both: `ChartTooltip` now dedupes `payload` by `name` before rendering, and
+  every `Area` got `legendType="none"` so only the paired `Line` contributes a
+  legend entry — one item per series instead of two identical ones.
+- Verified live: reloaded the build page and hovered the charts with the browser
+  console open — no more duplicate-key warning, legends show one entry per series.
+
+**Files modified:** `expo-builder-gui/components/ResourceCharts.tsx`
+
+## v0.6.3 — Fix cleanup deleting a developer's own `credentials.json`
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- `docker/runner/build-entrypoint.sh`'s `cleanup()` trap unconditionally deleted
+  `${APP_DIR}/credentials.json` at the end of *every* build, regardless of engine,
+  signing mode, or whether this run ever wrote that file itself. That's fine when
+  ebl's own `write-eas-credentials.js` created it (EAS engine + release signing +
+  an ebl-managed keystore) — it's supposed to be ephemeral there. But a developer
+  using the EAS engine with debug signing (or one whose `eas.json` already sets
+  `credentialsSource: "local"`) may have their own `credentials.json` committed at
+  the project root, which ebl never touches or creates in that path — yet it was
+  being silently deleted from their project folder after every single build.
+- Fixed by only removing `credentials.json` in cleanup when a new
+  `CREDENTIALS_JSON_WRITTEN` flag is set, which happens right before
+  `write-eas-credentials.js` is invoked (before, not after, so a partial write on
+  script failure is still cleaned up) — i.e. only in the one path that actually
+  creates the file. `android/keystore.properties` and `android/app/release.keystore`
+  didn't need the same guard: they only ever exist inside the `android/` directory
+  this same run just regenerated via `expo prebuild --clean`, so unconditionally
+  removing them was already safe.
+- Found while walking through what happens when a project already has its own
+  `credentials.json` and is built with the EAS engine + debug signing — not
+  reported as a live failure, caught by code review before it could bite anyone.
+
+**Files modified:** `docker/runner/build-entrypoint.sh`
+
+## v0.6.2 — GUI: fix live phase timers showing 0s, dead space beside the log
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- **Phase durations always read "0s" while watching a build live.** The build page's
+  WebSocket handler (`lib/useBuildSocket.ts`) appended a new phase entry on every
+  `"phase"` message but never closed out the *previous* one's `endedAt` in the
+  client's local state. `BuildTimeline`'s elapsed-time calc falls back to
+  `record.startedAt` when a phase isn't active and has no `endedAt` — so every
+  completed step showed `startedAt - startedAt = 0` for the rest of that live
+  session (a page refresh masked it, since `getBuild()` re-fetches the real,
+  already-closed timestamps from the DB). Fixed by closing any still-open phase in
+  local state the same way the backend's `endOpenPhases` + `insertPhase` pair does,
+  right before appending the new one.
+- **Dead whitespace beside the live log while a build is running.** `MetricsPanel`
+  intentionally renders nothing until a build reaches `success`/`failed`, but its
+  grid column (`xl:col-span-2`) was still reserved the whole time, so the log panel
+  stopped at 3/5 width with an empty gap next to it for the entire build. Fixed by
+  only splitting into the two-column layout once there's actually something to show
+  in that column — the log now fills the full row while a build is in progress, and
+  reflows into the 3/5 + 2/5 split once metrics appear.
+- Since the log panel's width now changes at runtime (full-width → 3/5), added a
+  `ResizeObserver` in `LiveLogs.tsx` so its xterm instance re-fits on any container
+  resize, not just a browser window resize (the only case it previously handled) —
+  otherwise the terminal would keep the stale wider dimensions after the layout
+  shrinks it back down.
+- Also reordered the build page (`app/build/[id]/page.tsx`): "Resource usage" charts
+  now sit above the log/metrics row instead of below it.
+- Verified live end-to-end (not just typechecked): ran the orchestrator + GUI dev
+  servers locally and drove a real Gradle build of CanteenApp through the browser —
+  confirmed non-zero, correctly-frozen phase durations for completed steps, a live-
+  ticking timer for the active phase, the log filling full width mid-build, and the
+  chart-above-log ordering.
+
+**Files modified:** `expo-builder-gui/lib/useBuildSocket.ts`,
+`expo-builder-gui/app/build/[id]/page.tsx`, `expo-builder-gui/components/LiveLogs.tsx`
+
 ## v0.6.1 — Fix ENOENT on the artifact after a successful build
 
 **Date:** 2026-07-28

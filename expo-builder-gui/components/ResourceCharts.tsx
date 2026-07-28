@@ -99,10 +99,20 @@ function ChartTooltip({
   formatValue: (v: number) => string;
 }) {
   if (!active || !payload || payload.length === 0) return null;
+  // Each series is rendered as both an Area (glow fill) and a Line (crisp stroke)
+  // sharing the same `name`, so recharts hands the tooltip one payload entry per
+  // component — two per series, both carrying the same value. Dedupe by name so
+  // each series shows once instead of twice.
+  const seen = new Set<string>();
+  const uniquePayload = payload.filter((entry) => {
+    if (seen.has(entry.name)) return false;
+    seen.add(entry.name);
+    return true;
+  });
   return (
     <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs shadow-lg">
       <div className="mb-1 font-mono text-text-dim">{label ? formatTime(label) : ""}</div>
-      {payload.map((entry) => (
+      {uniquePayload.map((entry) => (
         <div key={entry.name} className="flex items-center gap-2">
           <span className="inline-block h-[2px] w-3" style={{ background: entry.color }} />
           <span className="font-mono font-semibold text-text">{formatValue(entry.value)}</span>
@@ -147,9 +157,9 @@ export default function ResourceCharts({ samples }: { samples: StatSample[] }) {
             <YAxis domain={[0, 100]} tick={tickStyle} axisLine={false} tickLine={false} width={36} />
             <Tooltip content={<ChartTooltip formatValue={(v) => `${v.toFixed(1)}%`} />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: "var(--font-data)", color: "var(--text-dim)" }} />
-            <Area type="monotone" dataKey="cpuPct" name="CPU %" stroke="none" fill={series1} fillOpacity={0.1} isAnimationActive={false} />
+            <Area type="monotone" dataKey="cpuPct" name="CPU %" legendType="none" stroke="none" fill={series1} fillOpacity={0.1} isAnimationActive={false} />
             <Line type="monotone" dataKey="cpuPct" name="CPU %" stroke={series1} strokeWidth={2} dot={false} isAnimationActive={false} />
-            <Area type="monotone" dataKey="memPct" name="Memory %" stroke="none" fill={series2} fillOpacity={0.1} isAnimationActive={false} />
+            <Area type="monotone" dataKey="memPct" name="Memory %" legendType="none" stroke="none" fill={series2} fillOpacity={0.1} isAnimationActive={false} />
             <Line type="monotone" dataKey="memPct" name="Memory %" stroke={series2} strokeWidth={2} dot={false} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
@@ -166,9 +176,9 @@ export default function ResourceCharts({ samples }: { samples: StatSample[] }) {
             <YAxis tickFormatter={formatBytesRate} tick={tickStyle} axisLine={false} tickLine={false} width={56} />
             <Tooltip content={<ChartTooltip formatValue={formatBytesRate} />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: "var(--font-data)", color: "var(--text-dim)" }} />
-            <Area type="monotone" dataKey="netRxRate" name="Received" stroke="none" fill={series1} fillOpacity={0.1} isAnimationActive={false} />
+            <Area type="monotone" dataKey="netRxRate" name="Received" legendType="none" stroke="none" fill={series1} fillOpacity={0.1} isAnimationActive={false} />
             <Line type="monotone" dataKey="netRxRate" name="Received" stroke={series1} strokeWidth={2} dot={false} isAnimationActive={false} />
-            <Area type="monotone" dataKey="netTxRate" name="Sent" stroke="none" fill={series2} fillOpacity={0.1} isAnimationActive={false} />
+            <Area type="monotone" dataKey="netTxRate" name="Sent" legendType="none" stroke="none" fill={series2} fillOpacity={0.1} isAnimationActive={false} />
             <Line type="monotone" dataKey="netTxRate" name="Sent" stroke={series2} strokeWidth={2} dot={false} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
@@ -185,9 +195,9 @@ export default function ResourceCharts({ samples }: { samples: StatSample[] }) {
             <YAxis tickFormatter={formatBytesRate} tick={tickStyle} axisLine={false} tickLine={false} width={56} />
             <Tooltip content={<ChartTooltip formatValue={formatBytesRate} />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: "var(--font-data)", color: "var(--text-dim)" }} />
-            <Area type="monotone" dataKey="blkReadRate" name="Read" stroke="none" fill={series1} fillOpacity={0.1} isAnimationActive={false} />
+            <Area type="monotone" dataKey="blkReadRate" name="Read" legendType="none" stroke="none" fill={series1} fillOpacity={0.1} isAnimationActive={false} />
             <Line type="monotone" dataKey="blkReadRate" name="Read" stroke={series1} strokeWidth={2} dot={false} isAnimationActive={false} />
-            <Area type="monotone" dataKey="blkWriteRate" name="Write" stroke="none" fill={series2} fillOpacity={0.1} isAnimationActive={false} />
+            <Area type="monotone" dataKey="blkWriteRate" name="Write" legendType="none" stroke="none" fill={series2} fillOpacity={0.1} isAnimationActive={false} />
             <Line type="monotone" dataKey="blkWriteRate" name="Write" stroke={series2} strokeWidth={2} dot={false} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>

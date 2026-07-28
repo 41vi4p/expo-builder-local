@@ -58,20 +58,29 @@ export default function BuildPage({ params }: { params: Promise<{ id: string }> 
 
       <BuildTimeline build={build} phases={phases} />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        <div className="xl:col-span-3">
-          <h2 className="mb-2 font-display text-sm font-semibold">Live log</h2>
-          <LiveLogs key={id} text={log} />
-        </div>
-        <div className="space-y-4 xl:col-span-2">
-          <MetricsPanel build={build} />
-        </div>
-      </div>
-
       <div>
         <h2 className="mb-3 font-display text-sm font-semibold">Resource usage</h2>
         <ResourceCharts samples={stats} />
       </div>
+
+      {/* MetricsPanel renders nothing until the build is finished (success/failed) —
+          give the log the full row until then instead of leaving that column blank. */}
+      {(() => {
+        const showMetrics = build.status === "success" || build.status === "failed";
+        return (
+          <div className={`grid grid-cols-1 gap-6 ${showMetrics ? "xl:grid-cols-5" : ""}`}>
+            <div className={showMetrics ? "xl:col-span-3" : ""}>
+              <h2 className="mb-2 font-display text-sm font-semibold">Live log</h2>
+              <LiveLogs key={id} text={log} />
+            </div>
+            {showMetrics && (
+              <div className="space-y-4 xl:col-span-2">
+                <MetricsPanel build={build} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

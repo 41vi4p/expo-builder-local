@@ -37,11 +37,23 @@ fail()     { echo "@@ERROR:$1"; exit "${2:-1}"; }
 
 # Paths we may write into the *host-mounted* project folder that must never survive
 # the build (signing secrets). Always cleaned up, success or failure.
+#
+# credentials.json is deliberately NOT in the unconditional list below: unlike
+# android/keystore.properties and android/app/release.keystore (which only ever
+# exist inside a directory this same run just regenerated via `expo prebuild
+# --clean`), credentials.json lives at the project root and a developer may already
+# have their own committed there (EAS's own local-credentials format, used whenever
+# their eas.json sets credentialsSource: "local") — that's not ours to delete. Only
+# remove it if CREDENTIALS_JSON_WRITTEN records that *this run* wrote it (see the
+# EAS release-signing block below).
 EAS_JSON_BACKUP=""
+CREDENTIALS_JSON_WRITTEN=""
 cleanup() {
   rm -f "${APP_DIR}/android/keystore.properties" \
-        "${APP_DIR}/android/app/release.keystore" \
-        "${APP_DIR}/credentials.json" 2>/dev/null || true
+        "${APP_DIR}/android/app/release.keystore" 2>/dev/null || true
+  if [ -n "${CREDENTIALS_JSON_WRITTEN}" ]; then
+    rm -f "${APP_DIR}/credentials.json" 2>/dev/null || true
+  fi
   if [ -n "${EAS_JSON_BACKUP}" ] && [ -f "${EAS_JSON_BACKUP}" ]; then
     mv -f "${EAS_JSON_BACKUP}" "${APP_DIR}/eas.json"
   fi
@@ -101,6 +113,9 @@ if [ "${RESOLVED_ENGINE}" = "eas" ]; then
     phase signing "Configuring release signing (EAS local credentials)"
     EAS_JSON_BACKUP="$(mktemp)"
     cp "${APP_DIR}/eas.json" "${EAS_JSON_BACKUP}"
+    # Set before invoking the script (not after) so cleanup still removes
+    # credentials.json even if the script fails partway through writing it.
+    CREDENTIALS_JSON_WRITTEN=1
     node "${SCRIPTS_DIR}/write-eas-credentials.js" \
       --projectDir "${APP_DIR}" \
       --profile "${PROFILE}" \

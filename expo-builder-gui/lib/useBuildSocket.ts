@@ -53,12 +53,22 @@ export function useBuildSocket(buildId: string): BuildSocketState {
               return { ...s, build: msg.build, phases: msg.phases, log: msg.log, stats: msg.stats };
             case "log":
               return { ...s, log: s.log + msg.line };
-            case "phase":
+            case "phase": {
+              // Mirrors the backend's endOpenPhases + insertPhase pair: close out
+              // whatever phase was still open before appending the new one, or its
+              // elapsed time reads as 0 for the rest of this live session (it never
+              // gets an endedAt otherwise — only a fresh snapshot/REST fetch would
+              // pick up the real one from the DB).
+              const now = Date.now();
               return {
                 ...s,
-                phases: [...s.phases, { phase: msg.phase, label: msg.label, startedAt: Date.now(), endedAt: null }],
+                phases: [
+                  ...s.phases.map((p) => (p.endedAt == null ? { ...p, endedAt: now } : p)),
+                  { phase: msg.phase, label: msg.label, startedAt: now, endedAt: null },
+                ],
                 build: s.build && { ...s.build, currentPhase: msg.phase, currentPhaseLabel: msg.label },
               };
+            }
             case "progress":
               return {
                 ...s,

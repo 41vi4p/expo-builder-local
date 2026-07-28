@@ -56,8 +56,15 @@ export default function LiveLogs({ text }: { text: string }) {
 
       const onResize = () => fit.fit();
       window.addEventListener("resize", onResize);
+      // Window resize alone misses layout-driven size changes (e.g. this panel
+      // going full-width while a build is running, then shrinking back to a
+      // narrower column once MetricsPanel appears next to it on completion) — a
+      // ResizeObserver catches those too.
+      const resizeObserver = new ResizeObserver(() => fit.fit());
+      resizeObserver.observe(containerRef.current);
       dispose = () => {
         window.removeEventListener("resize", onResize);
+        resizeObserver.disconnect();
         term.dispose();
       };
     })();
