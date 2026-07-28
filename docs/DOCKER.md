@@ -39,6 +39,7 @@ All `linux/amd64` only (no cross-platform emulation — the runner image's Andro
 SDK/NDK download would be slow and untested under QEMU arm64; a reasonable follow-up
 if arm64 support is ever needed, not part of this setup).
 
-Once published, point `ebl config`'s Docker Hub namespace (or `DOCKERHUB_NAMESPACE`
-in `.env`) at your namespace and `ebl setup`/`ebl start`/`docker-compose.yml` will
-pull these instead of needing a local build.
+Once published, set `DOCKERHUB_NAMESPACE` in `.env` (the docker-compose local-dev
+path only — `ebl setup`/`ebl start` always pull from the canonical `41vi4p`
+namespace, that's no longer configurable) and `docker-compose.yml` will pull these
+instead of needing a local build.

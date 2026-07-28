@@ -21,7 +21,6 @@ struct ExpoTokenEntry {
 };
 
 struct EblConfig {
-  std::string dockerHubNamespace = "41vi4p";
   std::string projectsRoot;
   int orchestratorPort = 4001;
   int webPort = 3000;
@@ -30,15 +29,15 @@ struct EblConfig {
   std::vector<ExpoTokenEntry> expoTokensByOwner;
   int64_t setupCompletedAt = 0;  // 0 = setup has never completed
 
-  // Deliberately NOT dockerHubNamespace-based, unlike orchestratorImage()/webImage()
-  // below: the runner is the large (~6.8GB), generic Android-toolchain image, always
-  // published from the canonical upstream account — there's no reason for someone
-  // who forks this project under their own Docker Hub namespace (to publish their
-  // own orchestrator/web images) to also need to republish that same runner image.
-  // `--runner-image` (CLI) still overrides this explicitly if a real reason comes up.
+  // All three always come from the canonical upstream account — this used to be
+  // configurable (a "Docker Hub namespace" field/prompt in `ebl config`), but that
+  // was removed: nobody actually needs to point this at a different account, and
+  // it just added an unused prompt to the setup wizard. Hardcode a new
+  // --runner-image/--orchestrator-image-style flag instead if a real need for a
+  // custom namespace ever comes up.
   std::string runnerImage() const { return "41vi4p/expo-builder-local-runner:latest"; }
-  std::string orchestratorImage() const { return dockerHubNamespace + "/expo-builder-local-orchestrator:latest"; }
-  std::string webImage() const { return dockerHubNamespace + "/expo-builder-local-web:latest"; }
+  std::string orchestratorImage() const { return "41vi4p/expo-builder-local-orchestrator:latest"; }
+  std::string webImage() const { return "41vi4p/expo-builder-local-web:latest"; }
 
   /** Resolves the token to use for a project whose app.json declares `owner`
    * (empty string if it doesn't declare one) — an exact owner match wins, otherwise

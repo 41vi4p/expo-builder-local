@@ -93,7 +93,7 @@ int runSetup(int argc, char** argv) {
 
   auto cfg = ebl::loadConfig().value_or(ebl::EblConfig{});
 
-  std::cout << ebl::color::bold("Pulling images (namespace: " + cfg.dockerHubNamespace + ")...") << "\n";
+  std::cout << ebl::color::bold("Pulling images...") << "\n";
   bool anyFailed = false;
   for (const auto& tag : {cfg.runnerImage(), cfg.orchestratorImage(), cfg.webImage()}) {
     std::cout << ebl::color::dim("Pulling " + tag + "...") << "\n";

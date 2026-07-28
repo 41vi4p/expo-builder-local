@@ -3,6 +3,30 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.10 — Removed the configurable Docker Hub namespace entirely
+
+**Date:** 2026-07-28
+**Type:** Refactor
+
+- Per explicit request: `ebl config`'s "Docker Hub namespace" prompt is gone, and
+  `EblConfig::dockerHubNamespace` no longer exists as a field. Now that
+  `runnerImage()` was already hardcoded to `41vi4p/...` regardless of this setting
+  (v0.6.9), `orchestratorImage()`/`webImage()` were the only things left reading
+  it — there was no real use case for pointing those at a different namespace
+  either, so the whole concept (field, prompt, load/save, summary line) is removed
+  rather than leaving an unused setting in the wizard.
+- Old config files that still have a `dockerHubNamespace` key are unaffected —
+  `loadConfig()` simply doesn't look for it anymore, and an unrecognized JSON key
+  is harmless.
+- Note this is unrelated to `docker-compose.yml`'s `DOCKERHUB_NAMESPACE` env var
+  (the docker-compose local-dev path) — that's a separate mechanism and still
+  works as before; only the CLI's `ebl config`/`EblConfig` namespace concept was
+  removed.
+
+**Files modified:** `cli/src/config_store.hpp`, `cli/src/config_store.cpp`,
+`cli/src/commands/config.cpp`, `cli/src/commands/setup.cpp`,
+`cli/src/commands/build.cpp`, `README.md`, `CLAUDE.md`, `docs/DOCKER.md`
+
 ## v0.6.9 — Interactive Expo token prompt + project-local token file; Ctrl-C handling; runner image no longer follows the configured Docker Hub namespace
 
 **Date:** 2026-07-28

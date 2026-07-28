@@ -90,7 +90,7 @@ for why that matters.
 | Command | What it does |
 |---|---|
 | `ebl setup` | One-time: checks Docker is installed and running (offers to install it via the official convenience script if not — asks first, needs sudo), then pulls the runner/orchestrator/web images. |
-| `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), a default Expo access token plus optional per-account tokens (see [Multiple Expo accounts](#multiple-expo-accounts) below), orchestrator/web ports, Docker Hub namespace. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
+| `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), a default Expo access token plus optional per-account tokens (see [Multiple Expo accounts](#multiple-expo-accounts) below), orchestrator/web ports. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
 | `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. |
 | `ebl stop` | Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved. |
 | `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. |
@@ -110,8 +110,8 @@ ebl build . --release --keystore ./release.jks --key-alias upload \
 Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
 environment variables over the `--store-password` etc. flags where you can — flag
 values are more likely to end up in your shell history. If `ebl config` has already
-saved an Expo token or a Docker Hub namespace, `ebl build` picks those up as defaults
-too (any explicit flag/env var still wins).
+saved an Expo token, `ebl build` picks it up as a default too (any explicit flag/env
+var/`.ebl-token` file still wins).
 
 Every successful build lands in `<project>/ebl_builds/v<app-version>-build<n>/` — `n`
 is a simple counter local to that project (see `ebl_builds/.build-counter`), so

@@ -316,10 +316,10 @@ int runBuild(int argc, char** argv) {
     profile = hasPreview || project.easProfiles.empty() ? "preview" : project.easProfiles.front();
   }
 
-  // `ebl config` may have saved a Docker Hub namespace and/or an Expo token — use
-  // them as defaults, but any explicit flag/env var still wins. Falling back to a
-  // fresh EblConfig{} (not a hardcoded literal) when no config was ever saved keeps
-  // this in sync with the real default namespace defined in config_store.hpp.
+  // `ebl config` may have saved a default/per-owner Expo token — use it as a
+  // default, but any explicit flag/env var still wins. Falling back to a fresh
+  // EblConfig{} (not a hardcoded literal) when no config was ever saved keeps this
+  // in sync with the real default runner image defined in config_store.hpp.
   auto savedConfig = ebl::loadConfig();
   std::string runnerImage =
       opts.runnerImage.value_or(savedConfig.value_or(ebl::EblConfig{}).runnerImage());

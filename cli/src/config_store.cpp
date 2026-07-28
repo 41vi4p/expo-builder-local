@@ -78,7 +78,8 @@ std::optional<EblConfig> loadConfig() {
 
   Json root = Json::parse(text);
   EblConfig cfg;
-  cfg.dockerHubNamespace = root.get("dockerHubNamespace").asString(cfg.dockerHubNamespace);
+  // dockerHubNamespace is no longer read (see config_store.hpp) — older config
+  // files may still have the key; Json::get() on an unrecognized key is harmless.
   cfg.projectsRoot = root.get("projectsRoot").asString();
   cfg.orchestratorPort = static_cast<int>(root.get("orchestratorPort").asInt(cfg.orchestratorPort));
   cfg.webPort = static_cast<int>(root.get("webPort").asInt(cfg.webPort));
@@ -119,7 +120,6 @@ void saveConfig(EblConfig& config) {
   AesKey key = loadOrCreateMachineKey();
 
   Json root = Json::object();
-  root.set("dockerHubNamespace", Json(config.dockerHubNamespace));
   root.set("projectsRoot", Json(config.projectsRoot));
   root.set("orchestratorPort", Json(config.orchestratorPort));
   root.set("webPort", Json(config.webPort));

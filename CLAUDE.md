@@ -85,7 +85,7 @@ building blocks:
   list/build/pull, volume create, container create/attach/start/wait/remove) *and*
   long-running service containers (`ServiceContainerSpec`, network create, find-by-
   name, running-check) used by `ebl start`/`stop`.
-- `config_store.*` — `EblConfig` (projects folder, ports, Docker Hub namespace, Expo
+- `config_store.*` — `EblConfig` (projects folder, ports, Expo
   token, generated orchestrator `MASTER_KEY`) persisted at `~/.config/ebl/config.json`
   (0600); `crypto.*` (AES-256-GCM via OpenSSL) encrypts the two secret fields using a
   machine-local key at `~/.config/ebl/machine.key` (0600, generated on first use) —

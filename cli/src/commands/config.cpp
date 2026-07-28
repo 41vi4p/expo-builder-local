@@ -128,13 +128,6 @@ int runConfig(int argc, char** argv) {
   cfg.orchestratorPort = promptInt("Orchestrator port", cfg.orchestratorPort);
   cfg.webPort = promptInt("Web GUI port", cfg.webPort);
 
-  std::cout << "\n" << ebl::color::dim(
-                            "Docker Hub namespace — used to pull/build the runner, orchestrator, and web "
-                            "images (<namespace>/expo-builder-local-*). Leave default unless you're running "
-                            "your own published images.")
-            << "\n";
-  cfg.dockerHubNamespace = promptString("Docker Hub namespace", cfg.dockerHubNamespace);
-
   ebl::saveConfig(cfg);
 
   std::cout << "\n" << ebl::color::green(ebl::color::bold("Saved to " + ebl::configFilePath())) << "\n";
@@ -144,8 +137,7 @@ int runConfig(int argc, char** argv) {
             << (cfg.expoTokensByOwner.empty() ? "(none)" : std::to_string(cfg.expoTokensByOwner.size()) + " saved")
             << "\n";
   std::cout << "  Orchestrator port:    " << cfg.orchestratorPort << "\n";
-  std::cout << "  Web GUI port:         " << cfg.webPort << "\n";
-  std::cout << "  Docker Hub namespace: " << cfg.dockerHubNamespace << "\n\n";
+  std::cout << "  Web GUI port:         " << cfg.webPort << "\n\n";
   std::cout << "Next: " << ebl::color::cyan("ebl start") << "\n";
   return 0;
 }
