@@ -7,6 +7,7 @@ import { config } from './config';
 import fsRoutes from './routes/fs';
 import buildRoutes from './routes/builds';
 import keystoreRoutes from './routes/keystores';
+import expoTokenRoutes from './routes/expoTokens';
 import { buildHub } from './ws/hub';
 import * as db from './store/db';
 import { readLogFile } from './build/manager';
@@ -25,6 +26,7 @@ async function main() {
   await app.register(fsRoutes);
   await app.register(buildRoutes);
   await app.register(keystoreRoutes);
+  await app.register(expoTokenRoutes);
 
   await app.ready();
 

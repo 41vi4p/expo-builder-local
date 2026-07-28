@@ -3,6 +3,52 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.0 — Per-account Expo tokens, auto-selected by project owner
+
+**Date:** 2026-07-28
+**Type:** Feature
+
+- Building apps under more than one EAS account (e.g. a personal account and an
+  organization) previously meant passing `--expo-token`/`EXPO_TOKEN` by hand per
+  build, or overwriting the single saved token in `ebl config` every time you
+  switched apps.
+- `detectExpoProject` (both `cli/src/detect.cpp` and
+  `orchestrator/src/build/detect.ts`) now also reads `app.json`'s `expo.owner`
+  field (the EAS account slug a project is published under) into a new `owner`
+  field on `ExpoProjectInfo`.
+- **CLI:** `EblConfig` (`cli/src/config_store.hpp`) gains `expoTokensByOwner` — a
+  list of `{owner, token}` pairs alongside the existing single `expoToken` (now the
+  default/fallback). `ebl config` loops to add/update/remove per-owner entries.
+  `ebl build` resolves the token via `EblConfig::expoTokenFor(owner)`: explicit
+  `--expo-token`/`EXPO_TOKEN` still wins, then an exact owner match, then the
+  default token. Prints which owner's token was auto-selected when one is used.
+- **Orchestrator:** new `expo_tokens` SQLite table (owner `UNIQUE`, empty string =
+  default entry), encrypted at rest the same way keystore passwords are
+  (`util/crypto.ts`). New `GET/POST /api/expo-tokens` and
+  `DELETE /api/expo-tokens/:id` routes (`routes/expoTokens.ts`) — list/create/
+  delete, never returning the token itself. `build/manager.ts`'s `startBuild`
+  resolves a per-build token the same way as the CLI (per-build override → exact
+  owner match → saved default entry), ahead of the existing `config.defaultExpoToken`
+  env-var fallback in `docker/runner.ts`, which is unchanged.
+- **GUI:** new `ExpoTokenManager` component (modeled on `KeystoreManager`), wired
+  into `BuildConfigForm`'s EAS-token section — lists saved accounts, highlights
+  which one (if any) matches the currently-selected project's detected owner, and
+  lets you add/remove entries without leaving the build form. The manual token
+  field becomes an explicit per-build override.
+- `lib/types.ts` (GUI) and `orchestrator/src/types.ts` updated in lockstep per the
+  usual manual-sync rule (`ExpoProjectInfo.owner`, new `ExpoTokenRecord`/
+  `ExpoTokenSecret`).
+
+**Files modified:** `cli/src/detect.hpp`, `cli/src/detect.cpp`,
+`cli/src/config_store.hpp`, `cli/src/config_store.cpp`,
+`cli/src/commands/config.cpp`, `cli/src/commands/build.cpp`,
+`orchestrator/src/types.ts`, `orchestrator/src/build/detect.ts`,
+`orchestrator/src/store/db.ts`, `orchestrator/src/routes/expoTokens.ts`,
+`orchestrator/src/server.ts`, `orchestrator/src/build/manager.ts`,
+`expo-builder-gui/lib/types.ts`, `expo-builder-gui/lib/api.ts`,
+`expo-builder-gui/components/ExpoTokenManager.tsx`,
+`expo-builder-gui/components/BuildConfigForm.tsx`, `README.md`
+
 ## v0.5.5 — `docker pull`-style in-place progress for image pulls
 
 **Date:** 2026-07-28

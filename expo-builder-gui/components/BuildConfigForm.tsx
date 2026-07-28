@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { startBuild } from "@/lib/api";
+import ExpoTokenManager from "./ExpoTokenManager";
 import KeystoreManager from "./KeystoreManager";
 import type { ArtifactType, Engine, ExpoProjectInfo, SigningMode } from "@/lib/types";
 
@@ -100,15 +101,16 @@ export default function BuildConfigForm({
       </div>
 
       {engine !== "gradle" && (
-        <div>
-          <label className="text-xs font-medium text-text-dim">Expo access token (optional)</label>
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-text-dim">Expo access token (optional override)</label>
           <input
             type="password"
             value={expoToken}
             onChange={(e) => setExpoToken(e.target.value)}
-            placeholder="Only needed for the EAS engine"
+            placeholder="Leave blank to auto-select a saved token by this project's app.json owner"
             className="mt-1 w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
           />
+          <ExpoTokenManager detectedOwner={project.owner ?? ""} />
         </div>
       )}
 

@@ -90,7 +90,7 @@ for why that matters.
 | Command | What it does |
 |---|---|
 | `ebl setup` | One-time: checks Docker is installed and running (offers to install it via the official convenience script if not — asks first, needs sudo), then pulls the runner/orchestrator/web images. |
-| `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), Expo access token, orchestrator/web ports, Docker Hub namespace. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
+| `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), a default Expo access token plus optional per-account tokens (see [Multiple Expo accounts](#multiple-expo-accounts) below), orchestrator/web ports, Docker Hub namespace. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
 | `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. |
 | `ebl stop` | Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved. |
 | `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. |
@@ -154,6 +154,33 @@ dashboard and a persistent history; use the CLI for quick one-offs or CI.
 | **Gradle (local)** | `expo prebuild` generates the native `android/` project, then Gradle compiles it directly in the container. | No — fully offline once dependencies are cached. |
 | **EAS (local)** | `eas build --local` — same command EAS's own cloud workers run, just on your machine. Uses your project's `eas.json` profile as-is. | Yes — needs an [Expo access token](https://expo.dev/accounts/[account]/settings/access-tokens) (set via `ebl config`, `EXPO_TOKEN`, or per-build). |
 | **Auto** | Uses EAS if a token is available, otherwise falls back to Gradle. | Optional. |
+
+## Multiple Expo accounts
+
+If your apps aren't all under the same EAS account (e.g. some on your personal
+account, some on an organization), save one token per account instead of juggling
+`--expo-token`/`EXPO_TOKEN` by hand:
+
+```bash
+ebl config
+# ... prompts you for a default token, then loops:
+#   Account/owner to add or update (blank to finish, "remove <owner>" to delete one): project-cell
+#   Expo access token for "project-cell": ****...
+#   Account/owner to add or update (blank to finish, "remove <owner>" to delete one):
+```
+
+`ebl build` then auto-selects the right token by matching the project's `app.json`
+`expo.owner` field against your saved accounts — no per-build flag needed:
+
+```bash
+cd /path/to/app-owned-by-project-cell
+ebl build . --engine eas   # picks the "project-cell" token automatically
+```
+
+Resolution order: `--expo-token`/`EXPO_TOKEN` (explicit override) → the saved token
+for this project's `owner` → the default token from `ebl config` (used for projects
+with no `owner` field, or no matching saved account). The GUI has the same auto-select,
+managed from the build form's "Saved Expo tokens" panel instead of `ebl config`.
 
 ## Signing
 

@@ -7,8 +7,18 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace ebl {
+
+/** A saved token for one EAS account (app.json's `expo.owner` slug, e.g.
+ * "project-cell"). `owner` is never empty here — the single unscoped fallback lives
+ * in EblConfig::expoToken instead, so there's exactly one place a "no owner
+ * matched" token comes from. */
+struct ExpoTokenEntry {
+  std::string owner;
+  std::string token;  // plaintext once loaded into memory; encrypted on disk
+};
 
 struct EblConfig {
   std::string dockerHubNamespace = "41vi4p";
@@ -16,12 +26,25 @@ struct EblConfig {
   int orchestratorPort = 4001;
   int webPort = 3000;
   std::string masterKey;   // plaintext once loaded into memory; encrypted on disk
-  std::string expoToken;   // plaintext once loaded into memory; encrypted on disk (may be empty)
+  std::string expoToken;   // default/fallback token, used when no owner-specific entry matches (may be empty)
+  std::vector<ExpoTokenEntry> expoTokensByOwner;
   int64_t setupCompletedAt = 0;  // 0 = setup has never completed
 
   std::string runnerImage() const { return dockerHubNamespace + "/expo-builder-local-runner:latest"; }
   std::string orchestratorImage() const { return dockerHubNamespace + "/expo-builder-local-orchestrator:latest"; }
   std::string webImage() const { return dockerHubNamespace + "/expo-builder-local-web:latest"; }
+
+  /** Resolves the token to use for a project whose app.json declares `owner`
+   * (empty string if it doesn't declare one) — an exact owner match wins, otherwise
+   * falls back to the single default `expoToken`. */
+  std::string expoTokenFor(const std::string& owner) const {
+    if (!owner.empty()) {
+      for (const auto& entry : expoTokensByOwner) {
+        if (entry.owner == owner) return entry.token;
+      }
+    }
+    return expoToken;
+  }
 };
 
 std::string configDir();

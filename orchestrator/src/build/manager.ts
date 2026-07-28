@@ -23,6 +23,20 @@ import type { BuildRecord, StartBuildRequest, ResolvedEngine } from '../types';
 
 export class ValidationError extends Error {}
 
+/** Resolves the Expo token to inject for a project whose app.json declares `owner`
+ * (undefined/empty if it doesn't) — an exact owner match wins, then the saved
+ * default (owner: "") entry, then (left to docker/runner.ts) config.defaultExpoToken. */
+function resolveExpoToken(owner: string | undefined): string | undefined {
+  const key = owner ?? '';
+  const exact = db.getExpoTokenSecretByOwner(key);
+  if (exact) return decrypt(exact.tokenEnc);
+  if (key !== '') {
+    const fallback = db.getExpoTokenSecretByOwner('');
+    if (fallback) return decrypt(fallback.tokenEnc);
+  }
+  return undefined;
+}
+
 const activeContainers = new Map<string, Docker.Container>();
 const cancelledBuilds = new Set<string>();
 const queue: string[] = [];
@@ -90,7 +104,7 @@ export function startBuild(req: StartBuildRequest): BuildRecord {
 
   // Stash the per-build secret material (expoToken, keystore passwords) the launcher
   // needs, keyed by id — never persisted to the DB, only held in memory until launch.
-  pendingSecrets.set(build.id, { expoToken: req.expoToken });
+  pendingSecrets.set(build.id, { expoToken: req.expoToken || resolveExpoToken(info.owner) });
 
   queue.push(build.id);
   processQueue();

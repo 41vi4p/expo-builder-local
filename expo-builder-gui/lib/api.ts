@@ -3,6 +3,7 @@ import type {
   BuildRecord,
   DirEntry,
   ExpoProjectInfo,
+  ExpoTokenRecord,
   KeystoreRecord,
   StartBuildRequest,
   StatSample,
@@ -107,4 +108,18 @@ export async function uploadKeystore(form: FormData): Promise<KeystoreRecord> {
 
 export function deleteKeystore(id: string): Promise<void> {
   return request(`/api/keystores/${id}`, { method: "DELETE" });
+}
+
+// --- Expo tokens ---------------------------------------------------------------
+
+export function listExpoTokens(): Promise<{ expoTokens: ExpoTokenRecord[] }> {
+  return request("/api/expo-tokens");
+}
+
+export function saveExpoToken(body: { owner: string; token: string; label?: string }): Promise<ExpoTokenRecord> {
+  return request("/api/expo-tokens", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function deleteExpoToken(id: string): Promise<void> {
+  return request(`/api/expo-tokens/${id}`, { method: "DELETE" });
 }

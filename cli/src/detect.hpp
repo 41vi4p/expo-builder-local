@@ -12,6 +12,7 @@ struct ExpoProjectInfo {
   std::string name;
   std::string version;
   std::vector<std::string> easProfiles;
+  std::string owner;   // app.json's expo.owner (EAS account slug) — empty if unset
   std::string reason;  // populated when isExpoProject is false
 };
 

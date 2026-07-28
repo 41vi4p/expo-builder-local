@@ -51,6 +51,17 @@ ExpoProjectInfo detectExpoProject(const std::string& dirPath) {
   info.name = pkg.get("name").asString();
   info.version = pkg.get("version").asString();
 
+  fs::path appJsonPath = fs::path(dirPath) / "app.json";
+  std::string appJsonText;
+  if (readFile(appJsonPath.string(), appJsonText)) {
+    try {
+      Json appJson = Json::parse(appJsonText);
+      info.owner = appJson.get("expo").get("owner").asString();
+    } catch (const JsonError&) {
+      // malformed app.json just means no owner detected — not fatal for detection
+    }
+  }
+
   fs::path easPath = fs::path(dirPath) / "eas.json";
   std::string easText;
   if (readFile(easPath.string(), easText)) {

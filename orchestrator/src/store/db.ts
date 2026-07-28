@@ -6,6 +6,8 @@ import type {
   StatSample,
   KeystoreRecord,
   KeystoreSecret,
+  ExpoTokenRecord,
+  ExpoTokenSecret,
 } from '../types';
 
 const db = new Database(config.dbPath);
@@ -80,6 +82,16 @@ CREATE TABLE IF NOT EXISTS keystores (
   key_password_enc TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+-- owner = '' is the default/fallback entry, used when a project's app.json has no
+-- "owner" field (or no entry matches the owner it does declare).
+CREATE TABLE IF NOT EXISTS expo_tokens (
+  id TEXT PRIMARY KEY,
+  owner TEXT NOT NULL UNIQUE,
+  label TEXT,
+  token_enc TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `);
 
 // --- row <-> record mapping -------------------------------------------------
@@ -147,6 +159,14 @@ function rowToKeystoreSecret(row: any): KeystoreSecret {
     storePasswordEnc: row.store_password_enc,
     keyPasswordEnc: row.key_password_enc,
   };
+}
+
+function rowToExpoTokenRecord(row: any): ExpoTokenRecord {
+  return { id: row.id, owner: row.owner, label: row.label, createdAt: row.created_at };
+}
+
+function rowToExpoTokenSecret(row: any): ExpoTokenSecret {
+  return { ...rowToExpoTokenRecord(row), tokenEnc: row.token_enc };
 }
 
 // --- builds ------------------------------------------------------------------
@@ -314,6 +334,32 @@ export function getKeystoreSecret(id: string): KeystoreSecret | null {
 
 export function deleteKeystore(id: string): void {
   db.prepare('DELETE FROM keystores WHERE id = ?').run(id);
+}
+
+// --- Expo tokens ---------------------------------------------------------------
+
+/** Upserts by owner — saving a token for an owner that already has one replaces it,
+ * rather than requiring the caller to delete-then-recreate (owner is UNIQUE). */
+export function upsertExpoToken(record: ExpoTokenSecret): void {
+  db.prepare(
+    `INSERT INTO expo_tokens (id, owner, label, token_enc, created_at)
+     VALUES (@id, @owner, @label, @tokenEnc, @createdAt)
+     ON CONFLICT(owner) DO UPDATE SET label = excluded.label, token_enc = excluded.token_enc`
+  ).run(record);
+}
+
+export function listExpoTokens(): ExpoTokenRecord[] {
+  const rows = db.prepare('SELECT * FROM expo_tokens ORDER BY (owner = \'\') ASC, owner ASC').all();
+  return rows.map(rowToExpoTokenRecord);
+}
+
+export function getExpoTokenSecretByOwner(owner: string): ExpoTokenSecret | null {
+  const row = db.prepare('SELECT * FROM expo_tokens WHERE owner = ?').get(owner);
+  return row ? rowToExpoTokenSecret(row) : null;
+}
+
+export function deleteExpoToken(id: string): void {
+  db.prepare('DELETE FROM expo_tokens WHERE id = ?').run(id);
 }
 
 export default db;

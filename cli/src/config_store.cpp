@@ -89,6 +89,17 @@ std::optional<EblConfig> loadConfig() {
   if (!masterKeyEnc.empty()) cfg.masterKey = aesDecrypt(masterKeyEnc, key);
   if (!expoTokenEnc.empty()) cfg.expoToken = aesDecrypt(expoTokenEnc, key);
 
+  Json tokensByOwner = root.get("expoTokensByOwner");
+  if (tokensByOwner.isArray()) {
+    for (size_t i = 0; i < tokensByOwner.size(); i++) {
+      const Json& entry = tokensByOwner.at(i);
+      std::string owner = entry.get("owner").asString();
+      std::string tokenEnc = entry.get("tokenEnc").asString();
+      if (owner.empty() || tokenEnc.empty()) continue;
+      cfg.expoTokensByOwner.push_back({owner, aesDecrypt(tokenEnc, key)});
+    }
+  }
+
   return cfg;
 }
 
@@ -114,6 +125,16 @@ void saveConfig(EblConfig& config) {
   root.set("setupCompletedAt", Json(static_cast<double>(config.setupCompletedAt)));
   root.set("masterKeyEnc", Json(aesEncrypt(config.masterKey, key)));
   if (!config.expoToken.empty()) root.set("expoTokenEnc", Json(aesEncrypt(config.expoToken, key)));
+
+  Json tokensByOwner = Json::array();
+  for (const auto& entry : config.expoTokensByOwner) {
+    if (entry.owner.empty() || entry.token.empty()) continue;
+    Json obj = Json::object();
+    obj.set("owner", Json(entry.owner));
+    obj.set("tokenEnc", Json(aesEncrypt(entry.token, key)));
+    tokensByOwner.push_back(obj);
+  }
+  root.set("expoTokensByOwner", tokensByOwner);
 
   std::string path = configFilePath();
   std::ofstream out(path, std::ios::binary | std::ios::trunc);

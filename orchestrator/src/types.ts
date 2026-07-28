@@ -76,6 +76,20 @@ export interface KeystoreSecret extends KeystoreRecord {
   keyPasswordEnc: string;
 }
 
+/** A saved Expo access token for one EAS account, keyed by `owner` (app.json's
+ * `expo.owner` slug, e.g. "project-cell") — empty string is the default/fallback
+ * entry used when a project has no `owner` field, or no entry matches its owner. */
+export interface ExpoTokenRecord {
+  id: string;
+  owner: string;
+  label: string | null;
+  createdAt: number;
+}
+
+export interface ExpoTokenSecret extends ExpoTokenRecord {
+  tokenEnc: string;
+}
+
 export interface StartBuildRequest {
   appPath: string;
   artifactType: ArtifactType;
@@ -93,6 +107,7 @@ export interface ExpoProjectInfo {
   androidPackage?: string;
   androidVersionCode?: number | string;
   easProfiles?: string[];
+  owner?: string;
   hasGoogleServicesJson?: boolean;
   hasEnvFile?: boolean;
   reason?: string;

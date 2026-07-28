@@ -73,6 +73,16 @@ export interface KeystoreRecord {
   createdAt: number;
 }
 
+/** A saved Expo access token for one EAS account ("owner" — app.json's `expo.owner`
+ * slug). owner: "" is the default/fallback entry used when a project has no `owner`
+ * field, or no entry matches the owner it does declare. */
+export interface ExpoTokenRecord {
+  id: string;
+  owner: string;
+  label: string | null;
+  createdAt: number;
+}
+
 export interface ExpoProjectInfo {
   isExpoProject: boolean;
   name?: string;
@@ -80,6 +90,7 @@ export interface ExpoProjectInfo {
   androidPackage?: string;
   androidVersionCode?: number | string;
   easProfiles?: string[];
+  owner?: string;
   hasGoogleServicesJson?: boolean;
   hasEnvFile?: boolean;
   reason?: string;

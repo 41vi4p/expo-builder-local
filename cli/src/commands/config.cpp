@@ -3,6 +3,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -110,15 +111,64 @@ int runConfig(int argc, char** argv) {
   }
 
   std::cout << "\n" << ebl::color::dim(
-                            "Expo access token — only needed for the \"eas\" build engine. Create one at "
-                            "https://expo.dev/accounts/[account]/settings/access-tokens (leave blank to skip).")
+                            "Default Expo access token — only needed for the \"eas\" build engine, used when a "
+                            "project's app.json has no owner-specific token below (or no \"owner\" field at "
+                            "all). Create one at https://expo.dev/accounts/[account]/settings/access-tokens "
+                            "(leave blank to skip).")
             << "\n";
   std::cout << ebl::color::dim("Current: " + maskedPreview(cfg.expoToken)) << "\n";
-  std::string newToken = promptHidden("Expo access token (leave blank to keep current, type \"clear\" to remove it)");
+  std::string newToken = promptHidden("Default Expo access token (leave blank to keep current, type \"clear\" to remove it)");
   if (newToken == "clear") {
     cfg.expoToken.clear();
   } else if (!newToken.empty()) {
     cfg.expoToken = newToken;
+  }
+
+  std::cout << "\n" << ebl::color::dim(
+                            "Per-account Expo tokens — if you build apps under more than one EAS account "
+                            "(e.g. a personal account and an organization), save one token per account here. "
+                            "`ebl build` auto-selects by matching the project's app.json \"owner\" field, no "
+                            "need to pass --expo-token by hand.")
+            << "\n";
+  if (cfg.expoTokensByOwner.empty()) {
+    std::cout << ebl::color::dim("Current: (none saved)") << "\n";
+  } else {
+    std::cout << ebl::color::dim("Current:") << "\n";
+    for (const auto& entry : cfg.expoTokensByOwner) {
+      std::cout << ebl::color::dim("  " + entry.owner + ": " + maskedPreview(entry.token)) << "\n";
+    }
+  }
+  while (true) {
+    std::string owner =
+        promptString("Account/owner to add or update (blank to finish, \"remove <owner>\" to delete one)", "");
+    if (owner.empty()) break;
+    if (owner.rfind("remove ", 0) == 0) {
+      std::string target = owner.substr(7);
+      auto& entries = cfg.expoTokensByOwner;
+      auto it = std::find_if(entries.begin(), entries.end(),
+                              [&](const ebl::ExpoTokenEntry& e) { return e.owner == target; });
+      if (it == entries.end()) {
+        std::cout << ebl::color::red("No saved token for owner \"" + target + "\".") << "\n";
+      } else {
+        entries.erase(it);
+        std::cout << ebl::color::green("Removed \"" + target + "\".") << "\n";
+      }
+      continue;
+    }
+    std::string token = promptHidden("Expo access token for \"" + owner + "\"");
+    if (token.empty()) {
+      std::cout << ebl::color::red("Empty token, not saved.") << "\n";
+      continue;
+    }
+    auto& entries = cfg.expoTokensByOwner;
+    auto it = std::find_if(entries.begin(), entries.end(),
+                            [&](const ebl::ExpoTokenEntry& e) { return e.owner == owner; });
+    if (it == entries.end()) {
+      entries.push_back({owner, token});
+    } else {
+      it->token = token;
+    }
+    std::cout << ebl::color::green("Saved token for \"" + owner + "\".") << "\n";
   }
 
   std::cout << "\n";
@@ -136,7 +186,10 @@ int runConfig(int argc, char** argv) {
 
   std::cout << "\n" << ebl::color::green(ebl::color::bold("Saved to " + ebl::configFilePath())) << "\n";
   std::cout << "  Projects folder:      " << cfg.projectsRoot << "\n";
-  std::cout << "  Expo token:           " << maskedPreview(cfg.expoToken) << "\n";
+  std::cout << "  Default Expo token:   " << maskedPreview(cfg.expoToken) << "\n";
+  std::cout << "  Per-account tokens:   "
+            << (cfg.expoTokensByOwner.empty() ? "(none)" : std::to_string(cfg.expoTokensByOwner.size()) + " saved")
+            << "\n";
   std::cout << "  Orchestrator port:    " << cfg.orchestratorPort << "\n";
   std::cout << "  Web GUI port:         " << cfg.webPort << "\n";
   std::cout << "  Docker Hub namespace: " << cfg.dockerHubNamespace << "\n\n";

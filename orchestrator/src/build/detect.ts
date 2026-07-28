@@ -39,6 +39,7 @@ export function detectExpoProject(dirPath: string): ExpoProjectInfo {
   const appJson = readJsonSafe(path.join(dirPath, 'app.json'))?.expo;
   const androidPackage: string | undefined = appJson?.android?.package;
   const androidVersionCode: number | undefined = appJson?.android?.versionCode;
+  const owner: string | undefined = appJson?.owner;
 
   const easJson = readJsonSafe(path.join(dirPath, 'eas.json'));
   const easProfiles = easJson?.build ? Object.keys(easJson.build) : undefined;
@@ -50,6 +51,7 @@ export function detectExpoProject(dirPath: string): ExpoProjectInfo {
     androidPackage,
     androidVersionCode,
     easProfiles,
+    owner,
     hasGoogleServicesJson: fs.existsSync(path.join(dirPath, 'google-services.json')),
     hasEnvFile: fs.existsSync(path.join(dirPath, '.env')),
   };

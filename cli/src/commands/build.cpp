@@ -3,6 +3,7 @@
 #include <curl/curl.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
@@ -52,7 +53,8 @@ Options:
       --key-password <pw>        Key password (or set EXPO_BUILDER_KEY_PASSWORD;
                                   defaults to the store password)
       --expo-token <token>       Expo access token, for the eas engine (or set EXPO_TOKEN,
-                                  or the token saved by `ebl config`)
+                                  or the per-owner/default token saved by `ebl config`,
+                                  auto-selected by the project's app.json "owner" field)
       --runner-image <tag>       Runner image tag (default: from `ebl config` if set,
                                   else expo-builder-local-runner:latest)
       --gradle-cache-volume <n>  Docker volume for the Gradle cache
@@ -251,8 +253,19 @@ int runBuild(int argc, char** argv) {
   params.profile = profile;
   params.engine = opts.engine;
   params.signingMode = opts.release ? "release" : "debug";
-  params.expoToken = opts.expoToken.value_or(
-      envOrNullopt("EXPO_TOKEN").value_or(savedConfig ? savedConfig->expoToken : ""));
+  if (opts.expoToken) {
+    params.expoToken = *opts.expoToken;
+  } else if (auto envToken = envOrNullopt("EXPO_TOKEN")) {
+    params.expoToken = *envToken;
+  } else if (savedConfig) {
+    params.expoToken = savedConfig->expoTokenFor(project.owner);
+    bool viaOwner = !project.owner.empty() &&
+                     std::any_of(savedConfig->expoTokensByOwner.begin(), savedConfig->expoTokensByOwner.end(),
+                                 [&](const ebl::ExpoTokenEntry& e) { return e.owner == project.owner; });
+    if (viaOwner) {
+      std::cout << ebl::color::dim("Using saved Expo token for owner \"" + project.owner + "\".") << "\n";
+    }
+  }
   if (opts.release && opts.keystore) {
     params.hasKeystore = true;
     params.keystore.hostPath = fs::absolute(*opts.keystore).string();
