@@ -141,7 +141,7 @@ std::string DockerClient::createContainer(const BuildParams& params, const std::
                                            const std::string& gradleCacheVolume, const std::string& npmCacheVolume,
                                            unsigned int buildUid, unsigned int buildGid) {
   Json env = Json::array();
-  env.push_back(Json("APP_DIR=/work/app"));
+  env.push_back(Json(std::string("APP_DIR=") + kContainerAppDir));
   env.push_back(Json("ARTIFACT_TYPE=" + params.artifactType));
   env.push_back(Json("PROFILE=" + params.profile));
   env.push_back(Json("ENGINE=" + params.engine));
@@ -151,7 +151,7 @@ std::string DockerClient::createContainer(const BuildParams& params, const std::
   if (!params.expoToken.empty()) env.push_back(Json("EXPO_TOKEN=" + params.expoToken));
 
   Json binds = Json::array();
-  binds.push_back(Json(params.appPath + ":/work/app"));
+  binds.push_back(Json(params.appPath + ":" + kContainerAppDir));
   binds.push_back(Json(gradleCacheVolume + ":/cache/gradle"));
   binds.push_back(Json(npmCacheVolume + ":/cache/npm"));
 
@@ -177,7 +177,7 @@ std::string DockerClient::createContainer(const BuildParams& params, const std::
   body.set("OpenStdin", Json(false));
   body.set("AttachStdout", Json(true));
   body.set("AttachStderr", Json(true));
-  body.set("WorkingDir", Json("/work/app"));
+  body.set("WorkingDir", Json(kContainerAppDir));
   body.set("HostConfig", hostConfig);
 
   HttpResponse res = http_.request("POST", "/containers/create", body.dump(), {"Content-Type: application/json"});

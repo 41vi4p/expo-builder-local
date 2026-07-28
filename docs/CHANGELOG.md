@@ -3,6 +3,43 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.1 — Fix ENOENT on the artifact after a successful build
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- After a successful build, both the orchestrator and the CLI failed with
+  `ENOENT: no such file or directory, stat '/work/app/ebl_builds/v.../....apk'`
+  (orchestrator: "Build succeeded but metrics extraction failed"; CLI: "Artifact
+  not found at ...") even though the build genuinely succeeded and the artifact was
+  sitting right there in `<project>/ebl_builds/`.
+- Root cause: `docker/runner/build-entrypoint.sh`'s `@@ARTIFACT:` marker reports the
+  artifact's path as the *build container* sees it (rooted at `APP_DIR`, i.e.
+  `/work/app/...` — see `docker-entrypoint.sh`'s `WorkingDir`/bind mount). Both
+  `orchestrator/src/build/manager.ts` (parsing the marker) and
+  `cli/src/commands/build.cpp` (same) used that path as-is against the *host*
+  filesystem — where `/work/app` doesn't exist — instead of translating it back to
+  the real host directory the container's `APP_DIR` was bind-mounted from
+  (`params.appPath`/`build.appPath`). Metrics extraction (`stat`, SHA-256) and the
+  GUI's `/api/builds/:id/artifact` download route were both affected; only metrics
+  extraction had actually been exercised before now.
+- Fixed by translating the marker path immediately after it's parsed, in exactly
+  one place per side: `manager.ts`'s new `toHostArtifactPath()` (using the new
+  exported `CONTAINER_APP_DIR` constant from `docker/runner.ts`, replacing three
+  places that previously hardcoded the `/work/app` literal separately) and
+  `build.cpp`'s new `toHostArtifactPath()` (using the new `ebl::kContainerAppDir`
+  constant from `docker_client.hpp`, same dedup). Everything downstream
+  (`BuildRecord.artifactPath`, the download route, metrics) now sees a real host
+  path.
+- If you hit this on a build that otherwise succeeded, the artifact is already
+  sitting in `ebl_builds/` and is safe to use as-is — only this tool's own
+  size/SHA-256/version bookkeeping (and the marked status) was wrong, not the APK/AAB
+  itself. A fresh build now records success correctly.
+
+**Files modified:** `orchestrator/src/docker/runner.ts`,
+`orchestrator/src/build/manager.ts`, `cli/src/docker_client.hpp`,
+`cli/src/docker_client.cpp`, `cli/src/commands/build.cpp`
+
 ## v0.6.0 — Per-account Expo tokens, auto-selected by project owner
 
 **Date:** 2026-07-28

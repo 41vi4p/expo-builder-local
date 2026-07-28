@@ -12,6 +12,13 @@
 
 namespace ebl {
 
+/** Where a build container sees the bind-mounted project root (matches
+ * docker/runner/build-entrypoint.sh's default APP_DIR, and
+ * orchestrator/src/docker/runner.ts's CONTAINER_APP_DIR) — paths the container
+ * reports back (e.g. the `@@ARTIFACT:` marker) are rooted here, not at the real
+ * host path, so callers must translate before touching the host filesystem. */
+constexpr const char* kContainerAppDir = "/work/app";
+
 struct KeystoreConfig {
   std::string hostPath;
   std::string filename;

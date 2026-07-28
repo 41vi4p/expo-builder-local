@@ -15,6 +15,7 @@ import {
   attachContainerStats,
   stopContainer,
   removeContainer,
+  CONTAINER_APP_DIR,
 } from '../docker/runner';
 import { parseDockerStats } from '../docker/stats';
 import * as db from '../store/db';
@@ -22,6 +23,17 @@ import { decrypt } from '../util/crypto';
 import type { BuildRecord, StartBuildRequest, ResolvedEngine } from '../types';
 
 export class ValidationError extends Error {}
+
+/** The `@@ARTIFACT:` marker build-entrypoint.sh emits is a path inside the build
+ * container (rooted at CONTAINER_APP_DIR, e.g. "/work/app/ebl_builds/..."), but
+ * every consumer here (metrics extraction, the download route, the persisted
+ * BuildRecord) runs against the real host filesystem — translate it back to the
+ * host path the container's APP_DIR was bind-mounted from before using it. */
+function toHostArtifactPath(appPath: string, containerPath: string): string {
+  const prefix = CONTAINER_APP_DIR + '/';
+  if (!containerPath.startsWith(prefix)) return containerPath;
+  return path.join(appPath, containerPath.slice(prefix.length));
+}
 
 /** Resolves the Expo token to inject for a project whose app.json declares `owner`
  * (undefined/empty if it doesn't) — an exact owner match wins, then the saved
@@ -223,7 +235,7 @@ async function launchBuild(buildId: string): Promise<void> {
         continue;
       }
       if (line.startsWith('@@ARTIFACT:')) {
-        artifactPath = line.slice('@@ARTIFACT:'.length).trim();
+        artifactPath = toHostArtifactPath(build.appPath, line.slice('@@ARTIFACT:'.length).trim());
         continue;
       }
       if (line.startsWith('@@BUILD_NUMBER:')) {

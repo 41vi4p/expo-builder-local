@@ -139,6 +139,17 @@ std::optional<std::string> envOrNullopt(const char* name) {
   return v ? std::optional<std::string>(v) : std::nullopt;
 }
 
+/** The `@@ARTIFACT:` marker build-entrypoint.sh emits is a path inside the build
+ * container (rooted at ebl::kContainerAppDir, e.g. "/work/app/ebl_builds/..."), but
+ * the CLI runs natively on the host — translate it back to the real host path
+ * (params.appPath, the directory bind-mounted to kContainerAppDir) before touching
+ * the filesystem (metrics extraction, printing the artifact path, etc). */
+std::string toHostArtifactPath(const std::string& appPath, const std::string& containerPath) {
+  std::string prefix = std::string(ebl::kContainerAppDir) + "/";
+  if (containerPath.rfind(prefix, 0) != 0) return containerPath;
+  return (fs::path(appPath) / containerPath.substr(prefix.size())).string();
+}
+
 std::string formatBytes(uint64_t bytes) {
   char buf[64];
   if (bytes < 1024ULL * 1024) {
@@ -313,7 +324,7 @@ int runBuild(int argc, char** argv) {
         std::string line = residual.substr(0, pos);
         residual.erase(0, pos + 1);
         if (line.rfind("@@ENGINE:", 0) == 0) resolvedEngine = line.substr(9);
-        else if (line.rfind("@@ARTIFACT:", 0) == 0) artifactPath = line.substr(11);
+        else if (line.rfind("@@ARTIFACT:", 0) == 0) artifactPath = toHostArtifactPath(params.appPath, line.substr(11));
         else if (line.rfind("@@ERROR:", 0) == 0) errorMessage = line.substr(8);
         else if (line.rfind("@@BUILD_NUMBER:", 0) == 0) buildNumber = line.substr(15);
       }

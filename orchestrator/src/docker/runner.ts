@@ -5,6 +5,12 @@ import type { ArtifactType, Engine, SigningMode } from '../types';
 
 export const docker = new Docker({ socketPath: config.dockerSocket });
 
+/** Where a build container sees the bind-mounted project root (matches
+ * docker/runner/build-entrypoint.sh's default APP_DIR) — paths the container
+ * reports back (e.g. the `@@ARTIFACT:` marker) are rooted here, not at the real
+ * host path, so callers must translate before touching the host filesystem. */
+export const CONTAINER_APP_DIR = '/work/app';
+
 let volumesReady: Promise<void> | null = null;
 /** Creates the shared npm/Gradle cache volumes once, if they don't already exist —
  * reused across every build so dependency/Gradle downloads aren't repeated per run. */
@@ -45,7 +51,7 @@ export async function createRunnerContainer(params: RunnerParams): Promise<Docke
   await ensureCacheVolumes();
 
   const env: string[] = [
-    'APP_DIR=/work/app',
+    `APP_DIR=${CONTAINER_APP_DIR}`,
     `ARTIFACT_TYPE=${params.artifactType}`,
     `PROFILE=${params.profile}`,
     `ENGINE=${params.engine}`,
@@ -57,7 +63,7 @@ export async function createRunnerContainer(params: RunnerParams): Promise<Docke
   if (expoToken) env.push(`EXPO_TOKEN=${expoToken}`);
 
   const binds = [
-    `${params.appPath}:/work/app`,
+    `${params.appPath}:${CONTAINER_APP_DIR}`,
     `${config.gradleCacheVolume}:/cache/gradle`,
     `${config.npmCacheVolume}:/cache/npm`,
   ];
@@ -87,7 +93,7 @@ export async function createRunnerContainer(params: RunnerParams): Promise<Docke
     OpenStdin: false,
     AttachStdout: true,
     AttachStderr: true,
-    WorkingDir: '/work/app',
+    WorkingDir: CONTAINER_APP_DIR,
   });
 }
 
