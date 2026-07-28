@@ -3,6 +3,18 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.7.0 — `ebl --about`
+
+**Date:** 2026-07-28
+**Type:** Feature
+
+- New top-level `ebl --about` (alias: `ebl about`) prints project name/version,
+  a one-line description, developer (`41vi4p`), license (GPL-3.0), and the GitHub
+  repository URL. Listed alongside `-h`/`--help`/`-v`/`--version` in
+  `printTopLevelUsage()`.
+
+**Files modified:** `cli/src/main.cpp`
+
 ## v0.6.10 — Removed the configurable Docker Hub namespace entirely
 
 **Date:** 2026-07-28

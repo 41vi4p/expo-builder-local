@@ -40,6 +40,21 @@ common starting point if you just want a build right now.
 
   -h, --help      Show this help
   -v, --version   Show version
+      --about     Show project/developer/license/repository info
+)";
+}
+
+void printAbout() {
+  std::cout << R"(ebl (expo-local-builder) v)"
+            << kVersion << R"(
+
+expo-builder-local — build managed Expo (SDK 56+) projects into signed Android
+APK/AABs entirely on your own machine, via a disposable Docker container, with
+an optional web GUI. Not affiliated with Expo/Google.
+
+Developer:    41vi4p
+License:      GNU General Public License v3.0 (GPL-3.0)
+Repository:   https://github.com/41vi4p/expo-builder-local
 )";
 }
 
@@ -58,6 +73,10 @@ int main(int argc, char** argv) {
   }
   if (command == "-v" || command == "--version") {
     std::cout << "ebl " << kVersion << "\n";
+    return 0;
+  }
+  if (command == "--about" || command == "about") {
+    printAbout();
     return 0;
   }
 
