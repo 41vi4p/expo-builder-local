@@ -3,6 +3,19 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.5.2 — README: split APT install into its own copy-pasteable block
+
+**Date:** 2026-07-28
+**Type:** Refactor
+
+- Quick start's install step used to bury the manual APT-repo commands as
+  commented-out alt lines inside the `install.sh` code fence — not copy-pasteable
+  as-is. Split into three clearly labeled install paths (APT repo, one-line
+  installer, direct `.deb` download), each its own runnable code block.
+- No functional change — documentation only.
+
+**Files modified:** `README.md`
+
 ## v0.5.1 — Patch base-OS packages in all three Docker images
 
 **Date:** 2026-07-23

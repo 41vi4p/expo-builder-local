@@ -11,15 +11,31 @@ remote-managed credentials, that's supported too (see [Build engines](#build-eng
 
 ## Quick start (CLI)
 
-```bash
-# Install (pick one)
-curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh
-# or add the APT repo yourself (this is what the script above does):
-#   curl -fsSL https://41vi4p.github.io/expo-builder-local/apt/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/ebl-archive-keyring.gpg
-#   echo "deb [signed-by=/usr/share/keyrings/ebl-archive-keyring.gpg] https://41vi4p.github.io/expo-builder-local/apt stable main" | sudo tee /etc/apt/sources.list.d/ebl.list
-#   sudo apt update && sudo apt install ebl
-# or: download ebl_*_amd64.deb from Releases, then: sudo apt install ./ebl_*_amd64.deb
+### Install via APT (Ubuntu/Debian)
 
+```bash
+curl -fsSL https://41vi4p.github.io/expo-builder-local/apt/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/ebl-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/ebl-archive-keyring.gpg] https://41vi4p.github.io/expo-builder-local/apt stable main" | sudo tee /etc/apt/sources.list.d/ebl.list
+sudo apt update && sudo apt install ebl
+```
+
+### Or use the one-line installer
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh
+```
+
+### Or download the .deb directly
+
+Grab `ebl_*_amd64.deb` from [Releases](https://github.com/41vi4p/expo-builder-local/releases), then:
+
+```bash
+sudo apt install ./ebl_*_amd64.deb
+```
+
+### Then
+
+```bash
 ebl setup     # checks/installs Docker, pulls the runner/orchestrator/web images
 ebl config    # interactive: your projects folder, Expo token, ports
 ebl start     # runs the orchestrator + web GUI as containers, prints the GUI link
