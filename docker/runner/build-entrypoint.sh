@@ -96,9 +96,21 @@ fi
 progress 100
 
 # ---------------------------------------------------------------------------
+# "auto" prefers EAS only when the project actually looks EAS-managed (has an
+# eas.json to pull a build profile from) AND a token is available to use it.
+# Requiring eas.json (not just a token) matters now that a token often resolves
+# even for projects that never touch EAS — ebl config's default/per-owner tokens
+# (see config_store.hpp / CLAUDE.md's Multiple Expo accounts section) mean some
+# token being set is no longer a reliable signal that *this* project wants EAS;
+# eas.json's presence is a much stronger one. Without it, `eas build --local`
+# would just fail anyway (no profile to build).
 RESOLVED_ENGINE="${ENGINE}"
 if [ "${RESOLVED_ENGINE}" = "auto" ]; then
-  if [ -n "${EXPO_TOKEN:-}" ]; then RESOLVED_ENGINE="eas"; else RESOLVED_ENGINE="gradle"; fi
+  if [ -n "${EXPO_TOKEN:-}" ] && [ -f "${APP_DIR}/eas.json" ]; then
+    RESOLVED_ENGINE="eas"
+  else
+    RESOLVED_ENGINE="gradle"
+  fi
 fi
 echo "@@ENGINE:${RESOLVED_ENGINE}"
 

@@ -77,6 +77,10 @@ export function startBuild(req: StartBuildRequest): BuildRecord {
   if (req.signingMode === 'release' && req.keystoreId && !db.getKeystoreSecret(req.keystoreId)) {
     throw new ValidationError('Selected keystore was not found');
   }
+  const active = db.activeBuildForAppPath(appPath);
+  if (active) {
+    throw new ValidationError(`A build for this project is already ${active.status} (id ${active.id})`);
+  }
 
   const now = Date.now();
   const build: BuildRecord = {

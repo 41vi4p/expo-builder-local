@@ -32,6 +32,25 @@ bool DockerClient::imageExists(const std::string& tag) {
   return images.size() > 0;
 }
 
+std::optional<std::string> DockerClient::findRunningBuildContainerByAppPath(const std::string& appPath) {
+  Json filters = Json::object();
+  Json labelValues = Json::array();
+  labelValues.push_back(Json(std::string(kAppPathLabel) + "=" + appPath));
+  filters.set("label", labelValues);
+
+  // No `all=true`: /containers/json defaults to running containers only, which is
+  // exactly what "already in flight" means here.
+  std::string path = "/containers/json?filters=" + urlEncode(filters.dump());
+  HttpResponse res = http_.request("GET", path);
+  if (res.status != 200) {
+    throw std::runtime_error("Failed to query Docker containers (HTTP " + std::to_string(res.status) + "): " +
+                              res.body);
+  }
+  Json containers = Json::parse(res.body);
+  if (containers.size() == 0) return std::nullopt;
+  return containers.at(0).at("Id").asString();
+}
+
 void DockerClient::buildImage(const std::string& contextDir, const std::string& tag,
                                const std::function<void(const std::string&)>& onLog) {
   std::string tar = createTarFromDirectory(contextDir);
@@ -170,9 +189,13 @@ std::string DockerClient::createContainer(const BuildParams& params, const std::
   hostConfig.set("Binds", binds);
   hostConfig.set("AutoRemove", Json(false));
 
+  Json labels = Json::object();
+  labels.set(kAppPathLabel, Json(params.appPath));
+
   Json body = Json::object();
   body.set("Image", Json(runnerImage));
   body.set("Env", env);
+  body.set("Labels", labels);
   body.set("Tty", Json(true));
   body.set("OpenStdin", Json(false));
   body.set("AttachStdout", Json(true));

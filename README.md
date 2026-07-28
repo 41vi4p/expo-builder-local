@@ -153,7 +153,7 @@ dashboard and a persistent history; use the CLI for quick one-offs or CI.
 |---|---|---|
 | **Gradle (local)** | `expo prebuild` generates the native `android/` project, then Gradle compiles it directly in the container. | No — fully offline once dependencies are cached. |
 | **EAS (local)** | `eas build --local` — same command EAS's own cloud workers run, just on your machine. Uses your project's `eas.json` profile as-is. | Yes — needs an [Expo access token](https://expo.dev/accounts/[account]/settings/access-tokens) (set via `ebl config`, `EXPO_TOKEN`, or per-build). |
-| **Auto** | Uses EAS if a token is available, otherwise falls back to Gradle. | Optional. |
+| **Auto** | Uses EAS if the project has an `eas.json` *and* a token is available, otherwise falls back to Gradle. | Optional. |
 
 ## Multiple Expo accounts
 

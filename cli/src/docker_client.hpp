@@ -19,6 +19,11 @@ namespace ebl {
  * host path, so callers must translate before touching the host filesystem. */
 constexpr const char* kContainerAppDir = "/work/app";
 
+/** Docker label key every build container is tagged with (value: the host appPath
+ * being built) — lets findRunningBuildContainerByAppPath() detect a build already
+ * in flight for a given project without needing a deterministic container name. */
+constexpr const char* kAppPathLabel = "com.expo-builder-local.app-path";
+
 struct KeystoreConfig {
   std::string hostPath;
   std::string filename;
@@ -82,6 +87,13 @@ public:
                                const std::string& gradleCacheVolume, const std::string& npmCacheVolume,
                                unsigned int buildUid, unsigned int buildGid);
   void startContainer(const std::string& id);
+
+  /** Returns the id of an already-running build container for `appPath`, if any —
+   * every build container created by createContainer() is labeled with its
+   * appPath (see kAppPathLabel), so this is how `ebl build` detects "a build for
+   * this project is already in flight" before launching a second one that would
+   * just contend with the first over the shared npm/gradle cache volumes. */
+  std::optional<std::string> findRunningBuildContainerByAppPath(const std::string& appPath);
 
   /** Streams the container's combined stdout/stderr (Tty:true, so it's a raw,
    * unmultiplexed byte stream) — onChunk fires as bytes arrive. */

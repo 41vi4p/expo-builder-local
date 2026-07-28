@@ -3,6 +3,60 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.7 — Refuse to start a second concurrent build of the same project
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- Neither `ebl build` nor the orchestrator's `startBuild()` had any guard against
+  starting a second build of the same project while one was already running.
+  Both containers bind the same shared `expo-builder-*-npm-cache`/`gradle-cache`
+  volumes, so concurrent builds don't fail cleanly — they contend on npm's own
+  cache lock and both effectively wedge at "Installing dependencies" indefinitely,
+  visible as near-0% CPU containers that even `docker rm -f`/`kill -9` can
+  eventually struggle to reap once wedged that way for long enough.
+- **CLI**: every build container is now labeled with its `appPath` (Docker label
+  `com.expo-builder-local.app-path`, set in `createContainer`). A new
+  `DockerClient::findRunningBuildContainerByAppPath()` queries running containers
+  by that label; `ebl build` checks it before pulling/building the runner image or
+  creating a container, and fails fast with the existing container's id and a
+  `docker stop` hint if one's already running for that path.
+- **Orchestrator**: `startBuild()` now checks a new `db.activeBuildForAppPath()`
+  query (any `queued`/`starting`/`running` build for the same `app_path`) and
+  throws a `ValidationError` if one exists — protects the GUI the same way, and
+  also covers the case where `MAX_CONCURRENT_BUILDS` is configured above 1 for
+  cross-project parallelism (which wouldn't otherwise stop two builds of the
+  *same* project from both being admitted).
+- Found while debugging three simultaneously-running, wedged build containers on
+  a real machine — all three were `ebl build .` invocations of the same project,
+  run back-to-back without realizing the first was still in flight.
+
+**Files modified:** `cli/src/docker_client.hpp`, `cli/src/docker_client.cpp`,
+`cli/src/commands/build.cpp`, `orchestrator/src/store/db.ts`,
+`orchestrator/src/build/manager.ts`
+
+## v0.6.6 — "auto" engine now requires `eas.json` before preferring EAS
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- `docker/runner/build-entrypoint.sh`'s `auto` engine resolution previously picked
+  EAS whenever an `EXPO_TOKEN` was present, full stop — no check that the project
+  actually has an `eas.json` to pull a build profile from. That was a reasonable
+  proxy when a token being set was rare, but now that `ebl config`/the GUI can save
+  a default token and per-owner tokens (auto-selected via `app.json`'s `owner`
+  field — see v0.6.0), *some* token resolves for far more projects, including ones
+  that never touch EAS at all. Without this change, `auto` would wrongly try (and
+  fail) `eas build --local` on a plain Gradle-only project just because a token
+  happened to be configured for its owner/account.
+- `auto` now requires **both** `EXPO_TOKEN` **and** `${APP_DIR}/eas.json` existing
+  before resolving to `eas`; otherwise it builds with Gradle, same as before.
+- Updated `README.md`'s Build engines table and the GUI's engine-selector hint
+  (`BuildConfigForm.tsx`) to describe the corrected rule.
+
+**Files modified:** `docker/runner/build-entrypoint.sh`, `README.md`,
+`expo-builder-gui/components/BuildConfigForm.tsx`
+
 ## v0.6.5 — Fix `ebl build` falling back to a non-namespaced runner image tag; atomic config save
 
 **Date:** 2026-07-28

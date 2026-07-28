@@ -293,6 +293,17 @@ int runBuild(int argc, char** argv) {
   try {
     DockerClient docker(opts.dockerSocket);
 
+    // Two `ebl build`s of the same project at once share the same npm/Gradle cache
+    // volumes and end up contending on npm's own cache lock — neither one makes any
+    // real progress rather than failing cleanly. Fail fast instead of launching a
+    // second container that would just wedge alongside the first. Thrown (not a
+    // direct return) so this still goes through curl_global_cleanup() below.
+    if (auto existing = docker.findRunningBuildContainerByAppPath(appPath.string())) {
+      throw std::runtime_error("A build for " + appPath.string() + " is already running (container " +
+                                existing->substr(0, 12) +
+                                "). Wait for it to finish, or stop it with: docker stop " + *existing);
+    }
+
     ensureRunnerImage(docker, runnerImage);
     docker.ensureVolume(opts.gradleCacheVolume);
     docker.ensureVolume(opts.npmCacheVolume);

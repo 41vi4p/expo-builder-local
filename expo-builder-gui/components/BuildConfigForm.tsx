@@ -96,7 +96,7 @@ export default function BuildConfigForm({
           ))}
         </div>
         <p className="mt-1 font-mono text-[11px] text-text-dim">
-          Auto uses EAS if an Expo token is supplied below, otherwise builds fully offline with Gradle.
+          Auto uses EAS if this project has an eas.json and a token is available, otherwise builds fully offline with Gradle.
         </p>
       </div>
 

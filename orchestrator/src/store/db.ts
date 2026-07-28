@@ -237,6 +237,22 @@ export function listBuilds(limit = 100): BuildRecord[] {
   return rows.map(rowToBuild);
 }
 
+/** A build for `appPath` that's queued/starting/running, if any — used to refuse
+ * starting a second concurrent build of the same project. Two builds of the same
+ * project share the same npm/Gradle cache volumes and just contend on npm's own
+ * cache lock rather than failing cleanly (neither makes real progress); this is
+ * cheaper and more reliable than trying to detect that after the fact. */
+export function activeBuildForAppPath(appPath: string): BuildRecord | null {
+  const row = db
+    .prepare(
+      `SELECT * FROM builds
+       WHERE app_path = ? AND status IN ('queued', 'starting', 'running')
+       ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(appPath);
+  return row ? rowToBuild(row) : null;
+}
+
 /** Most recent successful build for the same app+profile+artifactType, excluding `excludeId` —
  * used to compute the size delta shown in the metrics panel and to seed ETA estimates. */
 export function previousSuccessfulBuild(
