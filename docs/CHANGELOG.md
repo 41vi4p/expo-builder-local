@@ -3,6 +3,61 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.9 — `ebl build` handles Ctrl-C cleanly; runner image no longer follows the configured Docker Hub namespace
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- `ebl build` previously had no SIGINT/SIGTERM handling at all — a Ctrl-C killed the
+  CLI process but left the build container running, unnoticed, indefinitely. This is
+  almost certainly how the earlier three-container wedge incident actually started:
+  interrupting a build and re-running it, not realizing the first container was
+  still alive and would go on to contend with the second/third over the shared
+  npm-cache lock (see v0.6.7).
+  - A signal handler now sets an async-signal-safe flag; a small watcher thread
+    polls it and force-removes the container (`removeContainer`'s existing
+    `?force=1` handles a still-running container fine), which is what unblocks the
+    main thread's blocking `waitContainer()` call — there's no other clean
+    cancellation point on a bare `/containers/{id}/wait` libcurl request.
+  - Reports "Build cancelled" and exits with 130 (128+SIGINT, standard shell
+    convention) instead of the normal success/failure summary.
+  - Prints a one-line "Press Ctrl-C to cancel" hint right after the container id,
+    so this is discoverable without reading the source.
+- **Separately**, per explicit user request: `EblConfig::runnerImage()` no longer
+  derives from the configurable `dockerHubNamespace` — it's now hardcoded to
+  `41vi4p/expo-builder-local-runner:latest` always. `orchestratorImage()`/
+  `webImage()` are unaffected (still namespace-based) — the runner is the large,
+  generic Android-toolchain image always published from the canonical upstream
+  account, so someone forking this project under their own namespace (to publish
+  their own orchestrator/web images) has no reason to also need to republish that
+  same runner image. `--runner-image` still overrides this explicitly if needed.
+- Also fixed a stale help-text line left over from v0.6.5's fallback fix (`ebl
+  build --help` still said the no-config fallback was the bare
+  `expo-builder-local-runner:latest`, when it's actually been the namespaced tag
+  since that fix).
+
+**Files modified:** `cli/src/commands/build.cpp`, `cli/src/config_store.hpp`
+
+## v0.6.8 — Default build engine changed from `auto` to `eas`
+
+**Date:** 2026-07-28
+**Type:** Enhancement
+
+- The default `--engine` (CLI) and the GUI's initial engine-selector value are now
+  `eas` instead of `auto` — user preference, since most of their projects are
+  EAS-managed and typing `--engine eas` on every build was more friction than it
+  was worth. `--engine auto`/`--engine gradle` (CLI) or the Gradle/Auto buttons
+  (GUI) still work exactly as before if a project doesn't want EAS.
+- Note this is a plain engine selection, not `auto` — it will always attempt EAS
+  regardless of whether the project has an `eas.json` or a resolvable token, and
+  fail with `build-entrypoint.sh`'s existing `"ENGINE=eas requires an EXPO_TOKEN"`
+  error if neither is available. For a project that never uses EAS, pass
+  `--engine gradle` (or `--engine auto`, which does check for `eas.json`+token
+  before falling back — see v0.6.6).
+
+**Files modified:** `cli/src/commands/build.cpp`,
+`expo-builder-gui/components/BuildConfigForm.tsx`
+
 ## v0.6.7 — Refuse to start a second concurrent build of the same project
 
 **Date:** 2026-07-28

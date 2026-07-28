@@ -19,7 +19,7 @@ export default function BuildConfigForm({
 
   const [artifactType, setArtifactType] = useState<ArtifactType>("apk");
   const [profile, setProfile] = useState(profiles.includes("preview") ? "preview" : profiles[0]);
-  const [engine, setEngine] = useState<Engine>("auto");
+  const [engine, setEngine] = useState<Engine>("eas");
   const [signingMode, setSigningMode] = useState<SigningMode>("debug");
   const [keystoreId, setKeystoreId] = useState<string | null>(null);
   const [expoToken, setExpoToken] = useState("");

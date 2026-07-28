@@ -4,6 +4,9 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
@@ -28,6 +31,13 @@ namespace ebl::commands {
 
 namespace {
 
+// Set by the SIGINT/SIGTERM handler below; only async-signal-safe operations
+// (setting a sig_atomic_t) happen in the handler itself. A watcher thread polls
+// this and does the actual container cleanup on the main flow's behalf.
+volatile std::sig_atomic_t g_interruptRequested = 0;
+
+void handleInterruptSignal(int /* signum */) { g_interruptRequested = 1; }
+
 void printUsage() {
   std::cout <<
       R"(ebl build [path] [options]
@@ -45,7 +55,7 @@ Options:
   -p, --profile <name>           eas.json build profile (default: "preview", or
                                   "production" with --prod, or the project's first
                                   declared profile)
-  -e, --engine <engine>          auto, gradle, or eas (default: auto)
+  -e, --engine <engine>          auto, gradle, or eas (default: eas)
       --release                 Sign with a real keystore instead of the debug keystore
       --keystore <path>          Path to a .jks/.keystore file (required with --release)
       --store-password <pw>      Keystore password (or set EXPO_BUILDER_STORE_PASSWORD)
@@ -56,7 +66,7 @@ Options:
                                   or the per-owner/default token saved by `ebl config`,
                                   auto-selected by the project's app.json "owner" field)
       --runner-image <tag>       Runner image tag (default: from `ebl config` if set,
-                                  else expo-builder-local-runner:latest)
+                                  else 41vi4p/expo-builder-local-runner:latest)
       --gradle-cache-volume <n>  Docker volume for the Gradle cache
       --npm-cache-volume <n>     Docker volume for the npm cache
       --docker-socket <path>     Docker socket path (default: /var/run/docker.sock)
@@ -69,7 +79,7 @@ struct Options {
   bool prod = false;
   std::optional<std::string> artifact;
   std::optional<std::string> profile;
-  std::string engine = "auto";
+  std::string engine = "eas";
   bool release = false;
   std::optional<std::string> keystore;
   std::optional<std::string> storePassword;
@@ -316,10 +326,35 @@ int runBuild(int argc, char** argv) {
     std::string containerId =
         docker.createContainer(params, runnerImage, opts.gradleCacheVolume, opts.npmCacheVolume,
                                 static_cast<unsigned int>(getuid()), static_cast<unsigned int>(getgid()));
-    // No SIGINT handling: a Ctrl-C here kills this process but leaves the container
-    // running (same trade-off `docker run` itself has without an explicit trap). If
-    // you interrupt a build, clean it up with: docker rm -f <container id below>.
     std::cout << ebl::color::dim("Container: " + containerId) << "\n";
+    std::cout << ebl::color::dim("Press Ctrl-C to cancel — the container will be stopped and removed.") << "\n";
+
+    // Ctrl-C (SIGINT) or a `kill` (SIGTERM) sets g_interruptRequested; this watcher
+    // thread notices it and force-removes the container, which is what unblocks the
+    // main thread's waitContainer() below (it's a plain blocking libcurl call with no
+    // other cancellation point). Without this, interrupting `ebl build` would kill
+    // this process but leave the container running indefinitely — which is exactly
+    // how three orphaned, mutually-wedging build containers piled up in practice.
+    std::signal(SIGINT, handleInterruptSignal);
+    std::signal(SIGTERM, handleInterruptSignal);
+    std::atomic<bool> buildFinished{false};
+    bool wasCancelled = false;
+    std::thread cancelWatcher([&]() {
+      while (!buildFinished.load()) {
+        if (g_interruptRequested) {
+          wasCancelled = true;
+          std::cerr << "\n" << ebl::color::yellow("Cancelling — stopping and removing the build container...") << "\n";
+          try {
+            docker.removeContainer(containerId);
+          } catch (const std::exception& e) {
+            std::cerr << ebl::color::red(std::string("Failed to remove container: ") + e.what()) << "\n";
+            std::cerr << ebl::color::dim("Clean it up manually with: docker rm -f " + containerId) << "\n";
+          }
+          return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      }
+    });
 
     std::string resolvedEngine;
     std::string artifactPath;
@@ -363,8 +398,21 @@ int runBuild(int argc, char** argv) {
     long durationSeconds = static_cast<long>(time(nullptr) - startedAt);
 
     attachThread.join();
+
+    buildFinished.store(true);
+    cancelWatcher.join();
+    std::signal(SIGINT, SIG_DFL);
+    std::signal(SIGTERM, SIG_DFL);
+
     if (!attachError.empty()) {
       std::cerr << "\n" << ebl::color::yellow("Warning: log streaming ended early: " + attachError) << "\n";
+    }
+
+    if (wasCancelled) {
+      std::cout << "\n" << ebl::color::yellow(ebl::color::bold("Build cancelled after " + formatDuration(durationSeconds))) << "\n\n";
+      result = 130;  // 128 + SIGINT, standard shell convention
+      curl_global_cleanup();
+      return result;
     }
 
     docker.removeContainer(containerId);

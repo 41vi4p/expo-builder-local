@@ -30,7 +30,13 @@ struct EblConfig {
   std::vector<ExpoTokenEntry> expoTokensByOwner;
   int64_t setupCompletedAt = 0;  // 0 = setup has never completed
 
-  std::string runnerImage() const { return dockerHubNamespace + "/expo-builder-local-runner:latest"; }
+  // Deliberately NOT dockerHubNamespace-based, unlike orchestratorImage()/webImage()
+  // below: the runner is the large (~6.8GB), generic Android-toolchain image, always
+  // published from the canonical upstream account — there's no reason for someone
+  // who forks this project under their own Docker Hub namespace (to publish their
+  // own orchestrator/web images) to also need to republish that same runner image.
+  // `--runner-image` (CLI) still overrides this explicitly if a real reason comes up.
+  std::string runnerImage() const { return "41vi4p/expo-builder-local-runner:latest"; }
   std::string orchestratorImage() const { return dockerHubNamespace + "/expo-builder-local-orchestrator:latest"; }
   std::string webImage() const { return dockerHubNamespace + "/expo-builder-local-web:latest"; }
 
