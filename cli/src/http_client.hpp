@@ -1,12 +1,19 @@
 #pragma once
-// Thin HTTP-over-Unix-socket client used to talk to the Docker Engine API at
-// /var/run/docker.sock. libcurl has built-in support for connecting over a unix
-// socket (CURLOPT_UNIX_SOCKET_PATH) while still speaking plain HTTP/1.1 to a fake
-// "http://localhost" URL, which is exactly the mechanism the real `docker` CLI itself
-// relies on — no hand-rolled socket/HTTP framing needed here.
+// Thin HTTP client used to talk to the Docker Engine API over its local transport
+// — a Unix domain socket (/var/run/docker.sock) on Linux/macOS, or the
+// \\.\pipe\docker_engine named pipe on Windows. Same public interface either way;
+// the implementation is platform-specific:
+//   - http_client_unix.cpp: libcurl's built-in CURLOPT_UNIX_SOCKET_PATH support,
+//     speaking plain HTTP/1.1 to a fake "http://localhost" URL — the same mechanism
+//     the real `docker` CLI itself relies on. No hand-rolled framing needed.
+//   - http_client_win.cpp: libcurl has no Windows-named-pipe transport, so this
+//     hand-rolls HTTP/1.1 request/response framing over CreateFileW/ReadFile/
+//     WriteFile on the pipe (the `unixSocketPath` constructor argument is accepted
+//     for interface parity but unused — the pipe path is fixed).
 //
 // Caller must call curl_global_init(CURL_GLOBAL_DEFAULT) once at process startup
-// (main.cpp does this) before constructing an HttpClient.
+// (main.cpp does this) before constructing an HttpClient — needed by httpGetTcp()
+// and, on non-Windows, by the unix-socket implementation itself.
 #include <functional>
 #include <string>
 #include <vector>

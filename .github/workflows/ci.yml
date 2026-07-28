@@ -1,10 +1,10 @@
 name: CI
 
-# Minimal build check: does the frontend (expo-builder-gui) still build, does the
-# Windows launcher (windows/launcher) still build, and does the Inno Setup installer
-# script (windows/installer) still compile? Runs on every push and pull request.
-# Deliberately scoped to just this — no Linux CLI/orchestrator build checks, no test
-# suite.
+# Minimal build check: does the frontend (expo-builder-gui) still build, does cli/
+# still build natively for Windows (MSVC + vcpkg for curl/OpenSSL), and does the
+# Inno Setup installer script (windows/installer) still compile against that build?
+# Runs on every push and pull request. Deliberately scoped to just this — no Linux
+# CLI/orchestrator build checks, no test suite.
 
 on:
   push:
@@ -33,23 +33,34 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-  windows-launcher-build:
+  windows-cli-build:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: expo-builder-local/windows/launcher
+        working-directory: expo-builder-local
     steps:
       - uses: actions/checkout@v4
         with:
           path: expo-builder-local
 
       # windows-latest ships MSVC + CMake preinstalled — no mingw needed, and MSVC
-      # is what a real release build should use anyway.
-      - run: cmake -S . -B build
-      - run: cmake --build build --config Release
+      # is what a real release build should use anyway. vcpkg supplies curl/OpenSSL
+      # (static, so the release ships as a single ebl.exe with no extra DLLs).
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+      - run: C:\vcpkg\vcpkg.exe install curl:x64-windows-static openssl:x64-windows-static
+      - run: |
+          cmake -S cli -B cli\build `
+            -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+      - run: cmake --build cli\build --config Release
+      - run: cmake --install cli\build --config Release --prefix cli\build\install
 
       # windows-latest also ships Chocolatey preinstalled — use it to compile the
-      # Inno Setup installer script (ebl.iss) right after, so a script typo doesn't
-      # only surface at release time.
+      # Inno Setup installer script (ebl.iss) right after, against the tree just
+      # installed above, so a script typo doesn't only surface at release time.
       - run: choco install innosetup -y
-      - run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ..\installer\ebl.iss'
+      - run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" windows\installer\ebl.iss'

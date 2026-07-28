@@ -1,9 +1,15 @@
 #include "config_store.hpp"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#else
 #include <pwd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #include <cerrno>
 #include <cstdio>
@@ -20,11 +26,13 @@ namespace ebl {
 
 namespace {
 
+#ifndef _WIN32
 std::string homeDir() {
   if (const char* h = std::getenv("HOME")) return h;
   if (struct passwd* pw = getpwuid(getuid())) return pw->pw_dir;
   throw std::runtime_error("Could not determine home directory (HOME is unset)");
 }
+#endif
 
 std::string machineKeyPath() { return configDir() + "/machine.key"; }
 
@@ -49,7 +57,11 @@ AesKey loadOrCreateMachineKey() {
   if (!out) throw std::runtime_error("Could not write machine key to " + path);
   out << base64Encode(std::string(reinterpret_cast<const char*>(key.data()), key.size()));
   out.close();
+#ifndef _WIN32
   ::chmod(path.c_str(), S_IRUSR | S_IWUSR);
+#endif
+  // On Windows, secret files rely on per-user profile isolation (%APPDATA% is
+  // already private to the owning account) rather than an explicit ACL tighten.
   return key;
 }
 
@@ -61,13 +73,37 @@ std::string readFile(const std::string& path) {
   return ss.str();
 }
 
+// std::rename() (POSIX rename(2) on Unix) atomically replaces an existing
+// destination; the plain C rename() on Windows instead fails with EEXIST if
+// `path` already exists — which it always will here from the second save
+// onward. MoveFileExA with MOVEFILE_REPLACE_EXISTING is the Windows equivalent
+// of "write tmp, then atomically swap it in".
+void atomicReplace(const std::string& tmpPath, const std::string& path) {
+#ifdef _WIN32
+  if (!::MoveFileExA(tmpPath.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    throw std::runtime_error("Could not save config to " + path);
+  }
+#else
+  if (std::rename(tmpPath.c_str(), path.c_str()) != 0) {
+    throw std::runtime_error("Could not save config to " + path);
+  }
+#endif
+}
+
 }  // namespace
 
 std::string configDir() {
   if (const char* xdg = std::getenv("XDG_CONFIG_HOME")) {
     return std::string(xdg) + "/ebl";
   }
+#ifdef _WIN32
+  if (const char* appData = std::getenv("APPDATA")) {
+    return std::string(appData) + "\\ebl";
+  }
+  throw std::runtime_error("Could not determine a config directory (%APPDATA% is unset)");
+#else
   return homeDir() + "/.config/ebl";
+#endif
 }
 
 std::string configFilePath() { return configDir() + "/config.json"; }
@@ -107,10 +143,16 @@ std::optional<EblConfig> loadConfig() {
 
 void saveConfig(EblConfig& config) {
   std::string dir = configDir();
+#ifdef _WIN32
+  if (!::CreateDirectoryA(dir.c_str(), nullptr) && ::GetLastError() != ERROR_ALREADY_EXISTS) {
+    throw std::runtime_error("Could not create config directory " + dir);
+  }
+#else
   if (::mkdir(dir.c_str(), S_IRWXU) != 0 && errno != EEXIST) {
     throw std::runtime_error("Could not create config directory " + dir);
   }
   ::chmod(dir.c_str(), S_IRWXU);
+#endif
 
   if (config.masterKey.empty()) {
     AesKey generated = generateAesKey();
@@ -152,10 +194,10 @@ void saveConfig(EblConfig& config) {
     out.flush();
     if (!out) throw std::runtime_error("Failed writing config to " + tmpPath + " (disk full?)");
   }
+#ifndef _WIN32
   ::chmod(tmpPath.c_str(), S_IRUSR | S_IWUSR);
-  if (std::rename(tmpPath.c_str(), path.c_str()) != 0) {
-    throw std::runtime_error("Could not save config to " + path);
-  }
+#endif
+  atomicReplace(tmpPath, path);
 }
 
 }  // namespace ebl

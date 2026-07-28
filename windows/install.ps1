@@ -4,19 +4,22 @@
     Installs ebl (expo-local-builder) on Windows.
 
 .DESCRIPTION
-    ebl talks to Docker through WSL2 - Docker Desktop for Windows already runs on a
-    WSL2 backend by default, so builds are Linux either way. This script:
+    ebl.exe is a native Windows build of the same CLI every other platform uses
+    (cli/) - it talks directly to Docker Desktop's named pipe
+    (\\.\pipe\docker_engine), the same endpoint docker.exe itself uses. No WSL2, no
+    separate Linux distro, no "enable WSL integration" step - just Docker Desktop,
+    installed and running.
+
+    This script:
       0. Checks that Docker Desktop is installed. It does NOT install Docker Desktop
          itself (a much heavier installer with its own license/reboot
          considerations) - Docker Desktop is a hard prerequisite you install
          yourself first, from https://www.docker.com/products/docker-desktop/.
-      1. Ensures WSL2 + a Linux distro are installed.
-      2. Installs the real Linux `ebl` CLI *inside* that distro, via the same
-         install.sh / APT repo every Linux user gets - no separate Windows-side
-         install logic to maintain.
-      3. Downloads the small native ebl.exe launcher (from this repo's GitHub
-         Releases) that forwards `ebl <args>` into that WSL distro, and puts it on
-         your Windows PATH.
+      1. Downloads the ebl release archive (ebl.exe plus the bundled Android runner
+         build context it needs to build the runner image locally if it isn't
+         published yet) from this repo's GitHub Releases, and installs it under
+         %LOCALAPPDATA%\Programs\ebl.
+      2. Adds %LOCALAPPDATA%\Programs\ebl\bin to your Windows PATH.
 
     One-line usage:
       irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
@@ -24,10 +27,17 @@
 .PARAMETER SkipDockerCheck
     Skip the Docker Desktop presence check (e.g. if it's installed somewhere this
     script's detection doesn't recognize).
+
+.PARAMETER LocalInstallDir
+    Used by the Inno Setup GUI installer (ebl-setup.exe), which already bundles and
+    extracts the release archive itself: points at that already-extracted bin\/share\
+    tree instead of downloading one, so this script only does the Docker Desktop
+    check and the PATH update.
 #>
 
 param(
-    [switch]$SkipDockerCheck
+    [switch]$SkipDockerCheck,
+    [string]$LocalInstallDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,15 +45,15 @@ $ErrorActionPreference = "Stop"
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Warn($msg) { Write-Host "!! $msg" -ForegroundColor Yellow }
 
-$RepoRawBase = "https://raw.githubusercontent.com/41vi4p/expo-builder-local/main"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\ebl"
-$ExePath = Join-Path $InstallDir "ebl.exe"
+$BinDir = Join-Path $InstallDir "bin"
+$ExePath = Join-Path $BinDir "ebl.exe"
+$ReleaseZipUrl = "https://github.com/41vi4p/expo-builder-local/releases/latest/download/ebl-windows-amd64.zip"
 
 # --- 0. Docker Desktop ---------------------------------------------------------
-# ebl needs a Docker daemon reachable inside the WSL distro it uses. Checked first,
-# before touching WSL/ebl at all, so someone without Docker Desktop hits a clear
-# message now instead of going through the whole setup only to find Docker
-# unreachable at `ebl build` time.
+# ebl talks to Docker Desktop's own named pipe - checked first, before touching the
+# install directory at all, so someone without Docker Desktop hits a clear message
+# now instead of finishing setup only to find Docker unreachable at `ebl build` time.
 
 if (-not $SkipDockerCheck) {
     Write-Step "Checking for Docker Desktop..."
@@ -59,7 +69,7 @@ if (-not $SkipDockerCheck) {
     }
     if (-not $dockerDesktopFound) {
         Write-Warn "Docker Desktop doesn't look installed."
-        Write-Warn "ebl needs it (running, with WSL2 integration enabled) - install it first:"
+        Write-Warn "ebl needs it (installed and running) - install it first:"
         Write-Warn "  https://www.docker.com/products/docker-desktop/"
         Write-Warn "Then re-run this script. Already have it somewhere this check doesn't"
         Write-Warn "recognize? Re-run with -SkipDockerCheck."
@@ -68,77 +78,39 @@ if (-not $SkipDockerCheck) {
     Write-Host "   Found."
 }
 
-# --- 1. WSL2 ------------------------------------------------------------------
+# --- 1. Install files ------------------------------------------------------------
 
-Write-Step "Checking for WSL2..."
-$wslInstalled = $true
-try {
-    wsl --status *> $null
-    if ($LASTEXITCODE -ne 0) { $wslInstalled = $false }
-} catch {
-    $wslInstalled = $false
-}
-
-if (-not $wslInstalled) {
-    Write-Step "WSL2 not found - installing it (this needs Administrator and may require a reboot)."
-    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-    if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Warn "This step needs Administrator. Re-run this script from an elevated PowerShell, then run it again."
-        exit 1
-    }
-    wsl --install
-    Write-Warn "WSL2 was just installed. Reboot if prompted, then re-run this script to finish setup."
-    exit 0
-}
-
-Write-Step "Checking for an installed Linux distro..."
-# Excludes Docker Desktop's own internal WSL distros (docker-desktop,
-# docker-desktop-data) - they're Docker's private plumbing, not a real userland
-# with apt/etc., and can otherwise get picked as the install target since wsl -l -q
-# doesn't order user distros first.
-$systemDistros = @("docker-desktop", "docker-desktop-data")
-$distros = (wsl -l -q) -replace "`0", "" |
-    Where-Object { $_.Trim() -ne "" -and $systemDistros -notcontains $_.Trim() }
-if (-not $distros -or $distros.Count -eq 0) {
-    Write-Step "No distro installed - installing Ubuntu (default)."
-    wsl --install -d Ubuntu
-    Write-Warn "Ubuntu was just installed - it may ask you to create a Unix username/password on first launch."
-    Write-Warn "Finish that setup (run 'wsl' once), then re-run this script."
-    exit 0
-}
-$distro = ($distros | Select-Object -First 1).Trim()
-Write-Host "   Using distro: $distro"
-
-# --- 2. ebl inside WSL ----------------------------------------------------------
-
-Write-Step "Installing ebl inside '$distro' (same install path as native Linux)..."
-wsl -d $distro -- bash -c "curl -fsSL $RepoRawBase/install.sh | sh"
-if ($LASTEXITCODE -ne 0) {
-    Write-Warn "ebl install inside WSL failed - see the output above."
-    exit 1
-}
-
-# --- 3. ebl.exe launcher on the Windows side ------------------------------------
-
-Write-Step "Installing the ebl.exe launcher..."
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-$launcherUrl = "https://github.com/41vi4p/expo-builder-local/releases/latest/download/ebl.exe"
-Invoke-WebRequest -Uri $launcherUrl -OutFile $ExePath -UseBasicParsing
+
+if ($LocalInstallDir) {
+    Write-Step "Installing ebl from $LocalInstallDir..."
+    Copy-Item -Path (Join-Path $LocalInstallDir "bin") -Destination $InstallDir -Recurse -Force
+    Copy-Item -Path (Join-Path $LocalInstallDir "share") -Destination $InstallDir -Recurse -Force
+} else {
+    Write-Step "Downloading ebl..."
+    $tmpZip = Join-Path ([System.IO.Path]::GetTempPath()) "ebl-windows-amd64.zip"
+    Invoke-WebRequest -Uri $ReleaseZipUrl -OutFile $tmpZip -UseBasicParsing
+    $tmpExtract = Join-Path ([System.IO.Path]::GetTempPath()) "ebl-windows-amd64-extract"
+    if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
+    Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
+    Copy-Item -Path (Join-Path $tmpExtract "bin") -Destination $InstallDir -Recurse -Force
+    Copy-Item -Path (Join-Path $tmpExtract "share") -Destination $InstallDir -Recurse -Force
+    Remove-Item -Force $tmpZip
+    Remove-Item -Recurse -Force $tmpExtract
+}
+
+# --- 2. PATH -----------------------------------------------------------------------
 
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if (($userPath -split ";") -notcontains $InstallDir) {
-    Write-Step "Adding $InstallDir to your PATH..."
-    [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-    $env:Path += ";$InstallDir"
+if (($userPath -split ";") -notcontains $BinDir) {
+    Write-Step "Adding $BinDir to your PATH..."
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$BinDir", "User")
+    $env:Path += ";$BinDir"
 }
 
 Write-Host ""
 Write-Host "ebl installed." -ForegroundColor Green
-Write-Host "  Distro:  $distro"
-Write-Host "  Launcher: $ExePath"
-Write-Host ""
-Write-Warn "One more manual step: open Docker Desktop -> Settings -> Resources -> WSL Integration,"
-Write-Warn "and enable integration for '$distro'. ebl needs Docker Desktop's daemon reachable from there."
+Write-Host "  Location: $ExePath"
 Write-Host ""
 Write-Host "Open a NEW terminal (so PATH updates take effect), then try:"
 Write-Host "  ebl setup"

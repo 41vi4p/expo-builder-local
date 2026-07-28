@@ -1,12 +1,20 @@
 #include "pull_progress.hpp"
 
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <iostream>
 
 namespace ebl {
 
+#ifdef _WIN32
+PullProgressRenderer::PullProgressRenderer() : isTty_(_isatty(_fileno(stdout)) != 0) {}
+#else
 PullProgressRenderer::PullProgressRenderer() : isTty_(isatty(fileno(stdout)) != 0) {}
+#endif
 
 void PullProgressRenderer::onEvent(const std::string& id, const std::string& status, const std::string& progress) {
   std::string text = id.empty() ? status : (id + ": " + status);

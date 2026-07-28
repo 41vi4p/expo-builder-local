@@ -17,15 +17,14 @@ namespace ebl::commands {
 namespace {
 
 void printUsage() {
-  std::cout << R"(ebl config
-
-Interactive wizard that saves your projects folder, Expo token, and port settings to
-~/.config/ebl/config.json (secrets encrypted at rest — see README). Re-run any time
-to change a setting; existing values are shown as defaults.
-
-Options:
-  -h, --help   Show this help
-)";
+  std::cout << "ebl config\n\n"
+               "Interactive wizard that saves your projects folder, Expo token, and port "
+               "settings to\n"
+            << ebl::configFilePath()
+            << " (secrets encrypted at rest — see README). Re-run any time\n"
+               "to change a setting; existing values are shown as defaults.\n\n"
+               "Options:\n"
+               "  -h, --help   Show this help\n";
 }
 
 std::string maskedPreview(const std::string& secret) {

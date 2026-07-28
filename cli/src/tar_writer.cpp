@@ -1,7 +1,5 @@
 #include "tar_writer.hpp"
 
-#include <sys/stat.h>
-
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -91,16 +89,16 @@ std::string createTarFromDirectory(const std::string& dirPath) {
     fs::path relative = fs::relative(entry.path(), root);
     std::string relStr = relative.generic_string();
 
-    struct stat st{};
-    if (::stat(entry.path().c_str(), &st) != 0) {
-      throw std::runtime_error("tar_writer: stat failed for " + entry.path().string());
-    }
+    // std::filesystem::perms is specified to mirror POSIX permission bit
+    // positions directly, so this cast is a portable stand-in for the
+    // (Unix-only) `st.st_mode & 0777` this used to read via ::stat().
+    unsigned int mode = static_cast<unsigned int>(fs::status(entry.path()).permissions()) & 0777u;
 
     std::ifstream file(entry.path(), std::ios::binary);
     if (!file) throw std::runtime_error("tar_writer: cannot open " + entry.path().string());
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-    tar += makeHeader(relStr, content.size(), st.st_mode);
+    tar += makeHeader(relStr, content.size(), mode);
     appendPadded(tar, content);
   }
 

@@ -6,9 +6,10 @@ name: Build and publish APT repository
 # branch under /apt so `apt install ebl` works from
 # https://41vi4p.github.io/expo-builder-local/apt. Also attaches the same .deb (plus
 # a plain tarball for install.sh) to a GitHub Release as a direct-download fallback.
-# A second job (windows-build-and-publish) then builds the Windows launcher
-# (windows/launcher) and installer (windows/installer) and attaches those to the
-# same release — see windows/install.ps1's header comment for what those are.
+# A second job (windows-build-and-publish) then builds cli/ natively for Windows
+# (MSVC + vcpkg for curl/OpenSSL) and the Inno Setup installer (windows/installer),
+# and attaches both to the same release — see windows/install.ps1's header comment
+# for what those are.
 #
 # Requires (set up once via docs/APT_REPO_SETUP_GUIDE.md, not by this workflow):
 #   - repo secret APT_GPG_PRIVATE_KEY: the armored private signing key
@@ -143,10 +144,9 @@ jobs:
   windows-build-and-publish:
     # Runs after build-and-publish so the release already exists — this job only
     # attaches the Windows artifacts to it via `gh release upload`, it doesn't
-    # create the release itself. See windows/CLAUDE.md (or windows/install.ps1's
-    # header) for what these two files actually are: ebl.exe is the thin WSL2
-    # launcher; ebl-setup.exe is the same install.ps1/uninstall.ps1 wrapped in an
-    # Inno Setup GUI installer.
+    # create the release itself. ebl.exe here is cli/ built natively for Windows
+    # (same source every other platform uses — see windows/install.ps1's header);
+    # ebl-setup.exe wraps that same build in an Inno Setup GUI installer.
     needs: build-and-publish
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
@@ -159,10 +159,29 @@ jobs:
         with:
           path: expo-builder-local
 
-      - name: Build the ebl.exe launcher
+      - name: Set up vcpkg
         run: |
-          cmake -S windows\launcher -B windows\launcher\build
-          cmake --build windows\launcher\build --config Release
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install curl + OpenSSL (static, so ebl.exe ships as a single file)
+        run: C:\vcpkg\vcpkg.exe install curl:x64-windows-static openssl:x64-windows-static
+
+      - name: Configure
+        run: |
+          cmake -S cli -B cli\build `
+            -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+
+      - name: Build
+        run: cmake --build cli\build --config Release
+
+      - name: Install (bin/ + share/ tree — same layout the .deb uses, see runner_context.cpp)
+        run: cmake --install cli\build --config Release --prefix cli\build\install
+
+      - name: Package the direct-download zip
+        run: Compress-Archive -Path cli\build\install\* -DestinationPath ebl-windows-amd64.zip
 
       - name: Build the Inno Setup installer
         run: |
@@ -174,6 +193,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "${{ github.ref_name }}" `
-            windows\launcher\build\Release\ebl.exe `
+            ebl-windows-amd64.zip `
             windows\installer\dist\ebl-setup.exe `
             --clobber

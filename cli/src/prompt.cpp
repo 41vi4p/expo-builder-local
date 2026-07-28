@@ -1,7 +1,15 @@
 #include "prompt.hpp"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
+#include <io.h>
+#else
 #include <termios.h>
 #include <unistd.h>
+#endif
 
 #include <iostream>
 
@@ -31,6 +39,25 @@ int promptInt(const std::string& question, int defaultValue) {
 
 std::string promptHidden(const std::string& question) {
   std::cout << question << ": " << std::flush;
+#ifdef _WIN32
+  if (!_isatty(_fileno(stdin))) {
+    std::string line;
+    std::getline(std::cin, line);
+    return line;
+  }
+
+  HANDLE stdinHandle = ::GetStdHandle(STD_INPUT_HANDLE);
+  DWORD oldMode = 0;
+  ::GetConsoleMode(stdinHandle, &oldMode);
+  ::SetConsoleMode(stdinHandle, oldMode & ~ENABLE_ECHO_INPUT);
+
+  std::string line;
+  std::getline(std::cin, line);
+
+  ::SetConsoleMode(stdinHandle, oldMode);
+  std::cout << "\n";
+  return line;
+#else
   if (!isatty(fileno(stdin))) {
     std::string line;
     std::getline(std::cin, line);
@@ -49,6 +76,7 @@ std::string promptHidden(const std::string& question) {
   tcsetattr(STDIN_FILENO, TCSANOW, &oldTerm);
   std::cout << "\n";
   return line;
+#endif
 }
 
 }  // namespace ebl

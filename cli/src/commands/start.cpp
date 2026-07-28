@@ -1,6 +1,8 @@
 #include "start.hpp"
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include <chrono>
 #include <iostream>
@@ -11,6 +13,7 @@
 #include "../docker_client.hpp"
 #include "../http_client.hpp"
 #include "../pull_progress.hpp"
+#include "../winpath.hpp"
 
 namespace ebl::commands {
 
@@ -111,13 +114,23 @@ int runStart(int argc, char** argv) {
     orchestratorSpec.image = cfg.orchestratorImage();
     orchestratorSpec.network = kNetworkName;
     orchestratorSpec.portBindings = {{"4001/tcp", std::to_string(cfg.orchestratorPort)}};
+    // Same path on both sides: the orchestrator talks to the *host* Docker daemon
+    // over the mounted socket (a sibling container, not a nested one), so any path
+    // it hands to the daemon for a build container's bind mount must already be a
+    // real host path — not remapped inside this container. toDockerBindPath() is
+    // the identity function on non-Windows; on Windows it turns "D:\Projects" into
+    // "//d/Projects" — a form Linux (inside the orchestrator container) still
+    // accepts as an ordinary absolute mount destination, so the "same path both
+    // sides" trick still holds and the orchestrator ends up seeing/emitting paths
+    // already in the form the daemon needs for build-container binds too. Note:
+    // this only covers the *native ebl.exe* side of that bind string — the
+    // orchestrator itself (orchestrator/src, a separate Node/TS codebase) must
+    // independently be Windows-path-aware for anything it does beyond relaying
+    // this same string; not addressed by this CLI-side change.
+    std::string projectsRootBind = toDockerBindPath(cfg.projectsRoot);
     orchestratorSpec.binds = {
         "/var/run/docker.sock:/var/run/docker.sock",
-        // Same path on both sides: the orchestrator talks to the *host* Docker
-        // daemon over the mounted socket (a sibling container, not a nested one),
-        // so any path it hands to the daemon for a build container's bind mount
-        // must already be a real host path — not remapped inside this container.
-        cfg.projectsRoot + ":" + cfg.projectsRoot,
+        projectsRootBind + ":" + projectsRootBind,
         std::string(kDataVolume) + ":/data",
     };
     orchestratorSpec.env = {
@@ -129,9 +142,23 @@ int runStart(int argc, char** argv) {
         "RUNNER_IMAGE=" + cfg.runnerImage(),
         std::string("GRADLE_CACHE_VOLUME=") + kGradleCacheVolume,
         std::string("NPM_CACHE_VOLUME=") + kNpmCacheVolume,
-        "ALLOWED_ROOTS=" + cfg.projectsRoot,
+        // Matches projectsRootBind above (the path the orchestrator actually sees
+        // inside its own container), not the raw un-translated cfg.projectsRoot.
+        "ALLOWED_ROOTS=" + projectsRootBind,
+#ifdef _WIN32
+        // Windows has no POSIX uid/gid to report. Docker Desktop's file-sharing
+        // layer presents bind-mounted host files inside its Linux VM under a
+        // fixed synthetic UID/GID (commonly 1000:1000) regardless of the real
+        // Windows account — this is a placeholder pending verification against a
+        // real Docker Desktop instance (see expo-builder-local/CLAUDE.md /
+        // docker/runner/build-entrypoint.sh's UID/GID re-homing step, which is
+        // what actually consumes this value).
+        "HOST_UID=1000",
+        "HOST_GID=1000",
+#else
         "HOST_UID=" + std::to_string(getuid()),
         "HOST_GID=" + std::to_string(getgid()),
+#endif
         "MASTER_KEY=" + cfg.masterKey,
         "MAX_CONCURRENT_BUILDS=1",
     };

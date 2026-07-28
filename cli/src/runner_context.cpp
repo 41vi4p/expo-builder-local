@@ -1,6 +1,12 @@
 #include "runner_context.hpp"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <cstdlib>
 #include <filesystem>
@@ -14,11 +20,20 @@ namespace ebl {
 namespace {
 
 fs::path selfExecutablePath() {
+#ifdef _WIN32
+  std::vector<char> buf(MAX_PATH);
+  DWORD len = ::GetModuleFileNameA(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+  if (len == 0 || len >= buf.size()) {
+    throw std::runtime_error("Could not resolve the running executable's own path (GetModuleFileNameA)");
+  }
+  return fs::path(std::string(buf.data(), len));
+#else
   std::vector<char> buf(4096);
   ssize_t len = readlink("/proc/self/exe", buf.data(), buf.size() - 1);
   if (len <= 0) throw std::runtime_error("Could not resolve the running executable's own path (/proc/self/exe)");
   buf[static_cast<size_t>(len)] = '\0';
   return fs::path(buf.data());
+#endif
 }
 
 bool looksLikeRunnerContext(const fs::path& dir) {

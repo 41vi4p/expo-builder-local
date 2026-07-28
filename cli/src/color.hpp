@@ -3,12 +3,21 @@
 // when output is piped or redirected to a file.
 #include <cstdio>
 #include <string>
+
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 namespace ebl::color {
 
 inline bool enabled() {
+#ifdef _WIN32
+  static bool value = _isatty(_fileno(stdout)) != 0;
+#else
   static bool value = isatty(fileno(stdout)) != 0;
+#endif
   return value;
 }
 

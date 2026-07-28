@@ -12,7 +12,7 @@
   <a href="https://github.com/41vi4p/expo-builder-local/releases/latest"><img src="https://img.shields.io/github/v/release/41vi4p/expo-builder-local?label=version&color=e8944a" alt="Latest release"></a>
   <a href="https://github.com/41vi4p/expo-builder-local/actions/workflows/ci.yml"><img src="https://github.com/41vi4p/expo-builder-local/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/41vi4p/expo-builder-local?color=blue" alt="License: GPL-3.0"></a>
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20(WSL2)-informational" alt="Platform: Linux, Windows (WSL2)">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-informational" alt="Platform: Linux, Windows">
   <a href="https://github.com/41vi4p/expo-builder-local/issues"><img src="https://img.shields.io/github/issues/41vi4p/expo-builder-local" alt="Open issues"></a>
 </p>
 
@@ -69,21 +69,19 @@ sudo apt install ./ebl_*_amd64.deb
 
 ### Windows
 
-ebl doesn't talk to Docker natively on Windows — Docker Desktop for Windows already
-runs on a WSL2 backend by default, so builds are Linux either way. Windows support is
-a thin wrapper: a small `ebl.exe` launcher forwards commands into your WSL2 distro's
-real, unmodified Linux `ebl`. See [`windows/`](./windows) for how it's built.
+`ebl.exe` is a native Windows build of the same CLI every other platform uses — it
+talks directly to Docker Desktop's `\\.\pipe\docker_engine` named pipe (the same
+endpoint `docker.exe` itself uses), no WSL2 distro or separate Linux install involved.
+See [`windows/`](./windows) and [`cli/`](./cli) for how it's built.
 
 > **Prerequisite: install [Docker Desktop](https://www.docker.com/products/docker-desktop/) yourself, first.**
 > Neither installer below installs Docker Desktop for you — it's a much heavier
 > install with its own license/reboot considerations, so it's on you to grab it
 > before running either one. Both installers check for it up front and stop with a
-> clear message if it's missing, rather than silently setting up WSL2/`ebl` for a
-> Docker daemon that isn't there yet.
+> clear message if it's missing.
 
-**One-line installer** (PowerShell) — checks for Docker Desktop, checks/installs
-WSL2 and a distro if needed, installs `ebl` inside it, and puts `ebl.exe` on your
-PATH:
+**One-line installer** (PowerShell) — checks for Docker Desktop, downloads and
+installs `ebl.exe`, and puts it on your PATH:
 
 ```powershell
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
@@ -91,13 +89,9 @@ irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/ins
 
 **Or the GUI installer** — download `ebl-setup.exe` from
 [Releases](https://github.com/41vi4p/expo-builder-local/releases) and run it; it's a
-thin Inno Setup wrapper around the same `install.ps1`, so it does exactly the same
-thing with a familiar Windows installer UI and an entry in *Add or Remove Programs*.
-
-Once installed, one more one-time step: open Docker Desktop → **Settings → Resources
-→ WSL Integration** and enable integration for the distro the installer used (both
-installers print which one at the end) — that's what makes Docker actually reachable
-from inside it.
+thin Inno Setup wrapper that bundles the same files and runs the same
+`install.ps1` under the hood, so it does exactly the same thing with a familiar
+Windows installer UI and an entry in *Add or Remove Programs*.
 
 ### Then
 
@@ -137,8 +131,7 @@ rm -rf ~/.config/ebl
 ### Windows
 
 If you used the **one-line/PowerShell install**, run the uninstaller script it left
-behind — this removes the `ebl.exe` launcher and its PATH entry, and asks whether to
-also remove the real `ebl` package from inside WSL:
+behind — this removes `ebl.exe` and its PATH entry:
 
 ```powershell
 & "$env:LOCALAPPDATA\Programs\ebl\uninstall.ps1"
@@ -146,13 +139,10 @@ also remove the real `ebl` package from inside WSL:
 
 If you used the **`ebl-setup.exe` GUI installer**, uninstall it the normal Windows
 way instead — *Settings → Apps → ebl (expo-local-builder) → Uninstall*, or from *Add
-or Remove Programs*. That removes the `ebl.exe` launcher and its PATH entry only (no
-interactive prompt fits an uninstaller GUI flow); run the script above with
-`-RemoveFromWsl` afterward if you also want the `ebl` package gone from inside WSL.
+or Remove Programs*.
 
-Either way, WSL2 and Docker Desktop themselves are left alone — they're your
-system's own components, not ebl's, in case anything else on your machine depends
-on them.
+Either way, Docker Desktop itself is left alone — it's your system's own component,
+not ebl's, in case anything else on your machine depends on it.
 
 ## Why this exists
 

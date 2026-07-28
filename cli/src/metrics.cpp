@@ -1,18 +1,27 @@
 #include "metrics.hpp"
 
-#include <fcntl.h>
 #include <openssl/evp.h>
-#include <sys/stat.h>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include <array>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+
+namespace fs = std::filesystem;
 
 namespace ebl {
 
@@ -56,10 +65,91 @@ std::string readFileToString(const std::string& path) {
   return ss.str();
 }
 
+#ifdef _WIN32
+// CreateProcess takes one command-line string, not argv — quote each argument per
+// the documented Windows argv-quoting rules (only `git` args ever pass through
+// here, but this handles the general case regardless).
+std::string quoteWindowsArg(const std::string& a) {
+  if (!a.empty() && a.find_first_of(" \t\"") == std::string::npos) return a;
+  std::string out = "\"";
+  size_t backslashes = 0;
+  for (char c : a) {
+    if (c == '\\') {
+      backslashes++;
+      continue;
+    }
+    if (c == '"') {
+      out.append(backslashes * 2 + 1, '\\');
+    } else {
+      out.append(backslashes, '\\');
+    }
+    backslashes = 0;
+    out += c;
+  }
+  out.append(backslashes * 2, '\\');
+  out += '"';
+  return out;
+}
+#endif
+
 /** Runs a command with argv directly (no shell involved) and returns its trimmed
  * stdout, or an empty string if it exits non-zero or can't be spawned. Used only for
  * `git`, which is optional metadata — never fatal to the build if unavailable. */
 std::string runCommandCapture(const std::vector<std::string>& args) {
+#ifdef _WIN32
+  if (args.empty()) return "";
+
+  std::string cmdLine;
+  for (size_t i = 0; i < args.size(); i++) {
+    if (i > 0) cmdLine += ' ';
+    cmdLine += quoteWindowsArg(args[i]);
+  }
+
+  SECURITY_ATTRIBUTES sa{};
+  sa.nLength = sizeof(sa);
+  sa.bInheritHandle = TRUE;
+
+  HANDLE readPipe = nullptr;
+  HANDLE writePipe = nullptr;
+  if (!::CreatePipe(&readPipe, &writePipe, &sa, 0)) return "";
+  ::SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
+
+  // git's stderr is discarded, same as the unix version redirecting it to /dev/null.
+  HANDLE nulHandle =
+      ::CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, &sa, OPEN_EXISTING, 0, nullptr);
+
+  STARTUPINFOA si{};
+  si.cb = sizeof(si);
+  si.dwFlags = STARTF_USESTDHANDLES;
+  si.hStdOutput = writePipe;
+  si.hStdError = nulHandle;
+  si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+
+  PROCESS_INFORMATION pi{};
+  std::vector<char> cmdLineBuf(cmdLine.begin(), cmdLine.end());
+  cmdLineBuf.push_back('\0');
+  BOOL ok = ::CreateProcessA(nullptr, cmdLineBuf.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr,
+                              &si, &pi);
+  ::CloseHandle(writePipe);
+  if (nulHandle != INVALID_HANDLE_VALUE && nulHandle != nullptr) ::CloseHandle(nulHandle);
+  if (!ok) {
+    ::CloseHandle(readPipe);
+    return "";
+  }
+
+  std::string output;
+  char buf[256];
+  DWORD n = 0;
+  while (::ReadFile(readPipe, buf, sizeof(buf), &n, nullptr) && n > 0) output.append(buf, n);
+  ::CloseHandle(readPipe);
+
+  ::WaitForSingleObject(pi.hProcess, INFINITE);
+  DWORD exitCode = 1;
+  ::GetExitCodeProcess(pi.hProcess, &exitCode);
+  ::CloseHandle(pi.hProcess);
+  ::CloseHandle(pi.hThread);
+  if (exitCode != 0) return "";
+#else
   int pipefd[2];
   if (pipe(pipefd) != 0) return "";
 
@@ -97,6 +187,7 @@ std::string runCommandCapture(const std::vector<std::string>& args) {
   int status = 0;
   waitpid(pid, &status, 0);
   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return "";
+#endif
 
   while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) output.pop_back();
   return output;
@@ -141,11 +232,10 @@ std::string readPackageJsonVersion(const std::string& appPath) {
 ArtifactMetrics extractArtifactMetrics(const std::string& appPath, const std::string& artifactPath) {
   ArtifactMetrics metrics;
 
-  struct stat st{};
-  if (stat(artifactPath.c_str(), &st) != 0) {
-    throw std::runtime_error("Artifact not found at " + artifactPath);
-  }
-  metrics.sizeBytes = static_cast<uint64_t>(st.st_size);
+  std::error_code ec;
+  uintmax_t size = fs::file_size(artifactPath, ec);
+  if (ec) throw std::runtime_error("Artifact not found at " + artifactPath);
+  metrics.sizeBytes = static_cast<uint64_t>(size);
   metrics.sha256 = sha256File(artifactPath);
 
   GradleValues gradle = readGradleManifestValues(appPath);

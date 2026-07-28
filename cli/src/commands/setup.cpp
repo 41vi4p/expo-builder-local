@@ -1,6 +1,8 @@
 #include "setup.hpp"
 
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 
 #include <cstdlib>
 #include <ctime>
@@ -16,6 +18,18 @@ namespace ebl::commands {
 
 namespace {
 
+#ifdef _WIN32
+void printUsage() {
+  std::cout << R"(ebl setup
+
+One-time setup: makes sure Docker Desktop is reachable, then pulls the runner/
+orchestrator/web images so `ebl build`/`ebl start` are ready to go immediately.
+
+Options:
+  -h, --help   Show this help
+)";
+}
+#else
 void printUsage() {
   std::cout << R"(ebl setup
 
@@ -39,6 +53,7 @@ bool promptYesNo(const std::string& question) {
   if (!std::getline(std::cin, line)) return false;
   return line == "y" || line == "Y" || line == "yes" || line == "Yes";
 }
+#endif
 
 }  // namespace
 
@@ -57,6 +72,14 @@ int runSetup(int argc, char** argv) {
 
   std::cout << ebl::color::bold("Checking Docker...") << "\n";
   if (!docker.ping()) {
+#ifdef _WIN32
+    // No convenience-script auto-install path here — Docker Desktop is a GUI
+    // installer with its own license/reboot considerations, same stance
+    // install.ps1 already takes before it even gets this far.
+    std::cerr << ebl::color::red("Docker Desktop isn't reachable.")
+              << " Install/start it from https://www.docker.com/products/docker-desktop/ , then re-run `ebl setup`.\n";
+    return 1;
+#else
     if (!commandExists("docker")) {
       std::cout << "Docker doesn't appear to be installed.\n";
       if (!promptYesNo("Install it now via the official convenience script (curl -fsSL "
@@ -88,6 +111,7 @@ int runSetup(int argc, char** argv) {
                 << "\n";
       return 1;
     }
+#endif
   }
   std::cout << ebl::color::green("Docker is up.") << "\n\n";
 

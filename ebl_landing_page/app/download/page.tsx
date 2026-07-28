@@ -27,8 +27,8 @@ const REQUIREMENTS = [
   },
   {
     label: "OS & Docker",
-    value: "Linux, or Windows 10/11 (WSL2)",
-    detail: "Docker Engine on Linux, or Docker Desktop on Windows — either way, it needs to be installed and running before you start.",
+    value: "Linux, or Windows 10/11",
+    detail: "Docker Engine on Linux, or Docker Desktop on Windows — either way, it needs to be installed and running before you start. On Windows, ebl.exe talks to Docker Desktop directly, no WSL2 distro to set up separately.",
   },
 ] as const;
 
@@ -119,11 +119,11 @@ function WindowsInstall() {
   return (
     <div className="space-y-10">
       <p className="text-sm text-text-dim">
-        ebl doesn&apos;t talk to Docker natively on Windows &mdash; Docker Desktop for Windows already runs on a WSL2
-        backend by default, so builds are Linux either way. Windows support is a thin wrapper: a small{" "}
-        <code className="font-mono text-accent">ebl.exe</code>{" "}
-        launcher forwards commands into your WSL2 distro&apos;s real, unmodified
-        Linux <code className="font-mono text-accent">ebl</code>.
+        <code className="font-mono text-accent">ebl.exe</code> is a native Windows build of the same CLI every other
+        platform uses &mdash; it talks directly to Docker Desktop&apos;s{" "}
+        <code className="font-mono text-accent">\\.\pipe\docker_engine</code> named pipe (the same endpoint{" "}
+        <code className="font-mono text-accent">docker.exe</code> itself uses). No WSL2 distro, no separate Linux
+        install, no manual integration toggle.
       </p>
 
       <section className="rounded-lg border border-accent/40 bg-accent-soft p-6">
@@ -137,17 +137,15 @@ function WindowsInstall() {
         <p className="mt-2 text-sm text-text-dim">
           Neither installer below installs Docker Desktop for you &mdash; it&apos;s a much heavier install with its
           own license/reboot considerations. Both check for it up front and stop with a clear message if it&apos;s
-          missing, rather than silently setting up WSL2/<code className="font-mono text-accent">ebl</code>{" "}
-          for a Docker daemon that isn&apos;t there yet.
+          missing.
         </p>
       </section>
 
       <section>
         <StepHeading n={1} title="One-line installer (PowerShell)" />
         <p className="mt-3 text-sm text-text-dim">
-          Checks for Docker Desktop, checks/installs WSL2 and a distro if needed, installs{" "}
-          <code className="font-mono text-accent">ebl</code> inside it, and puts{" "}
-          <code className="font-mono text-accent">ebl.exe</code> on your PATH.
+          Checks for Docker Desktop, downloads and installs{" "}
+          <code className="font-mono text-accent">ebl.exe</code>, and puts it on your PATH.
         </p>
         <div className="mt-4">
           <CodeBlock label="powershell" code="irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex" />
@@ -158,8 +156,8 @@ function WindowsInstall() {
         <StepHeading n={2} title="Or the GUI installer" />
         <p className="mt-3 text-sm text-text-dim">
           Download <code className="font-mono text-accent">ebl-setup.exe</code>{" "}
-          and run it &mdash; a thin Inno Setup wrapper around the same install script, with a familiar Windows
-          installer UI and an entry in{" "}
+          and run it &mdash; a thin Inno Setup wrapper that bundles the same files and runs the same install script
+          under the hood, with a familiar Windows installer UI and an entry in{" "}
           <em>Add or Remove Programs</em>.
         </p>
         <a
@@ -170,16 +168,6 @@ function WindowsInstall() {
         >
           Download ebl-setup.exe &#8599;
         </a>
-      </section>
-
-      <section className="rounded-lg border border-border bg-surface-2 p-6">
-        <h3 className="font-display text-base font-semibold">One more one-time step</h3>
-        <p className="mt-2 text-sm text-text-dim">
-          Once installed, open Docker Desktop and enable{" "}
-          <strong className="text-text">Settings &rarr; Resources &rarr; WSL Integration</strong>{" "}
-          for the distro the installer used (both installers print which one at the end) &mdash; that&apos;s what
-          makes Docker actually reachable from inside it.
-        </p>
       </section>
     </div>
   );
@@ -206,19 +194,16 @@ function WindowsUninstall() {
     <div className="space-y-4 text-sm text-text-dim">
       <p>
         If you used the <strong className="text-text">one-line/PowerShell install</strong>, run the uninstaller
-        script it left behind &mdash; removes the launcher and its PATH entry, and asks whether to also remove the
-        real <code className="font-mono text-accent">ebl</code> package from inside WSL:
+        script it left behind &mdash; removes <code className="font-mono text-accent">ebl.exe</code> and its PATH
+        entry:
       </p>
       <CodeBlock label="powershell" code={String.raw`& "$env:LOCALAPPDATA\Programs\ebl\uninstall.ps1"`} />
       <p>
         If you used the <strong className="text-text">ebl-setup.exe GUI installer</strong>, uninstall it the normal
         Windows way instead &mdash; <em>Settings &rarr; Apps &rarr; ebl (expo-local-builder) &rarr; Uninstall</em>, or
-        from <em>Add or Remove Programs</em>. That removes the launcher and PATH entry only (no interactive prompt
-        fits an uninstaller GUI flow) &mdash; run the script above with{" "}
-        <code className="font-mono text-accent">-RemoveFromWsl</code> afterward if you also want the package gone
-        from inside WSL.
+        from <em>Add or Remove Programs</em>.
       </p>
-      <p>Either way, WSL2 and Docker Desktop themselves are left alone &mdash; they&apos;re your system&apos;s own components, not ebl&apos;s.</p>
+      <p>Either way, Docker Desktop itself is left alone &mdash; it&apos;s your system&apos;s own component, not ebl&apos;s.</p>
     </div>
   );
 }
@@ -228,7 +213,7 @@ export default function DownloadPage() {
     <div className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
       <span className="phase-tag">download</span>
       <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Get ebl</h1>
-      <p className="mt-2 text-text-dim">Linux and Windows (via WSL2) are both supported. Pick your platform:</p>
+      <p className="mt-2 text-text-dim">Linux and Windows are both supported natively. Pick your platform:</p>
 
       <SystemRequirements />
 

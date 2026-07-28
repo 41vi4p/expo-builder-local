@@ -4,6 +4,7 @@
 
 #include "json.hpp"
 #include "tar_writer.hpp"
+#include "winpath.hpp"
 
 namespace ebl {
 
@@ -169,14 +170,17 @@ std::string DockerClient::createContainer(const BuildParams& params, const std::
   env.push_back(Json("BUILD_GID=" + std::to_string(buildGid)));
   if (!params.expoToken.empty()) env.push_back(Json("EXPO_TOKEN=" + params.expoToken));
 
+  // toDockerBindPath() is the identity function on non-Windows — this only changes
+  // behavior when talking to Docker Desktop's daemon from a native Windows ebl.exe,
+  // where a raw "D:\..." path means nothing to the daemon's own Linux VM.
   Json binds = Json::array();
-  binds.push_back(Json(params.appPath + ":" + kContainerAppDir));
+  binds.push_back(Json(toDockerBindPath(params.appPath) + ":" + kContainerAppDir));
   binds.push_back(Json(gradleCacheVolume + ":/cache/gradle"));
   binds.push_back(Json(npmCacheVolume + ":/cache/npm"));
 
   if (params.signingMode == "release" && params.hasKeystore) {
     std::string containerPath = "/keystores/" + params.keystore.filename;
-    binds.push_back(Json(params.keystore.hostPath + ":" + containerPath + ":ro"));
+    binds.push_back(Json(toDockerBindPath(params.keystore.hostPath) + ":" + containerPath + ":ro"));
     env.push_back(Json("KEYSTORE_PATH=" + containerPath));
     env.push_back(Json("KEYSTORE_PASSWORD=" + params.keystore.storePassword));
     env.push_back(Json("KEY_ALIAS=" + params.keystore.keyAlias));

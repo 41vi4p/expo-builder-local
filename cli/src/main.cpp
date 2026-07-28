@@ -7,6 +7,12 @@
 //   ebl stop     stop them
 //   ebl build    build a project into a signed APK/AAB (works standalone — no
 //                setup/config/start required at all)
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include <iostream>
 #include <string>
 
@@ -16,6 +22,22 @@
 #include "commands/start.hpp"
 
 namespace {
+
+#ifdef _WIN32
+// color.hpp's escape codes only render as colors if the console opts into VT100
+// processing — Windows Terminal already has this on by default, but the legacy
+// conhost.exe some users still launch from doesn't. Best-effort: failure here just
+// means output falls back to plain text via color.hpp's own isatty() check, not a
+// hard error.
+void enableAnsiOnWindowsConsole() {
+  for (DWORD which : {STD_OUTPUT_HANDLE, STD_ERROR_HANDLE}) {
+    HANDLE h = ::GetStdHandle(which);
+    DWORD mode = 0;
+    if (h == INVALID_HANDLE_VALUE || !::GetConsoleMode(h, &mode)) continue;
+    ::SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+  }
+}
+#endif
 
 #ifndef EXPO_BUILDER_CLI_VERSION
 #define EXPO_BUILDER_CLI_VERSION "0.0.0-dev"
@@ -61,6 +83,9 @@ Repository:   https://github.com/41vi4p/expo-builder-local
 }  // namespace
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+  enableAnsiOnWindowsConsole();
+#endif
   if (argc == 1) {
     printTopLevelUsage();
     return 0;

@@ -52,32 +52,39 @@ expo-builder-local/
 ├── expo-builder-gui/      ← frontend: Next.js 16 (App Router, Tailwind v4)
 │   ├── docker-entrypoint.sh   (substitutes ORCHESTRATOR_URL into the compiled bundle at container start)
 │   └── {app,components,lib}/
-├── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed)
-│   ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator)
+├── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed) —
+│   │                         builds natively for both Linux/macOS and Windows from
+│   │                         this one source tree (platform branches via CMake +
+│   │                         `#ifdef _WIN32`, not a fork)
+│   ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator, Linux-only)
 │   └── src/
 │       ├── main.cpp                    (subcommand dispatch only)
 │       ├── commands/                  (build, setup, config, start+stop — one file per subcommand)
-│       ├── config_store.*, crypto.*, base64.*   (encrypted ~/.config/ebl/config.json)
+│       ├── config_store.*, crypto.*, base64.*   (encrypted config.json — ~/.config/ebl/ on
+│       │                                          Linux/macOS, %APPDATA%\ebl\ on Windows)
 │       ├── prompt.*                    (promptString/promptInt/promptHidden — shared by config.cpp's wizard and build.cpp's missing-token prompt)
-│       └── {docker_client,http_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
-└── windows/               ← Windows support — a WSL2 wrapper, not a native Win32
-    │                         port (Docker Desktop for Windows already runs on WSL2
-    │                         by default, so builds are Linux either way)
-    ├── launcher/           ← `ebl.exe`: forwards `ebl <args>` into the default WSL
-    │   │                     distro's real Linux `ebl` (cli/, unmodified), which
-    │   │                     talks to /var/run/docker.sock exactly as it does on
-    │   │                     native Linux, since Docker Desktop's WSL integration
-    │   │                     already exposes it there
-    │   ├── CMakeLists.txt  (MSVC/MinGW, no curl/OpenSSL — this binary only spawns wsl.exe)
-    │   └── src/main.cpp
-    ├── install.ps1         (one-line installer: WSL2 + distro check, installs ebl
-    │                         inside WSL via the same install.sh every Linux user
-    │                         gets, puts ebl.exe on PATH)
+│       ├── http_client.hpp             (shared HttpClient interface — talks to the Docker
+│       │                                 Engine API over its local transport)
+│       ├── http_client_unix.cpp        (Linux/macOS: libcurl's CURLOPT_UNIX_SOCKET_PATH
+│       │                                 against /var/run/docker.sock)
+│       ├── http_client_win.cpp         (Windows: hand-rolled HTTP/1.1 framing over
+│       │                                 Docker Desktop's \\.\pipe\docker_engine named
+│       │                                 pipe — libcurl has no Windows-npipe transport)
+│       ├── http_client_common.cpp      (httpGetTcp/urlEncode — plain TCP, shared by both)
+│       ├── winpath.*                   (Windows-only path→Docker-bind-mount translation,
+│       │                                 e.g. "D:\App" → "//d/App"; identity elsewhere)
+│       └── {docker_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
+└── windows/               ← Windows-specific packaging only — ebl.exe itself is just
+                              `cli/` built for Windows (see above), not a separate binary
+    ├── install.ps1         (one-line installer: Docker Desktop presence check,
+    │                         downloads+extracts the ebl.exe + docker/runner/ release
+    │                         archive, puts ebl.exe's bin/ dir on PATH)
     ├── uninstall.ps1
     └── installer/
-        └── ebl.iss         (Inno Setup script → ebl-setup.exe; a thin GUI wrapper
-                              that just bundles and runs the two .ps1 files above —
-                              no separate install logic of its own)
+        └── ebl.iss         (Inno Setup script → ebl-setup.exe; bundles the same
+                              `cmake --install`ed bin/+share/ tree plus the two .ps1
+                              files above, and just runs install.ps1
+                              -LocalInstallDir — no separate install logic of its own)
 ```
 
 ## 🖥️ CLI package (`cli/`)
@@ -85,14 +92,28 @@ expo-builder-local/
 A standalone **C++17** binary — command name **`ebl`** (short for "expo-local-builder",
 deliberately distinct from the `expo-builder-local` project/repo name) — built with
 CMake, depending only on libcurl and OpenSSL, that talks to the Docker Engine API
-directly over `/var/run/docker.sock`. No orchestrator, no GUI, no Node.js runtime at
-all. Subcommands live under `commands/` (`build.*`, `setup.*`, `config.*`, `start.*`
-— the last of these also implements `stop`); `main.cpp` is just dispatch. Shared
-building blocks:
+directly: over `/var/run/docker.sock` on Linux/macOS, or Docker Desktop's
+`\\.\pipe\docker_engine` named pipe on Windows. No orchestrator, no GUI, no Node.js
+runtime at all. Subcommands live under `commands/` (`build.*`, `setup.*`, `config.*`,
+`start.*` — the last of these also implements `stop`); `main.cpp` is just dispatch.
+Shared building blocks:
 
-- `http_client.*` — thin libcurl wrapper using `CURLOPT_UNIX_SOCKET_PATH` (the same
-  mechanism the real `docker` CLI uses to talk to the daemon over its socket) plus a
-  plain-TCP `httpGetTcp` used only for polling the orchestrator's health endpoint.
+- `http_client.hpp` / `http_client_unix.cpp` / `http_client_win.cpp` /
+  `http_client_common.cpp` — same `HttpClient` interface, platform-specific transport:
+  `http_client_unix.cpp` is a thin libcurl wrapper using `CURLOPT_UNIX_SOCKET_PATH`
+  (the same mechanism the real `docker` CLI uses on Linux/macOS); `http_client_win.cpp`
+  hand-rolls HTTP/1.1 request/response framing over `CreateFileW`/`ReadFile`/
+  `WriteFile` on the named pipe, since libcurl has no Windows-npipe transport —
+  supports both `Content-Length` and chunked bodies, since Docker streams `/build`/
+  `/containers/{id}/attach` chunked. `http_client_common.cpp` holds the
+  platform-independent `httpGetTcp` (used only for polling the orchestrator's health
+  endpoint) and `urlEncode`, compiled on every platform.
+- `winpath.*` — Windows-only host-path → Docker-bind-mount-path translation
+  (`"D:\Projects\App"` → `"//d/Projects/App"`, the same client-side conversion the
+  real `docker` CLI performs, since Docker Desktop's daemon runs inside its own Linux
+  VM and a raw drive-letter path means nothing to it). Identity function on every
+  other platform — call it unconditionally at bind-mount construction sites in
+  `docker_client.cpp`/`commands/start.cpp`, no `#ifdef` needed at the call site.
 - `json.*` — a small hand-written JSON value/parser/serializer (not a vendored
   library — kept deliberately minimal, just enough for Docker API bodies and
   package.json/eas.json reads).
@@ -105,16 +126,29 @@ building blocks:
   name, running-check) used by `ebl start`/`stop`.
 - `config_store.*` — `EblConfig` (projects folder, ports, Expo
   token, generated orchestrator `MASTER_KEY`) persisted at `~/.config/ebl/config.json`
-  (0600); `crypto.*` (AES-256-GCM via OpenSSL) encrypts the two secret fields using a
-  machine-local key at `~/.config/ebl/machine.key` (0600, generated on first use) —
-  `base64.*` is a small hand-written codec used by both.
+  on Linux/macOS (0600) or `%APPDATA%\ebl\config.json` on Windows (no POSIX chmod
+  equivalent applied there — relies on per-user profile isolation instead); `crypto.*`
+  (AES-256-GCM via OpenSSL) encrypts the two secret fields using a machine-local key
+  next to it (`machine.key`, generated on first use) — `base64.*` is a small
+  hand-written codec used by both. Its atomic-save step uses `MoveFileExA` with
+  `MOVEFILE_REPLACE_EXISTING` on Windows, not `std::rename` — plain C `rename()`
+  fails there if the destination already exists, unlike POSIX `rename(2)`.
 - `detect.*` / `metrics.*` — reimplementations of `orchestrator/src/build/detect.ts`
   and `metrics.ts` (same rules, different language) — keep them in sync by hand if
-  either changes.
+  either changes. `metrics.cpp`'s `git` invocation (for commit/branch metadata) is a
+  `fork`/`exec`/`pipe` on Linux/macOS and a `CreateProcess` with a redirected pipe on
+  Windows — keep both branches in sync if the command or its argument list changes.
 - `runner_context.*` — locates the bundled `docker/runner/` copy at runtime via
-  `/proc/self/exe`, so a compiled/installed binary works without the rest of this repo
-  present (CMake copies `docker/runner/` into the build dir at configure time; see
-  `CMakeLists.txt`).
+  `/proc/self/exe` (Linux/macOS) or `GetModuleFileNameA` (Windows), so a
+  compiled/installed binary works without the rest of this repo present (CMake copies
+  `docker/runner/` into the build dir at configure time; see `CMakeLists.txt`).
+
+Windows-only placeholder pending real-hardware verification: `commands/start.cpp`'s
+`HOST_UID`/`HOST_GID` and `commands/build.cpp`'s build-container UID/GID both hardcode
+`1000`/`1000` on Windows (no POSIX uid/gid to report) — this is what
+`docker/runner/build-entrypoint.sh`'s UID/GID re-homing step consumes, and the actual
+value Docker Desktop's file-sharing layer presents bind-mounted host files under
+hasn't been confirmed against a real install yet.
 
 `attachAndStream` blocks on a libcurl call until the container's output stream closes
 — it runs on its own `std::thread` while the main thread starts/waits on the
@@ -133,16 +167,15 @@ don't reintroduce a build-time `NEXT_PUBLIC_ORCHESTRATOR_URL` ARG.
 ## 🔄 Version management
 
 Unlike the three apps under the repo root (which version independently), the
-orchestrator, the GUI, the CLI, and the Windows launcher/installer **always ship
-together** as one product and share **one version number** — a build only works
-when all of them are compatible, so tracking them separately would just invite
-drift.
+orchestrator, the GUI, and the CLI (which now includes the Windows build — `ebl.exe`
+is `cli/` compiled for Windows, not a separate binary) **always ship together** as
+one product and share **one version number** — a build only works when all of them
+are compatible, so tracking them separately would just invite drift.
 
 - **Canonical source:** `orchestrator/package.json`'s `version`,
   `expo-builder-gui/package.json`'s `version`, `cli/CMakeLists.txt`'s
-  `project(... VERSION x.y.z ...)`, `windows/launcher/CMakeLists.txt`'s
   `project(... VERSION x.y.z ...)`, and `windows/installer/ebl.iss`'s
-  `MyAppVersion` — **always bump all five to the same value in the same change**,
+  `MyAppVersion` — **always bump all four to the same value in the same change**,
   even if a given change only touched one of them.
 - **Bump rule (SemVer), applied automatically for every change, however small:**
   - `fix:` / `style:` / `refactor:` / docs/config-only change → **PATCH** (+0.0.1)
@@ -151,7 +184,7 @@ drift.
     requiring a fresh volume) → **MAJOR** (+1.0.0)
 - **After every code change to anything under `expo-builder-local/`:**
   1. Make the change.
-  2. Bump all five version fields (they must always match).
+  2. Bump all four version fields (they must always match).
   3. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
 - This is not optional busywork — do it as part of the same commit/turn as the code
   change, not as a follow-up.

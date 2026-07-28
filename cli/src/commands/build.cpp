@@ -1,9 +1,12 @@
 #include "build.hpp"
 
 #include <curl/curl.h>
+
+#ifndef _WIN32
 #include <unistd.h>
 
 #include <sys/stat.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -84,7 +87,9 @@ void saveProjectTokenFile(const fs::path& appPath, const std::string& token) {
   if (!out) throw std::runtime_error("Could not write " + tokenPath.string());
   out << token << "\n";
   out.close();
+#ifndef _WIN32
   ::chmod(tokenPath.c_str(), S_IRUSR | S_IWUSR);
+#endif
   ensureGitignored(appPath, kProjectTokenFilename);
 }
 
@@ -123,7 +128,9 @@ Options:
                                   else 41vi4p/expo-builder-local-runner:latest)
       --gradle-cache-volume <n>  Docker volume for the Gradle cache
       --npm-cache-volume <n>     Docker volume for the npm cache
-      --docker-socket <path>     Docker socket path (default: /var/run/docker.sock)
+      --docker-socket <path>     Docker socket path (default: /var/run/docker.sock;
+                                  ignored on Windows, which always talks to Docker
+                                  Desktop's \\.\pipe\docker_engine)
   -h, --help                     Show this help
 )";
 }
@@ -412,9 +419,17 @@ int runBuild(int argc, char** argv) {
                                   " signing=" + params.signingMode)
               << "\n\n";
 
-    std::string containerId =
-        docker.createContainer(params, runnerImage, opts.gradleCacheVolume, opts.npmCacheVolume,
-                                static_cast<unsigned int>(getuid()), static_cast<unsigned int>(getgid()));
+#ifdef _WIN32
+    // See commands/start.cpp's HOST_UID/HOST_GID comment — same placeholder-pending-
+    // verification reasoning applies to the build container's UID/GID re-homing.
+    unsigned int buildUid = 1000;
+    unsigned int buildGid = 1000;
+#else
+    unsigned int buildUid = static_cast<unsigned int>(getuid());
+    unsigned int buildGid = static_cast<unsigned int>(getgid());
+#endif
+    std::string containerId = docker.createContainer(params, runnerImage, opts.gradleCacheVolume,
+                                                       opts.npmCacheVolume, buildUid, buildGid);
     std::cout << ebl::color::dim("Container: " + containerId) << "\n";
     std::cout << ebl::color::dim("Press Ctrl-C to cancel — the container will be stopped and removed.") << "\n";
 

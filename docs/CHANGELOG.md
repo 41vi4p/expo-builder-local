@@ -3,6 +3,68 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.9.0 — Native Windows `ebl.exe` (no more WSL2)
+
+**Date:** 2026-07-28
+**Type:** Feature
+
+- `ebl.exe` on Windows is now the real `cli/` binary compiled natively for
+  Windows — the same source every other platform uses (MSVC + CMake), not a thin
+  wrapper that spawned `wsl.exe` into a separately-installed Linux `ebl` inside a
+  WSL2 distro. No WSL2 distro, no separate install inside it, no manual "enable
+  Docker Desktop WSL integration" toggle — Docker Desktop installed and running is
+  the only prerequisite.
+- New `cli/src/http_client_win.cpp`: talks to Docker Desktop's Engine API over its
+  `\\.\pipe\docker_engine` named pipe (the same endpoint `docker.exe` itself uses)
+  — hand-rolled HTTP/1.1 request/response framing over `CreateFileW`/`ReadFile`/
+  `WriteFile` with overlapped I/O, since libcurl has no Windows-named-pipe
+  transport. Supports both `Content-Length` and chunked response bodies (Docker
+  streams `/build`/`/containers/{id}/attach` chunked). `http_client.cpp` split into
+  `http_client_unix.cpp` (unchanged libcurl/`CURLOPT_UNIX_SOCKET_PATH` code) and
+  `http_client_common.cpp` (`httpGetTcp`/`urlEncode`, shared by both platforms).
+- New `cli/src/winpath.*`: translates Windows host paths into the form Docker
+  Desktop's Engine API expects as a bind-mount source (`"D:\Projects\App"` →
+  `"//d/Projects/App"` — the same conversion the real `docker` CLI performs
+  client-side, since the daemon runs inside Docker Desktop's own Linux VM).
+  Identity function on every other platform; wired into every bind-mount
+  construction site in `docker_client.cpp` and `commands/start.cpp`.
+- Ported the remaining POSIX-only code paths to Win32: `config_store.cpp` (config
+  now lives at `%APPDATA%\ebl\` instead of `~/.config/ebl/`; fixed a
+  Windows-specific bug where the atomic config-save step would have failed with
+  `EEXIST` on every save after the first, since plain C `rename()` — unlike POSIX
+  `rename(2)` — doesn't replace an existing destination on Windows, now uses
+  `MoveFileExA`/`MOVEFILE_REPLACE_EXISTING`), `runner_context.cpp`
+  (`GetModuleFileNameA` instead of `/proc/self/exe`), `prompt.cpp` (console
+  `ENABLE_ECHO_INPUT` toggling instead of `termios`), `metrics.cpp` (`git`
+  invocation via `CreateProcess` instead of `fork`/`exec`/`pipe`; artifact size via
+  `std::filesystem::file_size` instead of a raw `stat()` call), `tar_writer.cpp`
+  (`std::filesystem::status().permissions()` instead of `stat()`), and
+  `color.hpp`/`pull_progress.cpp` (`_isatty`/`_fileno`). `commands/start.cpp` and
+  `commands/build.cpp`'s `HOST_UID`/`HOST_GID`/build-container UID/GID hardcode
+  `1000`/`1000` on Windows (no POSIX uid/gid to report) — a placeholder pending
+  verification against a real Docker Desktop install.
+- `windows/launcher/` (the `wsl.exe`-forwarding shim) removed entirely.
+  `windows/install.ps1`/`uninstall.ps1` rewritten to drop all WSL2/distro
+  provisioning and instead download/extract a `bin/`+`share/` release archive
+  (mirroring the `.deb`'s layout) straight to `%LOCALAPPDATA%\Programs\ebl`.
+  `windows/installer/ebl.iss` now bundles that same tree instead of running
+  `install.ps1` as a WSL-provisioning step.
+- `.github/workflows/release.yml`/`ci.yml`: the Windows job now builds `cli/`
+  itself (MSVC + vcpkg for `curl`/`openssl`, static triplet so `ebl.exe` ships as a
+  single file with no extra DLLs) instead of the old standalone launcher project.
+
+**Files modified:** `cli/src/http_client.hpp`, `cli/src/http_client_unix.cpp`,
+`cli/src/http_client_win.cpp`, `cli/src/http_client_common.cpp`,
+`cli/src/winpath.hpp`, `cli/src/winpath.cpp`, `cli/src/docker_client.cpp`,
+`cli/src/config_store.cpp`, `cli/src/runner_context.cpp`, `cli/src/prompt.cpp`,
+`cli/src/metrics.cpp`, `cli/src/tar_writer.cpp`, `cli/src/color.hpp`,
+`cli/src/pull_progress.cpp`, `cli/src/main.cpp`, `cli/src/commands/start.cpp`,
+`cli/src/commands/build.cpp`, `cli/src/commands/setup.cpp`,
+`cli/src/commands/config.cpp`, `cli/CMakeLists.txt`, `windows/install.ps1`,
+`windows/uninstall.ps1`, `windows/installer/ebl.iss`,
+`.github/workflows/release.yml`, `.github/workflows/ci.yml` (windows/launcher/
+removed)
+
 ## v0.8.2 — System requirements on the Download page
 
 **Date:** 2026-07-28
