@@ -9,6 +9,51 @@ export const metadata: Metadata = {
 
 const RELEASES_URL = "https://github.com/41vi4p/expo-builder-local/releases";
 
+const REQUIREMENTS = [
+  {
+    label: "RAM",
+    value: "16 GB recommended",
+    detail: "8 GB works but is tight — the Gradle and Kotlin compiler daemons alone reserve up to 2 GB of heap each during a build, the same ballpark Android Studio itself recommends.",
+  },
+  {
+    label: "CPU",
+    value: "4+ cores recommended",
+    detail: "Gradle and Kotlin annotation processing both parallelize across cores — more cores means a noticeably faster compile phase.",
+  },
+  {
+    label: "Disk space",
+    value: "20+ GB free",
+    detail: "The runner image alone is ~6.8 GB; the shared Gradle/npm caches grow to 5+ GB after a few builds (and speed up every build after the first).",
+  },
+  {
+    label: "OS & Docker",
+    value: "Linux, or Windows 10/11 (WSL2)",
+    detail: "Docker Engine on Linux, or Docker Desktop on Windows — either way, it needs to be installed and running before you start.",
+  },
+] as const;
+
+function SystemRequirements() {
+  return (
+    <section className="mt-8 rounded-lg border border-border bg-surface-2 p-6">
+      <h2 className="font-display text-base font-semibold">System requirements</h2>
+      <p className="mt-1 text-sm text-text-dim">
+        Building an Android app locally means running the same Gradle/Kotlin/Android SDK toolchain Android Studio
+        does &mdash; these aren&apos;t hard limits ebl enforces, just realistic guidance so your first build isn&apos;t
+        a slow, swap-thrashing surprise.
+      </p>
+      <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        {REQUIREMENTS.map((r) => (
+          <div key={r.label}>
+            <dt className="font-mono text-xs text-text-dim">{r.label}</dt>
+            <dd className="mt-0.5 font-display text-sm font-semibold">{r.value}</dd>
+            <dd className="mt-1 text-sm text-text-dim">{r.detail}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 function StepHeading({ n, title }: { n: number; title: string }) {
   return (
     <div className="flex items-center gap-3">
@@ -185,7 +230,9 @@ export default function DownloadPage() {
       <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Get ebl</h1>
       <p className="mt-2 text-text-dim">Linux and Windows (via WSL2) are both supported. Pick your platform:</p>
 
-      <div className="mt-8">
+      <SystemRequirements />
+
+      <div className="mt-10">
         <OSTabs linux={<LinuxInstall />} windows={<WindowsInstall />} />
       </div>
 

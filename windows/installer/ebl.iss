@@ -12,7 +12,7 @@
 ; ..\launcher\build\Release\ebl.exe to already be built (see ../launcher/CMakeLists.txt).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.8.1"
+#define MyAppVersion "0.8.2"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"

@@ -3,6 +3,22 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.8.2 — System requirements on the Download page
+
+**Date:** 2026-07-28
+**Type:** Enhancement
+
+- New "System requirements" card on `/download` (`ebl_landing_page`), shown before
+  the install steps: 16 GB RAM recommended (8 GB works but is tight), 4+ CPU
+  cores, 20+ GB free disk, and the Linux/Windows(WSL2)+Docker prerequisite.
+  Grounded in real numbers rather than guessed: the runner image is a measured
+  6.82GB (`docker images`), the shared Gradle cache volume was measured at 4.5-5.3
+  GB after a handful of builds on this machine, and the RAM/CPU guidance mirrors
+  Android Studio's own well-known official recommendation for the same
+  Gradle/Kotlin/Android SDK toolchain this tool runs headless.
+
+**Files modified:** `ebl_landing_page/app/download/page.tsx`
+
 ## v0.8.1 — README/landing-page overhaul, upfront Docker Desktop check on Windows
 
 **Date:** 2026-07-28

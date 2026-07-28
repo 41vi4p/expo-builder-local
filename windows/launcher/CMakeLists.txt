@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # This VERSION tracks the CLI's own version (cli/CMakeLists.txt) — the launcher
 # only makes sense paired with a specific `ebl` build inside WSL, so it ships
 # alongside it rather than versioning independently. See ../../CLAUDE.md.
-project(ebl-windows-launcher VERSION 0.8.1 LANGUAGES CXX)
+project(ebl-windows-launcher VERSION 0.8.2 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR
