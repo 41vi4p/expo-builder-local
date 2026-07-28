@@ -3,6 +3,36 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.6.5 — Fix `ebl build` falling back to a non-namespaced runner image tag; atomic config save
+
+**Date:** 2026-07-28
+**Type:** Fix
+
+- `ebl build`'s runner-image resolution fell back to a hardcoded literal
+  `"expo-builder-local-runner:latest"` (no Docker Hub namespace) whenever
+  `loadConfig()` returned `nullopt` — e.g. when `~/.config/ebl/config.json` is
+  missing, or empty/corrupt. That tag was never published under the bare name (see
+  v0.6.1's namespace-default fix), so it 404'd on pull and fell through to building
+  the ~6.8GB image from scratch — needlessly, since the correctly-namespaced image
+  was already present locally. `setup.cpp`/`start.cpp` didn't have this bug (they
+  already use `loadConfig().value_or(EblConfig{})`); `build.cpp`'s runner-image line
+  now does the same, so the fallback always matches `EblConfig`'s real default
+  namespace instead of drifting from it.
+- Root cause of the empty config file: `saveConfig()` truncated `config.json` in
+  place before writing the new content, so a disk-full condition (or a kill/crash)
+  partway through a save could leave a 0-byte file — which `loadConfig()` correctly
+  treats as "no config", triggering the bug above. Fixed by writing to a `.tmp`
+  sibling file and `rename()`-ing it over the real path (atomic on the same
+  filesystem) — a save can now only ever land the fully-written file or leave the
+  previous one untouched, never a truncated one.
+- Found while debugging a real `ebl build .` failure: a disk-full condition
+  (99% full root filesystem) had zeroed the user's config.json, which triggered
+  the bare-tag fallback, which triggered a from-scratch image build, which then hit
+  `apt-get update` GPG "invalid signature" errors under the same disk pressure —
+  one connected failure chain, not three unrelated ones.
+
+**Files modified:** `cli/src/commands/build.cpp`, `cli/src/config_store.cpp`
+
 ## v0.6.4 — Fix duplicate React keys / legend entries in resource charts
 
 **Date:** 2026-07-28

@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -136,12 +137,25 @@ void saveConfig(EblConfig& config) {
   }
   root.set("expoTokensByOwner", tokensByOwner);
 
+  // Write to a sibling temp file and rename() over the real path (atomic on the
+  // same filesystem), rather than truncating the real file in place — a crash,
+  // kill, or ENOSPC partway through an in-place write leaves a corrupt/empty
+  // config.json (as happened here from a disk-full condition mid-save); a rename
+  // can only ever land the old file or the fully-written new one, never a partial.
   std::string path = configFilePath();
-  std::ofstream out(path, std::ios::binary | std::ios::trunc);
-  if (!out) throw std::runtime_error("Could not write config to " + path);
-  out << root.dump();
-  out.close();
-  ::chmod(path.c_str(), S_IRUSR | S_IWUSR);
+  std::string tmpPath = path + ".tmp";
+  {
+    std::ofstream out(tmpPath, std::ios::binary | std::ios::trunc);
+    if (!out) throw std::runtime_error("Could not write config to " + tmpPath);
+    std::string serialized = root.dump();
+    out << serialized;
+    out.flush();
+    if (!out) throw std::runtime_error("Failed writing config to " + tmpPath + " (disk full?)");
+  }
+  ::chmod(tmpPath.c_str(), S_IRUSR | S_IWUSR);
+  if (std::rename(tmpPath.c_str(), path.c_str()) != 0) {
+    throw std::runtime_error("Could not save config to " + path);
+  }
 }
 
 }  // namespace ebl

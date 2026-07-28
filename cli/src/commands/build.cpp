@@ -253,10 +253,12 @@ int runBuild(int argc, char** argv) {
   }
 
   // `ebl config` may have saved a Docker Hub namespace and/or an Expo token — use
-  // them as defaults, but any explicit flag/env var still wins.
+  // them as defaults, but any explicit flag/env var still wins. Falling back to a
+  // fresh EblConfig{} (not a hardcoded literal) when no config was ever saved keeps
+  // this in sync with the real default namespace defined in config_store.hpp.
   auto savedConfig = ebl::loadConfig();
-  std::string runnerImage = opts.runnerImage.value_or(
-      savedConfig ? savedConfig->runnerImage() : "expo-builder-local-runner:latest");
+  std::string runnerImage =
+      opts.runnerImage.value_or(savedConfig.value_or(ebl::EblConfig{}).runnerImage());
 
   BuildParams params;
   params.appPath = appPath.string();
