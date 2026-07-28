@@ -3,6 +3,59 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.8.1 — README/landing-page overhaul, upfront Docker Desktop check on Windows
+
+**Date:** 2026-07-28
+**Type:** Enhancement
+
+- `windows/install.ps1` now checks for Docker Desktop *before* touching WSL2 or
+  installing anything (via its standard install path plus a registry-uninstall-key
+  scan as a fallback, with a new `-SkipDockerCheck` escape hatch) — it never
+  installed Docker Desktop itself, but previously only mentioned that as a reminder
+  at the very end of a successful run, meaning someone without it would sit through
+  the whole WSL2+`ebl` setup only to discover Docker unreachable at `ebl build`
+  time. Now it stops immediately with a clear message and a link.
+- `README.md` overhauled to read like a proper OSS repo: a centered logo header
+  (light/dark variants via `<picture>`+`prefers-color-scheme`, generated from the
+  same `ebl_logo.png` used on the landing page — see `docs/assets/`), version/CI/
+  license/platform/issues badges, and a contents list. Restructured "Quick start"
+  into OS-specific Linux/Windows subsections (previously Linux-only), and added a
+  new "Uninstall" section covering both OSes (there was no uninstall
+  documentation at all before this). Both Windows sections now lead with the
+  Docker Desktop prerequisite rather than mentioning it as an afterthought, to
+  match the reordered install.ps1 check.
+- Landing page (`ebl_landing_page`): new `components/OSTabs.tsx` (best-effort
+  defaults to the visitor's actual OS via `navigator.userAgent`, either tab always
+  one click away) powers OS-specific content on `/download` for both install and
+  a new Uninstall section (previously Linux-install-only, no uninstall content at
+  all). The Docker Desktop prerequisite callout was moved from the bottom of the
+  Windows tab to the top, matching install.ps1's reordered check.
+- Fixed a real, reproducible SWC/Next.js JSX-compiler quirk found while verifying
+  the above: text immediately following a closing inline tag (`</code>`,
+  `</strong>`) that wraps across multiple *source* lines before the next tag
+  loses its leading space in the compiled output — confirmed via the raw RSC
+  flight-payload (the serialized text child was missing the space), not just a
+  screenshot artifact, and reproduced identically after a from-scratch dev-server
+  restart in a brand-new tab (ruling out stale Fast Refresh/HMR, which had been
+  the cause of a similar-looking issue earlier in this project). A single-line
+  case with the same tag-then-text shape rendered correctly, isolating the
+  wrapping itself as the trigger. Worked around by inserting an explicit `{" "}`
+  right after any closing inline tag whose following text run wraps — found and
+  fixed 6 real occurrences across `app/docs/page.tsx` and `app/download/page.tsx`
+  this way; verified clean by scripting the browser to click through every
+  page/OS-tab/install-uninstall combination and regex-scanning each `p`/`li`/`dd`/
+  `h1`–`h3` element's own `textContent` for glued words (careful to scope the
+  check per inline-text element, not the whole page — a first attempt at
+  `document.body.textContent` produced mostly false positives from legitimate
+  block-level element boundaries, e.g. sidebar nav text directly abutting section
+  text with no separator).
+
+**Files modified:** `windows/install.ps1`, `README.md`,
+`ebl_landing_page/app/download/page.tsx`, `ebl_landing_page/app/docs/page.tsx`
+
+**Files added:** `docs/assets/ebl_logo.png`, `docs/assets/ebl_logo-dark.png`,
+`ebl_landing_page/components/OSTabs.tsx`
+
 ## v0.8.0 — Windows support (WSL2 wrapper)
 
 **Date:** 2026-07-28

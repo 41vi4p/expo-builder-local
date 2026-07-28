@@ -6,6 +6,10 @@
 .DESCRIPTION
     ebl talks to Docker through WSL2 - Docker Desktop for Windows already runs on a
     WSL2 backend by default, so builds are Linux either way. This script:
+      0. Checks that Docker Desktop is installed. It does NOT install Docker Desktop
+         itself (a much heavier installer with its own license/reboot
+         considerations) - Docker Desktop is a hard prerequisite you install
+         yourself first, from https://www.docker.com/products/docker-desktop/.
       1. Ensures WSL2 + a Linux distro are installed.
       2. Installs the real Linux `ebl` CLI *inside* that distro, via the same
          install.sh / APT repo every Linux user gets - no separate Windows-side
@@ -16,7 +20,15 @@
 
     One-line usage:
       irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
+
+.PARAMETER SkipDockerCheck
+    Skip the Docker Desktop presence check (e.g. if it's installed somewhere this
+    script's detection doesn't recognize).
 #>
+
+param(
+    [switch]$SkipDockerCheck
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -26,6 +38,35 @@ function Write-Warn($msg) { Write-Host "!! $msg" -ForegroundColor Yellow }
 $RepoRawBase = "https://raw.githubusercontent.com/41vi4p/expo-builder-local/main"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\ebl"
 $ExePath = Join-Path $InstallDir "ebl.exe"
+
+# --- 0. Docker Desktop ---------------------------------------------------------
+# ebl needs a Docker daemon reachable inside the WSL distro it uses. Checked first,
+# before touching WSL/ebl at all, so someone without Docker Desktop hits a clear
+# message now instead of going through the whole setup only to find Docker
+# unreachable at `ebl build` time.
+
+if (-not $SkipDockerCheck) {
+    Write-Step "Checking for Docker Desktop..."
+    $dockerDesktopExe = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+    $dockerDesktopFound = Test-Path $dockerDesktopExe
+    if (-not $dockerDesktopFound) {
+        $dockerDesktopFound = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        ) | Get-ItemProperty -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like "Docker Desktop*" } |
+            Select-Object -First 1
+    }
+    if (-not $dockerDesktopFound) {
+        Write-Warn "Docker Desktop doesn't look installed."
+        Write-Warn "ebl needs it (running, with WSL2 integration enabled) - install it first:"
+        Write-Warn "  https://www.docker.com/products/docker-desktop/"
+        Write-Warn "Then re-run this script. Already have it somewhere this check doesn't"
+        Write-Warn "recognize? Re-run with -SkipDockerCheck."
+        exit 1
+    }
+    Write-Host "   Found."
+}
 
 # --- 1. WSL2 ------------------------------------------------------------------
 

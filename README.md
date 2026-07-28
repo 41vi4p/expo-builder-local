@@ -1,4 +1,20 @@
-# expo-builder-local
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/ebl_logo-dark.png">
+    <img src="docs/assets/ebl_logo.png" alt="expo-builder-local logo" width="96">
+  </picture>
+</p>
+
+<h1 align="center">expo-builder-local</h1>
+<p align="center"><em>ebl</em> &mdash; build a managed Expo project into a signed Android APK/AAB entirely on your own machine.</p>
+
+<p align="center">
+  <a href="https://github.com/41vi4p/expo-builder-local/releases/latest"><img src="https://img.shields.io/github/v/release/41vi4p/expo-builder-local?label=version&color=e8944a" alt="Latest release"></a>
+  <a href="https://github.com/41vi4p/expo-builder-local/actions/workflows/ci.yml"><img src="https://github.com/41vi4p/expo-builder-local/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/41vi4p/expo-builder-local?color=blue" alt="License: GPL-3.0"></a>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20(WSL2)-informational" alt="Platform: Linux, Windows (WSL2)">
+  <a href="https://github.com/41vi4p/expo-builder-local/issues"><img src="https://img.shields.io/github/issues/41vi4p/expo-builder-local" alt="Open issues"></a>
+</p>
 
 Build a managed Expo (SDK 56+) project into an Android APK/AAB entirely on your own
 machine — from the command line or a web GUI — in a disposable Docker container, and
@@ -9,9 +25,29 @@ No Expo account is required for the default path — everything runs in a dispos
 Docker container with its own Android SDK, Node and Gradle. If you'd rather use EAS's
 remote-managed credentials, that's supported too (see [Build engines](#build-engines)).
 
+## Contents
+
+- [Quick start](#quick-start-cli)
+- [Uninstall](#uninstall)
+- [Why this exists](#why-this-exists)
+- [Architecture](#architecture)
+- [Command reference](#command-reference)
+- [Using the GUI](#using-the-gui)
+- [Build engines](#build-engines)
+- [Multiple Expo accounts](#multiple-expo-accounts)
+- [Signing](#signing)
+- [Docker Hub images](#docker-hub-images)
+- [APT repository](#apt-repository)
+- [Local development](#local-development-contributing-to-this-repo)
+- [Path handling](#path-handling-important)
+- [Security notes](#security-notes)
+- [Troubleshooting](#troubleshooting)
+
 ## Quick start (CLI)
 
-### Install via APT (Ubuntu/Debian)
+### Linux (Ubuntu/Debian)
+
+**Via the APT repository (recommended)** — `sudo apt upgrade` picks up new releases automatically:
 
 ```bash
 curl -fsSL https://41vi4p.github.io/expo-builder-local/apt/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/ebl-archive-keyring.gpg
@@ -19,19 +55,49 @@ echo "deb [signed-by=/usr/share/keyrings/ebl-archive-keyring.gpg] https://41vi4p
 sudo apt update && sudo apt install ebl
 ```
 
-### Or use the one-line installer
+**Or the one-line installer** (adds the APT repo where possible, otherwise falls back to a direct `.deb` download):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh
 ```
 
-### Or download the .deb directly
-
-Grab `ebl_*_amd64.deb` from [Releases](https://github.com/41vi4p/expo-builder-local/releases), then:
+**Or the `.deb` directly** — grab `ebl_*_amd64.deb` from [Releases](https://github.com/41vi4p/expo-builder-local/releases), then:
 
 ```bash
 sudo apt install ./ebl_*_amd64.deb
 ```
+
+### Windows
+
+ebl doesn't talk to Docker natively on Windows — Docker Desktop for Windows already
+runs on a WSL2 backend by default, so builds are Linux either way. Windows support is
+a thin wrapper: a small `ebl.exe` launcher forwards commands into your WSL2 distro's
+real, unmodified Linux `ebl`. See [`windows/`](./windows) for how it's built.
+
+> **Prerequisite: install [Docker Desktop](https://www.docker.com/products/docker-desktop/) yourself, first.**
+> Neither installer below installs Docker Desktop for you — it's a much heavier
+> install with its own license/reboot considerations, so it's on you to grab it
+> before running either one. Both installers check for it up front and stop with a
+> clear message if it's missing, rather than silently setting up WSL2/`ebl` for a
+> Docker daemon that isn't there yet.
+
+**One-line installer** (PowerShell) — checks for Docker Desktop, checks/installs
+WSL2 and a distro if needed, installs `ebl` inside it, and puts `ebl.exe` on your
+PATH:
+
+```powershell
+irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
+```
+
+**Or the GUI installer** — download `ebl-setup.exe` from
+[Releases](https://github.com/41vi4p/expo-builder-local/releases) and run it; it's a
+thin Inno Setup wrapper around the same `install.ps1`, so it does exactly the same
+thing with a familiar Windows installer UI and an entry in *Add or Remove Programs*.
+
+Once installed, one more one-time step: open Docker Desktop → **Settings → Resources
+→ WSL Integration** and enable integration for the distro the installer used (both
+installers print which one at the end) — that's what makes Docker actually reachable
+from inside it.
 
 ### Then
 
@@ -48,6 +114,45 @@ ebl build . --prod       # shortcut for --artifact aab --profile production
 `ebl build` never needs `setup`/`config`/`start` — it works standalone, from anywhere,
 against any Expo project, talking to Docker directly. `setup`/`config`/`start` are
 only for the optional web GUI (live dashboard, build history, keystore manager).
+
+## Uninstall
+
+### Linux
+
+If installed via the APT repo or a `.deb`:
+
+```bash
+sudo apt remove ebl
+# and, if you added it: sudo rm /etc/apt/sources.list.d/ebl.list
+```
+
+This removes the `ebl` binary only — your projects, `ebl_builds/` artifacts, and
+`~/.config/ebl/` (saved tokens/settings) are untouched. Remove that config directory
+yourself if you want a completely clean slate:
+
+```bash
+rm -rf ~/.config/ebl
+```
+
+### Windows
+
+If you used the **one-line/PowerShell install**, run the uninstaller script it left
+behind — this removes the `ebl.exe` launcher and its PATH entry, and asks whether to
+also remove the real `ebl` package from inside WSL:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\ebl\uninstall.ps1"
+```
+
+If you used the **`ebl-setup.exe` GUI installer**, uninstall it the normal Windows
+way instead — *Settings → Apps → ebl (expo-local-builder) → Uninstall*, or from *Add
+or Remove Programs*. That removes the `ebl.exe` launcher and its PATH entry only (no
+interactive prompt fits an uninstaller GUI flow); run the script above with
+`-RemoveFromWsl` afterward if you also want the `ebl` package gone from inside WSL.
+
+Either way, WSL2 and Docker Desktop themselves are left alone — they're your
+system's own components, not ebl's, in case anything else on your machine depends
+on them.
 
 ## Why this exists
 

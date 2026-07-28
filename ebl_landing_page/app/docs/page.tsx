@@ -152,8 +152,9 @@ ebl build . --prod       # shortcut for --artifact aab --profile production`}
           <Section id="accounts" title="Multiple Expo accounts">
             <p>
               If your apps aren&apos;t all under the same EAS account, save one token per account instead of juggling{" "}
-              <code>--expo-token</code>/<code>EXPO_TOKEN</code> by hand — <code>ebl build</code> auto-selects the right
-              one by matching the project&apos;s <code>app.json</code> <code>expo.owner</code> field.
+              <code>--expo-token</code>/<code>EXPO_TOKEN</code> by hand — <code>ebl build</code>{" "}
+              auto-selects the right one by matching the project&apos;s <code>app.json</code>{" "}
+              <code>expo.owner</code> field.
             </p>
             <p>
               Resolution order: <code>--expo-token</code>/<code>EXPO_TOKEN</code> (explicit override) → a{" "}
@@ -170,7 +171,8 @@ ebl build . --prod       # shortcut for --artifact aab --profile production`}
             </p>
             <p>
               <strong>Release</strong> — provide a real keystore (<code>.jks</code>/<code>.keystore</code>) via{" "}
-              <code>--keystore</code> on the CLI, or upload once in the GUI&apos;s keystore manager. The password/alias
+              <code>--keystore</code>{" "}
+              on the CLI, or upload once in the GUI&apos;s keystore manager. The password/alias
               are AES-256-GCM encrypted at rest and only decrypted in memory for the one build that uses them — nothing
               persists in your project folder after the build finishes.
             </p>
