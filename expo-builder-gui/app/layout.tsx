@@ -51,6 +51,9 @@ export default function RootLayout({
               <Link href="/history" className="transition-colors hover:text-text">
                 History
               </Link>
+              <Link href="/about" className="transition-colors hover:text-text">
+                About
+              </Link>
             </nav>
           </div>
         </header>

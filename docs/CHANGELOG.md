@@ -3,6 +3,21 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.7.1 — GUI About page
+
+**Date:** 2026-07-28
+**Type:** Feature
+
+- New `/about` page in the GUI, linked from the header nav next to Builds/History —
+  the web-GUI counterpart of `ebl --about` (v0.7.0). Shows version (read from
+  `expo-builder-gui/package.json` via `resolveJsonModule`, so it can't drift from
+  the actual shipped build), developer, license, and a link to the GitHub repo.
+  Plain server component, no new dependencies — matches the existing
+  `rounded-lg border border-border bg-surface` card style used on the history page.
+
+**Files modified:** `expo-builder-gui/app/about/page.tsx` (new),
+`expo-builder-gui/app/layout.tsx`
+
 ## v0.7.0 — `ebl --about`
 
 **Date:** 2026-07-28
