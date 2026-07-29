@@ -38,7 +38,7 @@ if command -v apt >/dev/null 2>&1 && curl -fsSL -o /dev/null "${APT_REPO_URL}/pu
   log "Adding the expo-builder-local APT repository..."
   KEYRING="/usr/share/keyrings/ebl-archive-keyring.gpg"
   curl -fsSL "${APT_REPO_URL}/pubkey.gpg" | ${SUDO} gpg --batch --yes --dearmor -o "${KEYRING}"
-  echo "deb [signed-by=${KEYRING}] ${APT_REPO_URL} stable main" \
+  echo "deb [arch=amd64 signed-by=${KEYRING}] ${APT_REPO_URL} stable main" \
     | ${SUDO} tee /etc/apt/sources.list.d/ebl.list >/dev/null
 
   log "Installing via apt (dependencies + future updates handled automatically)..."

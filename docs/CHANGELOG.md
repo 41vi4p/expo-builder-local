@@ -3,6 +3,23 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.9.2 — Fix `apt update` i386 warning from the hosted APT repo
+
+**Date:** 2026-07-29
+**Type:** Fix
+
+- The `deb` line added to `/etc/apt/sources.list.d/ebl.list` (by `install.sh`,
+  and shown in the manual setup instructions in `README.md`,
+  `docs/APT_REPO_SETUP_GUIDE.md`, and the landing page's docs/download pages)
+  had no `arch=` restriction, so apt tried to fetch `i386` `Packages` metadata
+  from it on any system with `i386` added as a foreign architecture (e.g. for
+  Steam/Wine) — the repo only publishes `amd64`, so this always failed with a
+  "Skipping acquire ... doesn't support architecture 'i386'" notice. Now
+  scoped to `arch=amd64`.
+
+**Files modified:** `install.sh`, `README.md`, `docs/APT_REPO_SETUP_GUIDE.md`,
+`ebl_landing_page/app/docs/page.tsx`, `ebl_landing_page/app/download/page.tsx`
+
 ## v0.9.1 — Fix `eas build` hanging on a phantom "initialize git?" prompt
 
 **Date:** 2026-07-29
