@@ -3,6 +3,40 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.10.0 — `ebl build`/`ebl start` now check for image updates
+
+**Date:** 2026-07-29
+**Type:** Feature
+
+- `ebl build`'s `ensureRunnerImage()` (`cli/src/commands/build.cpp`) previously
+  only pulled the runner image if it was missing locally, then reused whatever
+  was cached forever — a local `:latest` tag never got refreshed even after a
+  newer image was published to Docker Hub. It now always attempts a pull
+  first, on every build; Docker's pull is idempotent (only transfers changed
+  layers, no-ops quickly when already current), so this doubles as the update
+  check without materially slowing down an already-current build. Falls back
+  exactly as before when offline/unreachable: uses the cached local image if
+  the pull fails but one exists, otherwise builds it from the bundled
+  `docker/runner/` context — still fully offline-capable after the first
+  successful pull or local build.
+- `ebl start`'s `ensureServiceImage()` (`cli/src/commands/start.cpp`) gets the
+  same update check, but interactive rather than silent: unlike a build's
+  disposable container, `ebl start` always tears down and recreates the
+  orchestrator/web containers on every run (`createServiceContainer` already
+  removes any same-named container first), so a freshly pulled image takes
+  effect immediately — worth confirming before spending the time/bandwidth on
+  every single `ebl start`. Prompts "Check for a newer `<name>` image?"
+  (default yes) only when a cached image already exists; a fresh install with
+  nothing cached yet still just pulls straight through, no prompt. Declining,
+  or a failed check with a cached image to fall back to, both just proceed
+  with what's already local.
+- `ebl setup`'s image pulling (`commands/setup.cpp`) already pulled
+  unconditionally on every run, so it needed no change — both of the above
+  now line up with that existing behavior (`ebl build` fully, `ebl start`
+  with a confirmation step given its higher blast radius).
+
+**Files modified:** `cli/src/commands/build.cpp`, `cli/src/commands/start.cpp`
+
 ## v0.9.2 — Fix `apt update` i386 warning from the hosted APT repo
 
 **Date:** 2026-07-29

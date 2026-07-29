@@ -243,21 +243,26 @@ std::string formatDuration(long seconds) {
   return buf;
 }
 
-/** Tries, in order: use the image if already present locally; pull it (works once
- * it's published to Docker Hub, for anyone — not just users who ran `ebl setup`);
- * fall back to building it from the bundled context (fully offline-capable). */
+/** Always tries to pull first, whether or not the image already exists locally —
+ * Docker's pull is idempotent (only transfers changed layers, no-ops quickly when
+ * already current), so this doubles as the update check on every build. Falls back,
+ * in order: the cached local image if the pull fails but one is present (offline or
+ * Hub unreachable); building it from the bundled context if neither is available
+ * (fully offline-capable). */
 void ensureRunnerImage(DockerClient& docker, const std::string& tag) {
-  if (docker.imageExists(tag)) return;
-
-  std::cout << ebl::color::yellow("Runner image \"" + tag + "\" not found locally — trying to pull it...") << "\n";
+  std::cout << ebl::color::dim("Checking for updates to \"" + tag + "\"...") << "\n";
   try {
     ebl::PullProgressRenderer progress;
     docker.pullImage(tag, [&progress](const std::string& id, const std::string& status, const std::string& p) {
       progress.onEvent(id, status, p);
     });
-    std::cout << ebl::color::green("Pulled \"" + tag + "\".") << "\n";
     return;
   } catch (const std::exception& e) {
+    if (docker.imageExists(tag)) {
+      std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") — using the cached local image.")
+                << "\n";
+      return;
+    }
     std::cout << ebl::color::dim(std::string("Pull failed (") + e.what() + ") — building it locally instead...")
               << "\n";
   }

@@ -12,6 +12,7 @@
 #include "../config_store.hpp"
 #include "../docker_client.hpp"
 #include "../http_client.hpp"
+#include "../prompt.hpp"
 #include "../pull_progress.hpp"
 #include "../winpath.hpp"
 
@@ -30,8 +31,9 @@ void printStartUsageImpl() {
   std::cout << R"(ebl start
 
 Starts the orchestrator + web GUI as Docker containers (pulling their images if
-needed) using the settings saved by `ebl config`. No git checkout or
-docker-compose.yml required — this drives the containers directly.
+needed, or prompting to check for a newer one if already cached) using the settings
+saved by `ebl config`. No git checkout or docker-compose.yml required — this drives
+the containers directly.
 
 Options:
   -h, --help   Show this help
@@ -49,17 +51,51 @@ Options:
 )";
 }
 
-/** Pulls an image if it isn't already present locally. Unlike the runner image,
- * there's no local-build fallback here — the orchestrator/web images are meant to
- * be pre-built and published; before they're published, build them from this repo
- * checkout (`docker compose build`) so they exist locally for `ebl start` to find. */
+/** Pulls an image if it isn't already present locally — no prompt, nothing running
+ * yet to disrupt. Unlike the runner image, there's no local-build fallback here —
+ * the orchestrator/web images are meant to be pre-built and published; before
+ * they're published, build them from this repo checkout (`docker compose build`)
+ * so they exist locally for `ebl start` to find.
+ *
+ * If a cached image is already present, asks first instead of pulling
+ * unconditionally: `ebl start` always tears down and recreates its containers
+ * (createServiceContainer removes any same-named container before creating), so a
+ * newer image takes effect immediately on this same run — worth confirming before
+ * spending the time/bandwidth on every single `ebl start`, unlike `ebl build`'s
+ * always-pull (a fresh disposable container either way, nothing to disrupt).
+ * Defaults to yes on Enter/non-interactive stdin (EOF), so scripted use still gets
+ * checked by default. */
 void ensureServiceImage(ebl::DockerClient& docker, const std::string& tag, const char* friendlyName) {
-  if (docker.imageExists(tag)) return;
-  std::cout << ebl::color::dim("Pulling " + std::string(friendlyName) + " image (" + tag + ")...") << "\n";
-  ebl::PullProgressRenderer progress;
-  docker.pullImage(tag, [&progress](const std::string& id, const std::string& status, const std::string& p) {
-    progress.onEvent(id, status, p);
-  });
+  bool cachedLocally = docker.imageExists(tag);
+  if (cachedLocally) {
+    std::string answer =
+        ebl::promptString("Check for a newer " + std::string(friendlyName) + " image (" + tag + ")?", "y");
+    if (!answer.empty() && answer[0] != 'y' && answer[0] != 'Y') {
+      std::cout << ebl::color::dim("Skipping update check — using the cached " + std::string(friendlyName) +
+                                    " image.")
+                << "\n";
+      return;
+    }
+  }
+
+  std::cout << ebl::color::dim((cachedLocally ? "Checking " : "Pulling ") + std::string(friendlyName) + " image (" +
+                                tag + ")...")
+            << "\n";
+  try {
+    ebl::PullProgressRenderer progress;
+    docker.pullImage(tag, [&progress](const std::string& id, const std::string& status, const std::string& p) {
+      progress.onEvent(id, status, p);
+    });
+  } catch (const std::exception& e) {
+    // A cached image to fall back to turns a failed check into a soft warning; with
+    // no cache yet (first-time pull), the same failure is fatal — same as before
+    // this function could prompt at all — so rethrow and let runStart's outer catch
+    // report it.
+    if (!cachedLocally) throw;
+    std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") — using the cached " +
+                                  friendlyName + " image.")
+              << "\n";
+  }
 }
 
 bool waitForHealth(const std::string& url, int attempts, int delayMs) {
