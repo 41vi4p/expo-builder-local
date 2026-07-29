@@ -9,6 +9,7 @@ orchestrator/*.tsbuildinfo
 
 # CLI (C++/CMake) — build/ holds CMake's cache/objects plus its copy of docker/runner/
 cli/build/
+.vscode
 
 # Persisted build data (SQLite db, logs, uploaded keystores) — never commit these
 data/

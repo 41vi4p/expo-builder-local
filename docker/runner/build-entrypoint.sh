@@ -61,6 +61,17 @@ cleanup() {
 trap cleanup EXIT
 
 cd "${APP_DIR}" || fail "APP_DIR ${APP_DIR} not found — did the bind mount fail?" 2
+
+# Docker Desktop's bind-mount for a host path doesn't preserve real host ownership —
+# files show up owned by whichever UID its file-sharing layer defaults to (observed:
+# root, regardless of BUILD_UID/the actual Windows file owner), which almost never
+# matches the re-homed `builder` user this script runs as (see docker-entrypoint.sh).
+# That mismatch trips git's post-CVE-2022-24765 "dubious ownership" safety check —
+# without this exception, `eas build --local` doesn't surface that error at all, it
+# just falls back to a confusing "not a git repository, initialize one?" prompt that
+# then hangs forever (non-interactive, no stdin attached).
+git config --global --add safe.directory "${APP_DIR}"
+
 [ -f package.json ] || fail "No package.json found at ${APP_DIR} — not a project root" 2
 node -e "const p=require('./package.json'); process.exit((p.dependencies&&p.dependencies.expo)||(p.devDependencies&&p.devDependencies.expo)?0:1)" \
   || fail "package.json has no 'expo' dependency — this doesn't look like an Expo project" 2

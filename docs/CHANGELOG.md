@@ -3,6 +3,31 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.9.1 — Fix `eas build` hanging on a phantom "initialize git?" prompt
+
+**Date:** 2026-07-29
+**Type:** Fix
+
+- `docker/runner/build-entrypoint.sh` now runs `git config --global --add
+  safe.directory "${APP_DIR}"` before any build steps. Root cause: Docker
+  Desktop's bind-mount for a host path doesn't preserve real host file
+  ownership — every file shows up owned by a UID that essentially never
+  matches the re-homed `builder` user the build actually runs as (observed on
+  Windows/Docker Desktop: bind-mounted files show up owned by root
+  regardless of `BUILD_UID`, confirmed by mounting a real repo into a plain
+  container as uid 1000 and reproducing `fatal: detected dubious ownership in
+  repository`). Git's post-CVE-2022-24765 ownership check then refuses to
+  read the project's `.git`, and `eas build --local` doesn't surface that
+  git error at all — it just falls back to an interactive "It looks like you
+  haven't initialized the git repository yet... Would you like us to run
+  'git init'?" prompt, which then hangs forever since the build container has
+  no stdin attached to answer it. This affected any project with its own
+  `.git` when built with the (default) `eas` engine — not Windows-exclusive
+  in principle, but guaranteed to reproduce there given Docker Desktop's
+  bind-mount ownership behavior.
+
+**Files modified:** `docker/runner/build-entrypoint.sh`
+
 ## v0.9.0 — Native Windows `ebl.exe` (no more WSL2)
 
 **Date:** 2026-07-28
