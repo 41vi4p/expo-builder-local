@@ -3,6 +3,46 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.11.0 — Bounded timeouts so a stalled step can't hang a build forever
+
+**Date:** 2026-07-29
+**Type:** Feature
+
+- Root cause of a real, reproduced hang: `docker/runner/build-entrypoint.sh`'s
+  install step already had a fallback (`npm ci || npm install
+  --legacy-peer-deps`), but it was useless whenever `npm ci` needed to fall
+  into live dependency resolution (e.g. `package-lock.json` drifted out of
+  sync with `package.json`, combined with a real peer-dependency conflict) —
+  instead of failing fast the way `npm install` does, `npm ci` hung
+  indefinitely on both npm 12.0.1 and 11.15.0, so the `||` fallback never
+  got a chance to run. A build could sit at "Installing dependencies" with
+  0% CPU and 0 network activity for however long a user was willing to wait.
+- Added `run_with_timeout()` — wraps a command in `timeout --kill-after=10s`
+  (SIGTERM first, SIGKILL 10s later if that alone doesn't take, matching
+  what we observed hung npm/gradle processes actually need to die) — and
+  applied it to every step that talks to a registry, a daemon, or a native
+  toolchain and could plausibly hang: `npm ci`/`npm install`, `expo
+  prebuild`, `eas build --local`, and `gradlew assemble/bundleRelease`.
+  Budgets are env-overridable (`INSTALL_TIMEOUT`, `INSTALL_FALLBACK_TIMEOUT`,
+  `PREBUILD_TIMEOUT`, `EAS_BUILD_TIMEOUT`, `GRADLE_TIMEOUT`) for unusually
+  large projects or slow links. A timeout now converts into the existing
+  `npm ci` → `npm install` fallback handoff (previously dead code in
+  practice), or a clear `@@ERROR:` message identifying which step and
+  timeout fired, surfaced through both consumers exactly like any other
+  build failure — no new marker type, so `progress.ts`/`BuildTimeline.tsx`
+  needed no changes.
+- Added `check_disk_space()`, run before any real work starts, checking both
+  the project bind mount and `/cache` (the npm/gradle volumes, which can be
+  on a different filesystem) — hard-fails fast with a clear message below
+  `MIN_FREE_DISK_MB` (2GB default) rather than letting a near-full disk
+  degrade into the same kind of silent stall a low-disk condition
+  contributed to in practice.
+- Verified the `npm ci`-hangs → fallback → succeeds path, and the
+  both-fail → clean `@@ERROR` path, against a fake hanging `npm` in
+  isolation — both complete in bounded time with the correct exit codes.
+
+**Files modified:** `docker/runner/build-entrypoint.sh`
+
 ## v0.10.0 — `ebl build`/`ebl start` now check for image updates
 
 **Date:** 2026-07-29

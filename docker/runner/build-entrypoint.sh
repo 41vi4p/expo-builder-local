@@ -23,6 +23,20 @@ set -eo pipefail
 : "${PROFILE:=preview}"       # eas.json build profile name
 : "${ENGINE:=auto}"           # auto | eas | gradle
 : "${SIGNING_MODE:=debug}"    # debug | release
+# Bounded time budgets for every step that talks to a registry, a daemon, or does
+# real dependency/native-toolchain work — none of these should ever be able to hang
+# a build forever. `npm ci` in particular is known to hang (rather than fail fast,
+# the way `npm install` does) when it needs to fall into live resolution — e.g. a
+# lock file that's drifted out of sync with package.json alongside a real
+# peer-dependency conflict — so its own fallback to `npm install` below is useless
+# without a timeout forcing the handoff. All overridable via env for unusually large
+# projects or slow links.
+: "${INSTALL_TIMEOUT:=300}"          # npm ci — 5 min
+: "${INSTALL_FALLBACK_TIMEOUT:=600}" # npm install (fallback / no lock file) — 10 min
+: "${PREBUILD_TIMEOUT:=300}"         # expo prebuild — 5 min
+: "${EAS_BUILD_TIMEOUT:=2400}"       # eas build --local — 40 min
+: "${GRADLE_TIMEOUT:=2400}"          # gradlew assemble/bundleRelease — 40 min
+: "${MIN_FREE_DISK_MB:=2048}"        # hard-fail below this much free space — 2 GB
 SCRIPTS_DIR="/usr/local/lib/expo-builder"
 # Scratch space for intermediate engine output (the eas engine's --output target) —
 # deliberately NOT on the host bind mount, so nothing but the final ebl_builds/
@@ -34,6 +48,32 @@ START_TS=$(date +%s)
 phase()    { echo "@@PHASE:$1:$2"; }
 progress() { echo "@@PROGRESS:$1"; }
 fail()     { echo "@@ERROR:$1"; exit "${2:-1}"; }
+
+# Runs "$@" under a hard wall-clock budget so a hang anywhere downstream (a
+# registry, a daemon, a native toolchain) turns into a bounded failure instead of
+# blocking the build indefinitely. SIGTERM first, SIGKILL 10s later if that alone
+# doesn't take — mirrors what we've observed hung npm/gradle processes actually need
+# to die. Exit code 124 means "timed out"; anything else is the wrapped command's own
+# exit status, so existing `||` fallback chains keep working unmodified.
+run_with_timeout() {
+  local seconds="$1"; shift
+  timeout --kill-after=10s "${seconds}s" "$@"
+}
+
+# A near-full disk was a real contributor to at least one hang we've seen in
+# practice (extraction/write syscalls stalling under I/O pressure rather than
+# failing) — cheap to check, worth failing on fast rather than discovering it an
+# hour into a stalled install. Checks both the project bind mount and /cache (the
+# npm/gradle volumes), since they can be, and often are, on different filesystems.
+check_disk_space() {
+  local path="$1" label="$2" free_mb
+  [ -d "${path}" ] || return 0
+  free_mb="$(df -Pm "${path}" 2>/dev/null | awk 'NR==2{print $4}')"
+  [ -n "${free_mb}" ] || return 0
+  if [ "${free_mb}" -lt "${MIN_FREE_DISK_MB}" ]; then
+    fail "Only ${free_mb}MB free on ${label} (${path}) — need at least ${MIN_FREE_DISK_MB}MB. Free up disk space (docker system prune is usually the fastest way) and retry." 3
+  fi
+}
 
 # Paths we may write into the *host-mounted* project folder that must never survive
 # the build (signing secrets). Always cleaned up, success or failure.
@@ -76,6 +116,9 @@ git config --global --add safe.directory "${APP_DIR}"
 node -e "const p=require('./package.json'); process.exit((p.dependencies&&p.dependencies.expo)||(p.devDependencies&&p.devDependencies.expo)?0:1)" \
   || fail "package.json has no 'expo' dependency — this doesn't look like an Expo project" 2
 
+check_disk_space "${APP_DIR}" "the project directory"
+check_disk_space "/cache" "the build cache volume"
+
 mkdir -p "${BUILD_OUTPUT_DIR}"
 
 # ---------------------------------------------------------------------------
@@ -100,9 +143,28 @@ progress 100
 # ---------------------------------------------------------------------------
 phase install "Installing dependencies"
 if [ -f package-lock.json ]; then
-  npm ci --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps || fail "npm install failed" 1
+  # Deliberately `if CMD; then :; else ...; fi` rather than `if ! CMD; then` — under
+  # `set -e`, negating with `!` also rewrites $? for the branch, so the real
+  # underlying exit code (124 for a timeout vs. npm's own failure code) would be
+  # lost right when we need it most to tell the two apart.
+  if run_with_timeout "${INSTALL_TIMEOUT}" npm ci --no-audit --no-fund; then
+    :
+  else
+    ci_status=$?
+    if [ "${ci_status}" -eq 124 ]; then
+      echo "npm ci didn't finish within ${INSTALL_TIMEOUT}s — most likely package.json and" \
+           "package-lock.json have drifted out of sync (e.g. a dependency was added/bumped" \
+           "without re-running npm install) combined with a peer-dependency conflict npm" \
+           "can't resolve without deciding, which some npm versions hang on instead of" \
+           "failing fast. Falling back to npm install, which will re-resolve and regenerate" \
+           "the lock file."
+    fi
+    run_with_timeout "${INSTALL_FALLBACK_TIMEOUT}" npm install --no-audit --no-fund --legacy-peer-deps \
+      || fail "npm install failed (or didn't finish within ${INSTALL_FALLBACK_TIMEOUT}s) after npm ci also failed — check for a genuine dependency conflict in package.json" 1
+  fi
 else
-  npm install --no-audit --no-fund --legacy-peer-deps || fail "npm install failed" 1
+  run_with_timeout "${INSTALL_FALLBACK_TIMEOUT}" npm install --no-audit --no-fund --legacy-peer-deps \
+    || fail "npm install failed (or didn't finish within ${INSTALL_FALLBACK_TIMEOUT}s)" 1
 fi
 progress 100
 
@@ -150,16 +212,16 @@ if [ "${RESOLVED_ENGINE}" = "eas" ]; then
   fi
 
   phase eas "Building with EAS (local)"
-  eas build --local --non-interactive --platform android --profile "${PROFILE}" \
+  run_with_timeout "${EAS_BUILD_TIMEOUT}" eas build --local --non-interactive --platform android --profile "${PROFILE}" \
     --output "${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}" \
-    || fail "eas build --local failed" 1
+    || fail "eas build --local failed (or didn't finish within ${EAS_BUILD_TIMEOUT}s)" 1
   ARTIFACT_PATH="${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}"
 
 else
   # ---- expo prebuild + Gradle (fully local/offline, no Expo account needed) ----
   phase prebuild "Generating native Android project"
-  npx expo prebuild --platform android --clean --non-interactive \
-    || fail "expo prebuild failed" 1
+  run_with_timeout "${PREBUILD_TIMEOUT}" npx expo prebuild --platform android --clean --non-interactive \
+    || fail "expo prebuild failed (or didn't finish within ${PREBUILD_TIMEOUT}s)" 1
   progress 100
 
   if [ "${SIGNING_MODE}" = "release" ] && [ -n "${KEYSTORE_PATH:-}" ]; then
@@ -185,8 +247,8 @@ else
   # Tty:true) and gives a live "NN% EXECUTING" progress line that build/progress.ts
   # parses for the dashboard's progress bar + ETA. Falls back gracefully to plain
   # output if stdout isn't actually a TTY (e.g. when running this script by hand).
-  (cd "${APP_DIR}/android" && chmod +x ./gradlew && ./gradlew "${GRADLE_TASK}" --console=rich --no-daemon) \
-    || fail "gradlew ${GRADLE_TASK} failed" 1
+  (cd "${APP_DIR}/android" && chmod +x ./gradlew && run_with_timeout "${GRADLE_TIMEOUT}" ./gradlew "${GRADLE_TASK}" --console=rich --no-daemon) \
+    || fail "gradlew ${GRADLE_TASK} failed (or didn't finish within ${GRADLE_TIMEOUT}s)" 1
 
   # shellcheck disable=SC2086
   FOUND="$(ls -1 ${OUT_GLOB} 2>/dev/null | head -n1)"
