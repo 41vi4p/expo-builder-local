@@ -3,6 +3,29 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.11.1 — Note: v0.11.0's runner-image fix needs a tag push to actually ship
+
+**Date:** 2026-07-30
+**Type:** Fix (process/docs)
+
+- No code change in this entry — documenting a gap found while verifying v0.11.0
+  actually reached a real build. `build-entrypoint.sh` is baked into the runner
+  image at Docker build time (`docker/runner/Dockerfile`'s `COPY
+  build-entrypoint.sh ...`), not bind-mounted at container start. `v0.10.0`'s
+  `ebl build` autoupdate makes `ensureRunnerImage()` unconditionally pull
+  `41vi4p/expo-builder-local-runner:latest` before every build. Since
+  `docker-publish.yml` only rebuilds/republishes that image on a `v*` tag push,
+  and the last tag actually pushed to the remote was `v0.9.1`, every `ebl build`
+  — including ones run after v0.11.0's local fix landed — kept silently
+  re-pulling the pre-fix image and reproducing the exact hang v0.11.0 was
+  supposed to have already fixed.
+- Net effect: a local source fix to `docker/runner/` is inert for any user
+  until a version tag is actually pushed (triggers both `release.yml` and
+  `docker-publish.yml`). Recorded here so this isn't mistaken for the v0.11.0
+  fix being ineffective — it was never published, not wrong.
+
+**Files modified:** none (diagnosis only — see `docs/RELEASING.md` for the tag-push step still owed)
+
 ## v0.11.0 — Bounded timeouts so a stalled step can't hang a build forever
 
 **Date:** 2026-07-29
