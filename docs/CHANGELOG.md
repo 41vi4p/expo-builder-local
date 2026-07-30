@@ -3,6 +3,36 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.11.4 — Real progress bars for `docker pull`-style image pulls/updates
+
+**Date:** 2026-07-30
+**Type:** Fix
+
+- `cli/src/pull_progress.hpp`'s `PullProgressRenderer` already redrew each layer's
+  line in place (like the real `docker` CLI), but every "Downloading"/"Extracting"
+  line only ever showed bare status text, no bar — because the Docker Engine API's
+  raw `/images/create` stream never actually includes a pre-rendered `progress` bar
+  string (confirmed by curling `/images/create` directly against dockerd: only
+  `progressDetail: {current, total}` byte counts come back). The bar the real
+  `docker` CLI shows is rendered client-side from those counts, not sent over the
+  wire — `docker_client.cpp`'s old `event.contains("progress")` check was
+  effectively dead code.
+- `DockerClient::pullImage` (`cli/src/docker_client.cpp`) now synthesizes the bar
+  itself from `progressDetail`: a fixed-width 30-char `[===>   ]` bar plus
+  docker-style human sizes (1000-based, e.g. `2.506MB/3.418MB`, mirroring
+  `docker/pkg/units.CustomSize`'s `%.4g` formatting). One change point — `setup.cpp`
+  (`ebl setup`'s image pulls/updates), `build.cpp`, and `start.cpp` all get it for
+  free since they only ever forward whatever `pullImage` hands them to the
+  already-correct `PullProgressRenderer`.
+- Verified against a real pull through a pty (`script`): each layer's line now
+  animates in place, e.g. `Downloading [=====================>        ]
+  2.506MB/3.418MB` growing to completion, then `Extracting [...]`, then
+  `Pull complete` — matching real `docker pull` output.
+
+**Files modified:** `cli/src/docker_client.cpp`, `cli/src/pull_progress.hpp`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`, `cli/CMakeLists.txt`,
+`windows/installer/ebl.iss`
+
 ## v0.11.3 — Fix `eas build --local` wedging permanently inside the build container
 
 **Date:** 2026-07-30

@@ -1,5 +1,6 @@
 #include "docker_client.hpp"
 
+#include <cstdio>
 #include <stdexcept>
 
 #include "json.hpp"
@@ -7,6 +8,41 @@
 #include "winpath.hpp"
 
 namespace ebl {
+
+namespace {
+
+// Docker CLI-style human size: 1000-based with ~4 significant digits (e.g.
+// "892.7kB", "5.545MB") — mirrors docker/pkg/units.CustomSize so sizes read the
+// way `docker pull` shows them, not binary (1024-based) units.
+std::string humanSize(double bytes) {
+  static const char* kUnits[] = {"B", "kB", "MB", "GB", "TB", "PB"};
+  size_t unit = 0;
+  double value = bytes;
+  while (value >= 1000.0 && unit + 1 < sizeof(kUnits) / sizeof(kUnits[0])) {
+    value /= 1000.0;
+    ++unit;
+  }
+  char buf[32];
+  std::snprintf(buf, sizeof(buf), "%.4g%s", value, kUnits[unit]);
+  return buf;
+}
+
+// Renders a `docker pull`-style ASCII bar: "[===>      ]". Fixed width rather than
+// measured against the real terminal width (as the actual `docker` CLI does) —
+// simpler, and every caller already truncates/redraws the surrounding line itself
+// (see PullProgressRenderer).
+std::string renderBar(long long current, long long total, int width = 30) {
+  double frac = total > 0 ? static_cast<double>(current) / static_cast<double>(total) : 0.0;
+  if (frac < 0.0) frac = 0.0;
+  if (frac > 1.0) frac = 1.0;
+  int filled = static_cast<int>(frac * width);
+  std::string bar(width, ' ');
+  for (int i = 0; i < filled && i < width; ++i) bar[i] = '=';
+  if (filled > 0 && filled < width) bar[filled] = '>';
+  return "[" + bar + "]";
+}
+
+}  // namespace
 
 DockerClient::DockerClient(std::string socketPath) : http_(std::move(socketPath)) {}
 
@@ -134,7 +170,22 @@ void DockerClient::pullImage(const std::string& tag,
       } else if (event.contains("status")) {
         std::string status = event.at("status").asString();
         std::string id = event.contains("id") ? event.at("id").asString() : "";
+        // The daemon's own /images/create stream never actually includes a
+        // pre-rendered "progress" bar string (that's the real `docker` CLI's own
+        // client-side rendering) — only "progressDetail": {current, total} byte
+        // counts, present on "Downloading"/"Extracting" events. Build the bar
+        // ourselves from those; keep the "progress" key too in case some future
+        // engine version does send one.
         std::string progress = event.contains("progress") ? event.at("progress").asString() : "";
+        if (progress.empty() && event.contains("progressDetail")) {
+          const Json& detail = event.at("progressDetail");
+          long long total = detail.contains("total") ? detail.at("total").asInt() : 0;
+          long long current = detail.contains("current") ? detail.at("current").asInt() : 0;
+          if (total > 0) {
+            progress = renderBar(current, total) + "  " + humanSize(static_cast<double>(current)) +
+                       "/" + humanSize(static_cast<double>(total));
+          }
+        }
         onEvent(id, status, progress);
       }
     }

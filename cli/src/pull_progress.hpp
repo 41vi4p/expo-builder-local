@@ -15,8 +15,9 @@ class PullProgressRenderer {
 
   /** id: layer short hash, or empty for a plain status line (e.g. "Status:
    * Downloaded newer image for ..."), which is always printed as its own line and
-   * never redrawn in place. progress: Docker's own pre-rendered bar string (e.g.
-   * "[==>       ]  1.2MB/5MB"), may be empty. */
+   * never redrawn in place. progress: a pre-rendered bar string (e.g.
+   * "[==>       ]  1.2MB/5MB"), synthesized by DockerClient::pullImage from the
+   * daemon's raw progressDetail byte counts — may be empty. */
   void onEvent(const std::string& id, const std::string& status, const std::string& progress);
 
  private:
