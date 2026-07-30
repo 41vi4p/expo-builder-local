@@ -17,6 +17,10 @@ data/
 *.db-journal
 *.db-wal
 
+# Claude Code local settings (personal, machine-specific — settings.json, if
+# ever added, is the shared/tracked one)
+.claude/settings.local.json
+
 # OS
 .DS_Store
 ebl-release-signing-key.asc

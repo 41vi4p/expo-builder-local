@@ -3,6 +3,36 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.11.3 — Fix `eas build --local` wedging permanently inside the build container
+
+**Date:** 2026-07-30
+**Type:** Fix
+
+- Root cause, reproduced live: the build container is created with `Tty: true`
+  (`cli/src/docker_client.cpp`'s `createContainer`) so its stdout/stderr is a real
+  pty, but `docker/runner/build-entrypoint.sh`'s `run_with_timeout()` wrapped every
+  step in plain `timeout --kill-after=10s`. Without `--foreground`, GNU `timeout`
+  puts the wrapped command in a *new* process group (so `--kill-after` can signal
+  the whole subtree), and that new group never becomes the pty's foreground group —
+  it stays whatever PID 1 started with. The instant the wrapped command touches the
+  terminal (`eas-cli`/its spinner libs checking `isTTY` and doing an ioctl, even
+  under `--non-interactive`), the kernel sends it `SIGTTIN`/`SIGTTOU` and stops it
+  (confirmed via `ps -o pid,pgid,tpgid,stat`: `pgid=44`, `tpgid=1`, `STAT=Tl`) —
+  permanently, since nothing ever sends `SIGCONT`. Read externally as an indefinite
+  stall right after "Using Keystore from configuration", not a timeout, because a
+  *stopped* process can't act on `timeout`'s eventual `SIGTERM` either — only
+  `--kill-after`'s `SIGKILL` would ever have landed, 40 minutes later.
+- Fix: added `--foreground` to the `timeout` invocation in `run_with_timeout()` so
+  the wrapped command stays in `timeout`'s own process group, which stays in sync
+  with the pty's foreground group — no more TTY-triggered stop. Affects every step
+  wrapped by `run_with_timeout` (`npm ci`/`install`, `expo prebuild`,
+  `eas build --local`, `gradlew assemble/bundleRelease`), not just the EAS path.
+- This requires a rebuilt/re-pulled runner image to take effect (the script is
+  baked into `docker/runner/Dockerfile` at image-build time, not mounted per-build).
+
+**Files modified:** `docker/runner/build-entrypoint.sh`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt`, `windows/installer/ebl.iss`
+
 ## v0.11.2 — `ebl setup` finishes a fresh Docker install properly
 
 **Date:** 2026-07-30

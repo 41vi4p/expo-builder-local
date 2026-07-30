@@ -55,9 +55,24 @@ fail()     { echo "@@ERROR:$1"; exit "${2:-1}"; }
 # doesn't take — mirrors what we've observed hung npm/gradle processes actually need
 # to die. Exit code 124 means "timed out"; anything else is the wrapped command's own
 # exit status, so existing `||` fallback chains keep working unmodified.
+#
+# --foreground is required: this container is created with Tty:true (see
+# cli/src/docker_client.cpp's createContainer) so its stdout/stderr is a real pty —
+# but without --foreground, `timeout` puts "$@" in a *new* process group so
+# --kill-after can signal the whole subtree, and that new group is never made the
+# pty's foreground group. The pty's foreground pgrp stays whatever PID 1 started
+# with, so the moment the wrapped command touches the terminal (eas-cli/ora/enquirer
+# checking isTTY and doing an ioctl for its spinner, even under --non-interactive)
+# the kernel sends it SIGTTIN/SIGTTOU and stops it (ps STAT "T") — permanently,
+# since nothing ever sends SIGCONT. That reads as an indefinite stall (reproduced:
+# `eas build --local` wedged right after "Using Keystore from configuration",
+# pgid != tpgid confirmed via `ps -o pid,pgid,tpgid`), not a timeout, because a
+# stopped process can't act on the eventual SIGTERM either — only the SIGKILL from
+# --kill-after actually lands. --foreground keeps "$@" in timeout's own group, which
+# stays in sync with the pty's foreground group, so it never triggers the stop.
 run_with_timeout() {
   local seconds="$1"; shift
-  timeout --kill-after=10s "${seconds}s" "$@"
+  timeout --foreground --kill-after=10s "${seconds}s" "$@"
 }
 
 # A near-full disk was a real contributor to at least one hang we've seen in
