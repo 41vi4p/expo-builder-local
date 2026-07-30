@@ -3,6 +3,32 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.11.2 — `ebl setup` finishes a fresh Docker install properly
+
+**Date:** 2026-07-30
+**Type:** Enhancement
+
+- `ebl setup`'s auto-install path (`cli/src/commands/setup.cpp`) ran the official
+  `get.docker.com` convenience script when Docker wasn't found, but stopped there —
+  the script installs the packages, but (unlike the manual apt flow) doesn't enable
+  or start the systemd service, and never adds the invoking user to the `docker`
+  group. A fresh install would report success and then immediately fail the
+  `docker.ping()` check right after, or leave the daemon not actually running.
+- Now runs `sudo systemctl enable docker` + `sudo systemctl start docker` and
+  `sudo usermod -aG docker $USER` right after a successful install script run —
+  best-effort (exit codes intentionally ignored; `ebl setup` still explains the
+  logout/`newgrp docker` step needed for the new group membership to take effect
+  in the *current* shell, since that can't be fixed programmatically).
+- Also hardened the other existing branch: when `docker` is already installed but
+  the daemon isn't reachable, `ebl setup` previously just printed "try: sudo
+  systemctl start docker" and exited — it now runs that (plus `enable`) itself and
+  re-checks before giving up.
+- Every remaining failure exit in this flow now explicitly says to re-run `ebl
+  setup` once Docker is actually up (the still-unreachable-after-start-attempt
+  message was the one path that didn't).
+
+**Files modified:** `cli/src/commands/setup.cpp`
+
 ## v0.11.1 — Note: v0.11.0's runner-image fix needs a tag push to actually ship
 
 **Date:** 2026-07-30

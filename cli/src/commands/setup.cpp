@@ -34,8 +34,10 @@ void printUsage() {
   std::cout << R"(ebl setup
 
 One-time setup: makes sure Docker is installed and running, offers to install it if
-not (official convenience script, requires sudo), then pulls the runner/orchestrator/
-web images so `ebl build`/`ebl start` are ready to go immediately.
+not (official convenience script, requires sudo — also enables+starts the systemd
+service and adds you to the docker group, which the script alone doesn't do), then
+pulls the runner/orchestrator/web images so `ebl build`/`ebl start` are ready to go
+immediately.
 
 Options:
   -h, --help   Show this help
@@ -96,6 +98,22 @@ int runSetup(int argc, char** argv) {
         return 1;
       }
       std::cout << ebl::color::green("Docker installed.") << "\n";
+
+      // get.docker.com installs the packages but, unlike the manual apt flow, doesn't
+      // enable/start the systemd service or add the invoking user to the docker group
+      // — do both explicitly so a fresh install is actually usable, not just present.
+      int ignored;
+      ignored = std::system("sudo systemctl enable docker >/dev/null 2>&1");
+      ignored = std::system("sudo systemctl start docker >/dev/null 2>&1");
+      (void)ignored;
+      if (const char* sudoUser = std::getenv("USER"); sudoUser && *sudoUser) {
+        std::string cmd = std::string("sudo usermod -aG docker '") + sudoUser + "'";
+        int groupStatus = std::system(cmd.c_str());
+        if (WIFEXITED(groupStatus) && WEXITSTATUS(groupStatus) == 0) {
+          std::cout << ebl::color::dim("Added \"" + std::string(sudoUser) + "\" to the docker group.") << "\n";
+        }
+      }
+
       if (!docker.ping()) {
         std::cout << ebl::color::yellow(
                           "Docker is installed but not reachable from this shell yet — you likely need to log "
@@ -105,11 +123,20 @@ int runSetup(int argc, char** argv) {
         return 1;
       }
     } else {
-      std::cerr << ebl::color::red(
-                        "Docker is installed but the daemon isn't reachable. Is it running? "
-                        "Try: sudo systemctl start docker")
-                << "\n";
-      return 1;
+      std::cout << "Docker is installed but the daemon isn't reachable — trying to start it "
+                   "(sudo systemctl start docker)...\n";
+      int ignored;
+      ignored = std::system("sudo systemctl enable docker >/dev/null 2>&1");
+      ignored = std::system("sudo systemctl start docker >/dev/null 2>&1");
+      (void)ignored;
+      if (!docker.ping()) {
+        std::cerr << ebl::color::red(
+                          "Still not reachable after trying to start it. Check its status yourself: "
+                          "sudo systemctl status docker — then re-run `ebl setup`.")
+                  << "\n";
+        return 1;
+      }
+      std::cout << ebl::color::green("Docker started.") << "\n";
     }
 #endif
   }
