@@ -55,6 +55,30 @@ Version history for the orchestrator + GUI (versioned together — see
 
 **Files modified:** `docker/runner/Dockerfile`, `docker/runner/build-entrypoint.sh`
 
+## v0.11.6 — Fix two bugs in v0.11.5's idle-timeout monitor
+
+**Date:** 2026-07-31
+**Type:** Fix
+
+- Two bugs found via a real build after v0.11.5 landed, both now fixed:
+  (1) `tree_cpu_seconds`'s `HH:MM:SS` parsing did plain `$(( ))` arithmetic on
+  `ps -o time=`'s zero-padded fields — bash's arithmetic evaluator treats a
+  leading-zero literal as octal, and "08"/"09" aren't valid octal digits, so
+  any build running past ~8 minutes of cumulative CPU time hit
+  `value too great for base (error token is "08")`, silently broke CPU
+  tracking for the rest of the run, and caused a false-positive stall-kill of
+  an otherwise-healthy build. Fixed by forcing base-10 with the `10#` prefix on
+  every component. Verified with a real ~9.5-minute CPU-busy process tree
+  (crossing the 08/09 boundary repeatedly) surviving the full run without being
+  killed. (2) The `|| fail "... stalled ..."` message at both call sites was
+  unconditional — it claimed "stalled" even when the wrapped command exited on
+  its own with a real (non-124) failure code, which is exactly what made bug
+  (1)'s false-positive kill read as a plausible timeout instead of the bug it
+  was. Both call sites now branch on the actual exit status and only say
+  "stalled" when it's genuinely 124.
+
+**Files modified:** `docker/runner/build-entrypoint.sh`
+
 ## v0.11.4 — Real progress bars for `docker pull`-style image pulls/updates
 
 **Date:** 2026-07-30

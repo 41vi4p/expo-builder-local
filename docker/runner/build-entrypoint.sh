@@ -145,7 +145,12 @@ tree_cpu_seconds() {
     esac
     IFS=: read -r a b c <<< "${rest}"
     if [ -n "${c}" ]; then h="${a}"; m="${b}"; s="${c}"; else h=0; m="${a}"; s="${b}"; fi
-    total=$(( total + d*86400 + h*3600 + m*60 + s ))
+    # `ps -o time=` zero-pads (e.g. "08", "09") — bash's arithmetic evaluator
+    # treats a leading-zero literal as octal, and "08"/"09" aren't valid octal
+    # digits ("value too great for base"). Force base-10 with the `10#` prefix
+    # on every component so real builds (which routinely cross these values)
+    # don't crash the monitor loop.
+    total=$(( total + 10#${d:-0}*86400 + 10#${h:-0}*3600 + 10#${m:-0}*60 + 10#${s:-0} ))
   done
   echo "${total}"
 }
@@ -331,10 +336,18 @@ if [ "${RESOLVED_ENGINE}" = "eas" ]; then
   fi
 
   phase eas "Building with EAS (local)"
-  run_with_idle_timeout "${EAS_BUILD_IDLE_TIMEOUT}" "${EAS_BUILD_TIMEOUT}" \
-    eas build --local --non-interactive --platform android --profile "${PROFILE}" \
-    --output "${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}" \
-    || fail "eas build --local failed (stalled — no CPU activity for ${EAS_BUILD_IDLE_TIMEOUT}s — or exceeded the ${EAS_BUILD_TIMEOUT}s hard ceiling)" 1
+  if run_with_idle_timeout "${EAS_BUILD_IDLE_TIMEOUT}" "${EAS_BUILD_TIMEOUT}" \
+      eas build --local --non-interactive --platform android --profile "${PROFILE}" \
+      --output "${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}"; then
+    :
+  else
+    eas_status=$?
+    if [ "${eas_status}" -eq 124 ]; then
+      fail "eas build --local stalled — no CPU activity for ${EAS_BUILD_IDLE_TIMEOUT}s (or exceeded the ${EAS_BUILD_TIMEOUT}s hard ceiling)" 1
+    else
+      fail "eas build --local failed (exit ${eas_status}) — see the eas-cli output above for the actual error" 1
+    fi
+  fi
   ARTIFACT_PATH="${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}"
 
 else
@@ -367,8 +380,16 @@ else
   # Tty:true) and gives a live "NN% EXECUTING" progress line that build/progress.ts
   # parses for the dashboard's progress bar + ETA. Falls back gracefully to plain
   # output if stdout isn't actually a TTY (e.g. when running this script by hand).
-  (cd "${APP_DIR}/android" && chmod +x ./gradlew && run_with_idle_timeout "${GRADLE_IDLE_TIMEOUT}" "${GRADLE_TIMEOUT}" ./gradlew "${GRADLE_TASK}" --console=rich --no-daemon) \
-    || fail "gradlew ${GRADLE_TASK} failed (stalled — no CPU activity for ${GRADLE_IDLE_TIMEOUT}s — or exceeded the ${GRADLE_TIMEOUT}s hard ceiling)" 1
+  if (cd "${APP_DIR}/android" && chmod +x ./gradlew && run_with_idle_timeout "${GRADLE_IDLE_TIMEOUT}" "${GRADLE_TIMEOUT}" ./gradlew "${GRADLE_TASK}" --console=rich --no-daemon); then
+    :
+  else
+    gradle_status=$?
+    if [ "${gradle_status}" -eq 124 ]; then
+      fail "gradlew ${GRADLE_TASK} stalled — no CPU activity for ${GRADLE_IDLE_TIMEOUT}s (or exceeded the ${GRADLE_TIMEOUT}s hard ceiling)" 1
+    else
+      fail "gradlew ${GRADLE_TASK} failed (exit ${gradle_status}) — see the gradlew output above for the actual error" 1
+    fi
+  fi
 
   # shellcheck disable=SC2086
   FOUND="$(ls -1 ${OUT_GLOB} 2>/dev/null | head -n1)"
