@@ -27,7 +27,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # the ubuntu:24.04 base layer itself, not just the ones we explicitly install below.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       curl ca-certificates unzip zip git openssh-client build-essential \
-      python3 file gosu openjdk-17-jdk-headless \
+      python3 file gosu openjdk-17-jdk-headless procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Docker Desktop for Windows' bind-mount layer doesn't map host ownership at all —

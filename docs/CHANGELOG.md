@@ -3,11 +3,34 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
-## v0.11.5 — Fix `eas build --local` failing on Windows with git clone exit 128
+## v0.11.5 — Fix Windows build reliability: git clone exit 128, and flat-timeout kills of healthy builds
 
 **Date:** 2026-07-31
 **Type:** Fix
 
+- `eas build --local`'s and `gradlew`'s long native-compile phases were killed by
+  a flat wall-clock cap (`EAS_BUILD_TIMEOUT`/`GRADLE_TIMEOUT`, 40 min) even while
+  actively compiling — a cold, multi-ABI native build (several C++ modules like
+  `react-native-worklets`/`react-native-screens` compiling for
+  arm64-v8a/armeabi-v7a/x86/x86_64 with no warm Gradle cache) can legitimately run
+  well past that. Replaced with `run_with_idle_timeout` (new in
+  `build-entrypoint.sh`): polls cumulative CPU time across the whole descendant
+  process tree and only kills once that hasn't moved for
+  `EAS_BUILD_IDLE_TIMEOUT`/`GRADLE_IDLE_TIMEOUT` (default 10 min each) — a phase
+  that's silently CPU-busy (a linker, a large compile unit with no stdout for
+  minutes) is no longer mistaken for a stall. `EAS_BUILD_TIMEOUT`/`GRADLE_TIMEOUT`
+  still apply as an outer 2h safety-net ceiling. Deliberately does not redirect
+  the child's stdout/stderr to watch for output instead of CPU — this container
+  gets a real TTY (`Tty:true`) specifically so `--console=rich` can render the
+  live Gradle progress line `build/progress.ts` parses; piping fd 1 through
+  anything (e.g. `tee`, tested and reverted) turns it into a plain FIFO from the
+  child's point of view and silently breaks that detection. `kill_tree` signals
+  the stalled process and its descendants individually (recursive `pgrep -P`),
+  never the whole process group, since everything this script runs — including
+  the monitor loop itself — shares one process group and a group-wide `SIGKILL`
+  would kill the monitor mid-kill before it could report back. Added `procps` to
+  the runner image so `pgrep`/`ps` are guaranteed present rather than relying on
+  them being pulled in transitively by the Ubuntu base image.
 - On Windows, Docker Desktop's bind-mount layer doesn't map host ownership —
   bind-mounted project files show up **root-owned** inside the runner container
   regardless of `BUILD_UID`, unlike native Linux bind mounts which preserve real
@@ -30,7 +53,7 @@ Version history for the orchestrator + GUI (versioned together — see
   or `$HOME` any subprocess ends up using. No effect on Linux, where the ownership
   mismatch never occurs in the first place.
 
-**Files modified:** `docker/runner/Dockerfile`
+**Files modified:** `docker/runner/Dockerfile`, `docker/runner/build-entrypoint.sh`
 
 ## v0.11.4 — Real progress bars for `docker pull`-style image pulls/updates
 

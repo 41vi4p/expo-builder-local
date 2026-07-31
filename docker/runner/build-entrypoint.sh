@@ -34,8 +34,18 @@ set -eo pipefail
 : "${INSTALL_TIMEOUT:=300}"          # npm ci — 5 min
 : "${INSTALL_FALLBACK_TIMEOUT:=600}" # npm install (fallback / no lock file) — 10 min
 : "${PREBUILD_TIMEOUT:=300}"         # expo prebuild — 5 min
-: "${EAS_BUILD_TIMEOUT:=2400}"       # eas build --local — 40 min
-: "${GRADLE_TIMEOUT:=2400}"          # gradlew assemble/bundleRelease — 40 min
+# EAS_BUILD_TIMEOUT/GRADLE_TIMEOUT are now an outer safety-net ceiling, not the
+# primary control — see run_with_idle_timeout below. A cold, multi-ABI native
+# build (several C++ modules like react-native-worklets/react-native-screens
+# compiling for arm64-v8a/armeabi-v7a/x86/x86_64 with no warm Gradle cache) can
+# legitimately run well past the old 40-minute flat cap while still actively
+# compiling — that used to get killed here even though it was making real
+# progress. 2h is just the "something is truly runaway" backstop now; the
+# *_IDLE_TIMEOUT values below are what actually decides "stalled".
+: "${EAS_BUILD_TIMEOUT:=7200}"       # eas build --local — 2h hard ceiling
+: "${GRADLE_TIMEOUT:=7200}"          # gradlew assemble/bundleRelease — 2h hard ceiling
+: "${EAS_BUILD_IDLE_TIMEOUT:=600}"   # eas build --local — kill if no CPU activity for 10 min
+: "${GRADLE_IDLE_TIMEOUT:=600}"      # gradlew — kill if no CPU activity for 10 min
 : "${MIN_FREE_DISK_MB:=2048}"        # hard-fail below this much free space — 2 GB
 SCRIPTS_DIR="/usr/local/lib/expo-builder"
 # Scratch space for intermediate engine output (the eas engine's --output target) —
@@ -73,6 +83,100 @@ fail()     { echo "@@ERROR:$1"; exit "${2:-1}"; }
 run_with_timeout() {
   local seconds="$1"; shift
   timeout --foreground --kill-after=10s "${seconds}s" "$@"
+}
+
+# --- Stall (not wall-clock) detection for the two genuinely long, native-toolchain
+# phases (eas build --local's internal gradle invocation, and the direct gradlew
+# path) -----------------------------------------------------------------------
+#
+# A flat wall-clock cap (run_with_timeout above) can't tell "still compiling" apart
+# from "wedged" — a cold, multi-ABI native build (several C++ modules compiling for
+# arm64-v8a/armeabi-v7a/x86/x86_64 with no warm Gradle cache) can legitimately run
+# for well over an hour while making real progress the whole time, and killing that
+# on a flat 40-minute cap is a false failure, not a safety net.
+#
+# run_with_idle_timeout instead polls cumulative CPU time across "$@"'s *whole*
+# descendant tree (not just stdout activity — a linker or a single large compile
+# unit can go silent on stdout for minutes while still genuinely burning CPU) and
+# only kills if that hasn't moved for idle_seconds. max_seconds is still enforced
+# as an outer backstop for the pathological case where something spins forever
+# without ever finishing.
+#
+# Deliberately does NOT redirect "$@"'s stdout/stderr (e.g. through `tee`, to watch
+# for output instead of polling CPU) — this container is created with Tty:true (see
+# cli/src/docker_client.cpp's createContainer) specifically so the direct-gradle
+# path's `--console=rich` can detect a real TTY and render the "NN% EXECUTING"
+# progress line build/progress.ts parses; piping "$@"'s fd 1 through anything turns
+# it into a plain FIFO from the child's point of view and silently breaks that
+# detection. Since stdio is left untouched, "$@" also stays in this script's own
+# process group exactly as it does today (no `set -m` job control is ever enabled
+# here) — same pty-foreground-group situation the run_with_timeout comment above
+# describes, just never disturbed in the first place.
+#
+# kill_tree signals "$@" and its descendants individually (via recursive `pgrep
+# -P`), never the whole process group (e.g. `kill -TERM 0`) — everything this
+# script runs, including this monitor loop itself, shares one process group, and a
+# group-wide SIGKILL is unignorable, so it would kill the monitor mid-kill before
+# it could report status 124 back to its caller.
+collect_tree_pids() {
+  local root="$1" c
+  echo "${root}"
+  for c in $(pgrep -P "${root}" 2>/dev/null || true); do
+    collect_tree_pids "${c}"
+  done
+}
+
+kill_tree() {
+  local sig="$1" root="$2" c
+  for c in $(pgrep -P "${root}" 2>/dev/null || true); do
+    kill_tree "${sig}" "${c}"
+  done
+  kill -s "${sig}" "${root}" 2>/dev/null || true
+}
+
+tree_cpu_seconds() {
+  local root="$1" total=0 pid t d rest h m s
+  for pid in $(collect_tree_pids "${root}"); do
+    t="$(ps -o time= -p "${pid}" 2>/dev/null | tr -d ' ')" || continue
+    [ -n "${t}" ] || continue
+    case "${t}" in
+      *-*) d="${t%%-*}"; rest="${t#*-}" ;;
+      *) d=0; rest="${t}" ;;
+    esac
+    IFS=: read -r a b c <<< "${rest}"
+    if [ -n "${c}" ]; then h="${a}"; m="${b}"; s="${c}"; else h=0; m="${a}"; s="${b}"; fi
+    total=$(( total + d*86400 + h*3600 + m*60 + s ))
+  done
+  echo "${total}"
+}
+
+run_with_idle_timeout() {
+  local idle_seconds="$1" max_seconds="$2"; shift 2
+  "$@" &
+  local cmd_pid=$!
+  local start_ts; start_ts=$(date +%s)
+  local last_cpu=-1 last_change_ts="${start_ts}" now cpu status=0
+  while kill -0 "${cmd_pid}" 2>/dev/null; do
+    sleep 5
+    now=$(date +%s)
+    cpu=$(tree_cpu_seconds "${cmd_pid}")
+    if [ "${cpu}" != "${last_cpu}" ]; then
+      last_cpu="${cpu}"
+      last_change_ts="${now}"
+    fi
+    if [ $((now - last_change_ts)) -ge "${idle_seconds}" ] || [ $((now - start_ts)) -ge "${max_seconds}" ]; then
+      kill_tree TERM "${cmd_pid}"
+      sleep 10
+      kill_tree KILL "${cmd_pid}"
+      status=124
+      break
+    fi
+  done
+  if [ "${status}" -ne 124 ]; then
+    wait "${cmd_pid}"
+    status=$?
+  fi
+  return "${status}"
 }
 
 # A near-full disk was a real contributor to at least one hang we've seen in
@@ -227,9 +331,10 @@ if [ "${RESOLVED_ENGINE}" = "eas" ]; then
   fi
 
   phase eas "Building with EAS (local)"
-  run_with_timeout "${EAS_BUILD_TIMEOUT}" eas build --local --non-interactive --platform android --profile "${PROFILE}" \
+  run_with_idle_timeout "${EAS_BUILD_IDLE_TIMEOUT}" "${EAS_BUILD_TIMEOUT}" \
+    eas build --local --non-interactive --platform android --profile "${PROFILE}" \
     --output "${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}" \
-    || fail "eas build --local failed (or didn't finish within ${EAS_BUILD_TIMEOUT}s)" 1
+    || fail "eas build --local failed (stalled — no CPU activity for ${EAS_BUILD_IDLE_TIMEOUT}s — or exceeded the ${EAS_BUILD_TIMEOUT}s hard ceiling)" 1
   ARTIFACT_PATH="${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}"
 
 else
@@ -262,8 +367,8 @@ else
   # Tty:true) and gives a live "NN% EXECUTING" progress line that build/progress.ts
   # parses for the dashboard's progress bar + ETA. Falls back gracefully to plain
   # output if stdout isn't actually a TTY (e.g. when running this script by hand).
-  (cd "${APP_DIR}/android" && chmod +x ./gradlew && run_with_timeout "${GRADLE_TIMEOUT}" ./gradlew "${GRADLE_TASK}" --console=rich --no-daemon) \
-    || fail "gradlew ${GRADLE_TASK} failed (or didn't finish within ${GRADLE_TIMEOUT}s)" 1
+  (cd "${APP_DIR}/android" && chmod +x ./gradlew && run_with_idle_timeout "${GRADLE_IDLE_TIMEOUT}" "${GRADLE_TIMEOUT}" ./gradlew "${GRADLE_TASK}" --console=rich --no-daemon) \
+    || fail "gradlew ${GRADLE_TASK} failed (stalled — no CPU activity for ${GRADLE_IDLE_TIMEOUT}s — or exceeded the ${GRADLE_TIMEOUT}s hard ceiling)" 1
 
   # shellcheck disable=SC2086
   FOUND="$(ls -1 ${OUT_GLOB} 2>/dev/null | head -n1)"
