@@ -4,31 +4,31 @@ Hash: SHA512
 Architectures: amd64
 Codename: stable
 Components: main
-Date: Fri, 31 Jul 2026 16:41:45 +0000
+Date: Fri, 31 Jul 2026 18:53:31 +0000
 Description: expo-builder-local APT repository (the ebl CLI)
 Label: expo-builder-local
 Origin: expo-builder-local
 Suite: stable
 MD5Sum:
- 30353bbcb277b58bf717437f55da6ce9              221 Release
- ecfd02eab6a0654030fa378937bb0a79              663 main/binary-amd64/Packages
- 536781d0d8d234d9923833a82309e574              475 main/binary-amd64/Packages.gz
+ 1f8c631cd84f9550a01bcdf6333c160b              221 Release
+ 077518c3aef5d4dc4d6cf5abb4f451e4              663 main/binary-amd64/Packages
+ b0eb0b1cfb35e94c834889a023b7e5b5              476 main/binary-amd64/Packages.gz
 SHA1:
- d5a80331f653ec9f081bdf13cab215fcf0c60a01              221 Release
- 5e74164b11b42550443d9ad4675e230c98b9c224              663 main/binary-amd64/Packages
- a5fef2e629fafc0b9a99156cd3f6abbe82853c4b              475 main/binary-amd64/Packages.gz
+ 3a04828a52ff2f4d10e8f245dddef63021cc2271              221 Release
+ 89ca5f67d6f873e456144c380ad2f5718e6d52f2              663 main/binary-amd64/Packages
+ c8ada96612673fa6f313f3f985bddee99640447d              476 main/binary-amd64/Packages.gz
 SHA256:
- ef7d34ee815bd6b4450fd38aad2bd97dadd2a38701b6d5e555676d9e440e5130              221 Release
- 32f76a6831112d87bae32562fd174df7cab38160cfbc64faf54eb3c694858128              663 main/binary-amd64/Packages
- 64cd1cf0197e999cdac2781fe900823512a1169a72af205e42e98639b9211c43              475 main/binary-amd64/Packages.gz
+ 510caeae9ba5de4f10d8c68aa273831a31164adb193ebbf9abc68d1f6fd8e359              221 Release
+ 647ddb6855810c5efe0589dd6b7ae888b5709e475e1fd7873c209dcb75642498              663 main/binary-amd64/Packages
+ 55015fe69d92dc57dd6c5dee30f9241b9015ab5274a83b37111c6e5ba6f796b1              476 main/binary-amd64/Packages.gz
 SHA512:
- 1ebfac45a2fa8cdf04c977d55c375e95415d71ae618782be5ae39774d6372fc8fb2b85f00099ccea84e44c8c398e88a3988cd1f38951d0945526987e05163da3              221 Release
- 847a0041fbaec7c337b7c1d18e215e7ab8a34a1c2d56626a251f68cad4bbdf9850d96046b38fee149e7d603ea2d7ab014465eefd355fcfa2f8ccda8bb7883e60              663 main/binary-amd64/Packages
- 2ba72389fdae19e37bd1f368e6774bf271a1a7871c1d1c284138c079095a64d78edff35bab30cb148455203c977990679a1079f6fa4d76525633abdf3d15070b              475 main/binary-amd64/Packages.gz
+ a8d6b2beffd5b9f6f02df2cf22754cd9c8fa78584ead0bd0e074a223b51bcad36f0a3ba46b46422e2b81d0f9532e7ebe3cb9eabcd9b463c711da08f21b0a6305              221 Release
+ ca44bc421e877c12a9bb691b4ad7e1763388c91843870e8c5fc78fb1aaf0e24b95adb3b66bf1728e1f37b7bf95d1fe1c84bbf36700744cfa34500e72bb664eb8              663 main/binary-amd64/Packages
+ d59bb0eb1b8dc1ebf6ba62d56dd4773f0233e03a1127fe3561e62c7f5c86796903aa3daa9e39449298925f5194ed123f4fda246e556beff2f1a53b5f73598df9              476 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQRMpD7uBmTs5b0dvfdVhb5Kti4A4gUCamzQSQAKCRBVhb5Kti4A
-4iFeAP9a+uU5OMIj7GpbyPfe+U6Fv7RhLJv1m1uFeH9KNJacTgEAzfbXlnlKMcXm
-XVbRzho5jPPYbO8O0FePJthjCYIsuAE=
-=VuYM
+iHUEARYKAB0WIQRMpD7uBmTs5b0dvfdVhb5Kti4A4gUCamzvKwAKCRBVhb5Kti4A
+4uM7AP0Z9fBQDjVGpf8+BSuYSyMhHtVLE5bYsfBU2pyUfAlJIAD/WJA2EKrdGowY
+HIUwJeRoRSINUGPO6vP2A85LCN7F4gQ=
+=PN/j
 -----END PGP SIGNATURE-----
