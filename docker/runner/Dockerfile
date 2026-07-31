@@ -30,6 +30,20 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
       python3 file gosu openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
+# Docker Desktop for Windows' bind-mount layer doesn't map host ownership at all —
+# every bind-mounted file shows up root-owned inside the container regardless of
+# BUILD_UID (see docker-entrypoint.sh's re-homing comment), which trips git's
+# post-CVE-2022-24765 "dubious ownership" check the moment anything treats the
+# mounted app dir as a repo — including `eas build --local`'s own internal
+# `git clone file:///work/app ...` snapshot step, which spawns git in an environment
+# that doesn't necessarily inherit build-entrypoint.sh's `--global` safe.directory
+# exception. `--system` writes to /etc/gitconfig (root-owned, world-readable) so it
+# applies regardless of which user or HOME the eas-cli subprocess ends up using —
+# must be set here (build time, still root) since build-entrypoint.sh already runs
+# as the non-root `builder` user by the time it executes. No-op on native Linux
+# bind mounts, which already preserve real host ownership and never hit this check.
+RUN git config --system --add safe.directory '*'
+
 # --- Node.js (current LTS, tracked via NodeSource's rolling "lts" channel) -------
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \

@@ -3,6 +3,35 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.11.5 — Fix `eas build --local` failing on Windows with git clone exit 128
+
+**Date:** 2026-07-31
+**Type:** Fix
+
+- On Windows, Docker Desktop's bind-mount layer doesn't map host ownership —
+  bind-mounted project files show up **root-owned** inside the runner container
+  regardless of `BUILD_UID`, unlike native Linux bind mounts which preserve real
+  host ownership. This tripped git's "dubious ownership" safety check the moment
+  `eas build --local`'s internal `git clone --no-checkout --no-hardlinks --depth 1
+  file:///work/app ...` snapshot step read the mounted app dir as a repository,
+  failing the whole build with `git clone ... exited with non-zero code: 128`
+  after 7-8 minutes (right after credentials/keystore resolution). Reproduced
+  directly: mounting a real project repo read-only as UID 1000 against a
+  root-owned tree reliably reproduces `fatal: detected dubious ownership in
+  repository at '/work/app'`, exit 128.
+- Root cause of why the existing `git config --global --add safe.directory
+  "${APP_DIR}"` in `build-entrypoint.sh` didn't already cover this: it's scoped to
+  one exact path and only takes effect if the process reading it has `$HOME` set
+  to `builder`'s home — `eas-cli`'s internal git subprocess isn't guaranteed to
+  inherit that environment.
+- Fixed by baking `git config --system --add safe.directory '*'` into the runner
+  image at build time (Dockerfile, still root at that point) instead — writes to
+  `/etc/gitconfig`, which is env-independent and applies regardless of which user
+  or `$HOME` any subprocess ends up using. No effect on Linux, where the ownership
+  mismatch never occurs in the first place.
+
+**Files modified:** `docker/runner/Dockerfile`
+
 ## v0.11.4 — Real progress bars for `docker pull`-style image pulls/updates
 
 **Date:** 2026-07-30
