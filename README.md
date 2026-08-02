@@ -111,7 +111,7 @@ above — this is what makes that automatic on Windows), downloads and installs
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
 ```
 
-**Or the GUI installer** — download `ebl-setup.exe` from
+**Or the GUI installer** — grab `ebl-setup-*.exe` from
 [Releases](https://github.com/41vi4p/expo-builder-local/releases) and run it; it's a
 thin Inno Setup wrapper that bundles the same files and runs the same
 `install.ps1` under the hood, so it does exactly the same thing with a familiar
@@ -172,7 +172,7 @@ behind — this removes `ebl.exe` and its PATH entry:
 & "$env:LOCALAPPDATA\Programs\ebl\uninstall.ps1"
 ```
 
-If you used the **`ebl-setup.exe` GUI installer**, uninstall it the normal Windows
+If you used the **`ebl-setup-*.exe` GUI installer**, uninstall it the normal Windows
 way instead — *Settings → Apps → ebl (expo-local-builder) → Uninstall*, or from *Add
 or Remove Programs*.
 

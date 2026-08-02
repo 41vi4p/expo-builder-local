@@ -15,7 +15,7 @@
 ; job for the `cmake --install` step that produces them).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.13.1"
+#define MyAppVersion "0.13.2"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"
@@ -40,11 +40,23 @@ DisableDirPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 OutputDir=dist
-OutputBaseFilename=ebl-setup
+; Versioned like the .deb (ebl_<version>_amd64.deb) so a user grabbing this by hand
+; from the Releases page (README.md/ebl_landing_page point at the Releases page, not
+; a fixed "latest/download/" URL, so nothing depends on this staying unversioned —
+; see release.yml's upload step, which resolves the actual built filename rather than
+; hardcoding it) can tell which version they're getting without opening it first.
+OutputBaseFilename=ebl-setup-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\bin\{#MyAppExeName}
+; The installer .exe's own Win32 version resource (Explorer → Properties → Details) —
+; distinct from AppVersion above, which only sets the *installed application's*
+; registered version in Add/Remove Programs.
+VersionInfoVersion={#MyAppVersion}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoProductTextVersion={#MyAppVersion}
+VersionInfoDescription={#MyAppName} Setup
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

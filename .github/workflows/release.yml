@@ -146,7 +146,7 @@ jobs:
     # attaches the Windows artifacts to it via `gh release upload`, it doesn't
     # create the release itself. ebl.exe here is cli/ built natively for Windows
     # (same source every other platform uses — see windows/install.ps1's header);
-    # ebl-setup.exe wraps that same build in an Inno Setup GUI installer.
+    # ebl-setup-<version>.exe wraps that same build in an Inno Setup GUI installer.
     needs: build-and-publish
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
@@ -192,7 +192,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # ebl.iss names the output ebl-setup-<MyAppVersion>.exe (versioned like the
+          # .deb's ebl_<version>_amd64.deb) - resolved here rather than hardcoded so
+          # this doesn't need editing every time MyAppVersion is bumped.
+          $innoExe = Get-ChildItem "windows\installer\dist\ebl-setup-*.exe" | Select-Object -First 1
           gh release upload "${{ github.ref_name }}" `
             ebl-windows-amd64.zip `
-            windows\installer\dist\ebl-setup.exe `
+            $innoExe.FullName `
             --clobber

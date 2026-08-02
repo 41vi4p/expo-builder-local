@@ -21,11 +21,11 @@ publish APT repository"), which:
    triplet so `ebl.exe` ships as a single file with no extra DLLs), `cmake
    --install`s it into a `bin/`+`share/` tree (same layout the `.deb` uses — see
    `cli/src/runner_context.cpp`), zips that tree as `ebl-windows-amd64.zip`, builds
-   `windows/installer` (`ebl-setup.exe`, an Inno Setup GUI installer bundling that
+   `windows/installer` (`ebl-setup-<version>.exe`, an Inno Setup GUI installer bundling that
    same tree plus `install.ps1`/`uninstall.ps1`), and attaches both to the *same*
    release via `gh release upload`. Runs on `windows-latest`; needs the Linux job to
    finish first since the release has to already exist. `windows/install.ps1` — both
-   the standalone one-line installer and what `ebl-setup.exe` runs under the hood —
+   the standalone one-line installer and what `ebl-setup-<version>.exe` runs under the hood —
    downloads `ebl-windows-amd64.zip` from
    `releases/latest/download/ebl-windows-amd64.zip`, so skipping this job (or a
    failed Windows build) breaks that download until the next successful tag.

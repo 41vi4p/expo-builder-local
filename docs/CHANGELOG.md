@@ -3,6 +3,41 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.13.2 — Version the Inno Setup installer's filename; sync the real landing page
+
+**Date:** 2026-08-02
+**Type:** Fix
+
+- `windows/installer/ebl.iss`'s `OutputBaseFilename` was the fixed
+  `ebl-setup`, so every release's GUI installer was indistinguishable by name
+  (`ebl-setup.exe`) — now `ebl-setup-{#MyAppVersion}.exe`, matching how the
+  `.deb` is already versioned (`ebl_<version>_amd64.deb`). Safe to do: README/
+  the landing page link to the Releases page, not a fixed `latest/download/`
+  URL, so nothing depended on the name staying constant (unlike
+  `ebl-windows-amd64.zip`, which `install.ps1` *does* fetch by fixed name —
+  left untouched). Also added `VersionInfoVersion`/`VersionInfoProductVersion`/
+  `VersionInfoDescription` so the compiled installer's own Win32 version
+  resource (Explorer → Properties → Details) shows the real version too — it
+  was previously unset. `.github/workflows/release.yml`'s upload step now
+  resolves the built filename with `Get-ChildItem ebl-setup-*.exe` instead of
+  hardcoding it, so it doesn't need editing on every version bump.
+- Discovered `ebl_landing_page/` while making this change — a dedicated
+  marketing site (separate from both `README.md` and
+  `expo-builder-gui/app/page.tsx`, the in-app dashboard) with its own
+  `/download` page duplicating install/uninstall/system-requirements content.
+  This is likely what "the landing page" meant in v0.13.0/v0.13.1's requests,
+  so it gets the same updates those versions made to `README.md`: the WSL2 →
+  Docker Desktop → installer setup order, updated RAM/disk guidance (disk
+  figure corrected from a stale "20+ GB" to "~40 GB" to account for WSL2 swap
+  headroom, which the original figure predated), `ebl clean --all` mentioned
+  for reclaiming space, and the "run `ebl clean --all` first" uninstall
+  callout. Verified with a full `next build` (not just `tsc --noEmit`) — this
+  page has no CI coverage (`ci.yml` only builds `expo-builder-gui`), so this
+  was the only way to confirm the JSX actually compiles.
+
+**Files modified:** `windows/installer/ebl.iss`, `.github/workflows/release.yml`,
+`README.md`, `docs/RELEASING.md`, `ebl_landing_page/app/download/page.tsx`
+
 ## v0.13.1 — Point uninstall instructions at `ebl clean --all` first
 
 **Date:** 2026-08-02
