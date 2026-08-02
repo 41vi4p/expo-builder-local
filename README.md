@@ -45,6 +45,16 @@ remote-managed credentials, that's supported too (see [Build engines](#build-eng
 
 ## Quick start (CLI)
 
+> **Recommended: 16GB+ RAM, ~40GB free disk.** A cold build compiles native code for
+> 4 CPU architectures (arm64-v8a/armeabi-v7a/x86/x86_64) plus the Kotlin/JS toolchain —
+> genuinely resource-heavy. Less RAM can still work, but is more likely to fail under
+> load; on Windows specifically, Docker Desktop's WSL2 VM running out of memory
+> crashes its own Engine API rather than just slowing the build down (see the Windows
+> section below for how `ebl` handles that automatically). The ~40GB of disk covers
+> the runner image, Gradle/npm build caches, and (on Windows) WSL2 swap headroom —
+> reclaim all of it any time with `ebl clean --all` (see
+> [Command reference](#command-reference)).
+
 ### Linux (Ubuntu/Debian)
 
 **Via the APT repository (recommended)** — `sudo apt upgrade` picks up new releases automatically:
@@ -71,17 +81,31 @@ sudo apt install ./ebl_*_amd64.deb
 
 `ebl.exe` is a native Windows build of the same CLI every other platform uses — it
 talks directly to Docker Desktop's `\\.\pipe\docker_engine` named pipe (the same
-endpoint `docker.exe` itself uses), no WSL2 distro or separate Linux install involved.
-See [`windows/`](./windows) and [`cli/`](./cli) for how it's built.
+endpoint `docker.exe` itself uses), so `ebl.exe` itself needs no WSL2 distro or
+separate Linux install. Docker Desktop's own default backend *is* a WSL2 VM, though,
+and that's what actually runs your builds. See [`windows/`](./windows) and
+[`cli/`](./cli) for how it's built.
 
-> **Prerequisite: install [Docker Desktop](https://www.docker.com/products/docker-desktop/) yourself, first.**
-> Neither installer below installs Docker Desktop for you — it's a much heavier
-> install with its own license/reboot considerations, so it's on you to grab it
-> before running either one. Both installers check for it up front and stop with a
-> clear message if it's missing.
+**Setup order:**
 
-**One-line installer** (PowerShell) — checks for Docker Desktop, downloads and
-installs `ebl.exe`, and puts it on your PATH:
+1. **WSL2**, if you don't already have it — in an elevated PowerShell or Command
+   Prompt:
+   ```powershell
+   wsl --install
+   ```
+   then **restart your computer** (required for it to take effect).
+2. **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — install
+   and start it.
+3. **Run the installer** (below). Neither installer installs WSL2 or Docker Desktop
+   for you — both need their own reboot/license handling — but both check for each
+   up front and tell you exactly what's missing and how to fix it (the `wsl --install`
+   command above, or a direct Docker Desktop download link) rather than failing
+   partway through.
+
+**One-line installer** (PowerShell) — checks for WSL2 and Docker Desktop, sizes
+WSL2's memory/swap limits from your actual installed RAM (see the requirements note
+above — this is what makes that automatic on Windows), downloads and installs
+`ebl.exe`, and puts it on your PATH:
 
 ```powershell
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
@@ -92,6 +116,10 @@ irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/ins
 thin Inno Setup wrapper that bundles the same files and runs the same
 `install.ps1` under the hood, so it does exactly the same thing with a familiar
 Windows installer UI and an entry in *Add or Remove Programs*.
+
+If disk space gets tight afterward (build caches, the runner image, WSL2's swap
+file), reclaim it any time with `ebl clean --all` — see
+[Command reference](#command-reference).
 
 ### Then
 
@@ -189,6 +217,7 @@ for why that matters.
 | `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. |
 | `ebl stop` | Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved. |
 | `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. |
+| `ebl clean [--all]` | Removes ebl's own stopped build containers (leftovers from an interrupted/crashed build). With `--all`, also removes the shared Gradle/npm cache volumes and the runner/orchestrator/web images — the next `ebl build`/`ebl setup` just re-pulls/re-creates whatever it needs, so this is safe, just slower on the next run. Refuses `--all` while a build is currently running. |
 
 Run `ebl <command> --help` for the full option list of any command.
 

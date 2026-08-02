@@ -88,6 +88,44 @@ std::optional<std::string> DockerClient::findRunningBuildContainerByAppPath(cons
   return containers.at(0).at("Id").asString();
 }
 
+std::vector<DockerClient::BuildContainerInfo> DockerClient::listBuildContainers() {
+  Json filters = Json::object();
+  Json labelValues = Json::array();
+  labelValues.push_back(Json(std::string(kAppPathLabel)));
+  filters.set("label", labelValues);
+
+  // `all=1`: unlike findRunningBuildContainerByAppPath, this deliberately includes
+  // stopped containers too — those are exactly what `ebl clean` is looking for.
+  std::string path = "/containers/json?all=1&filters=" + urlEncode(filters.dump());
+  HttpResponse res = http_.request("GET", path);
+  if (res.status != 200) {
+    throw std::runtime_error("Failed to list build containers (HTTP " + std::to_string(res.status) + "): " +
+                              res.body);
+  }
+  Json containers = Json::parse(res.body);
+  std::vector<BuildContainerInfo> result;
+  for (size_t i = 0; i < containers.size(); i++) {
+    result.push_back({containers.at(i).at("Id").asString(), containers.at(i).at("State").asString()});
+  }
+  return result;
+}
+
+void DockerClient::removeVolume(const std::string& name) {
+  HttpResponse res = http_.request("DELETE", "/volumes/" + urlEncode(name));
+  if (res.status != 204 && res.status != 404) {
+    throw std::runtime_error("Failed to remove volume \"" + name + "\" (HTTP " + std::to_string(res.status) +
+                              "): " + res.body);
+  }
+}
+
+void DockerClient::removeImage(const std::string& tag) {
+  HttpResponse res = http_.request("DELETE", "/images/" + urlEncode(tag));
+  if (res.status != 200 && res.status != 404) {
+    throw std::runtime_error("Failed to remove image \"" + tag + "\" (HTTP " + std::to_string(res.status) +
+                              "): " + res.body);
+  }
+}
+
 void DockerClient::buildImage(const std::string& contextDir, const std::string& tag,
                                const std::function<void(const std::string&)>& onLog) {
   std::string tar = createTarFromDirectory(contextDir);

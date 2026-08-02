@@ -106,6 +106,17 @@ if (-not $SkipDockerCheck) {
 # (reproduced firsthand on an 8-16GB laptop - see docs/CHANGELOG.md). Sized once
 # here from actually-installed RAM rather than left at WSL2's 50%-of-host default.
 
+if (-not $SkipWslConfig -and -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+    Write-Warn "WSL2 doesn't appear to be installed."
+    Write-Warn "Docker Desktop's default backend needs it. If Docker Desktop is already"
+    Write-Warn "working for you, it's using a different backend and you can ignore this -"
+    Write-Warn "otherwise, in an elevated PowerShell or Command Prompt, run:"
+    Write-Warn "  wsl --install"
+    Write-Warn "then RESTART your computer (required), install Docker Desktop if you haven't"
+    Write-Warn "already (https://www.docker.com/products/docker-desktop/), and re-run this"
+    Write-Warn "installer (or just ebl setup) to auto-tune its memory/swap limits."
+}
+
 if (-not $SkipWslConfig -and (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     try {
         Write-Step "Tuning WSL2 memory/swap for this machine..."

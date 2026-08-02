@@ -3,6 +3,46 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.13.0 — `ebl clean` command; landing page setup/requirements section
+
+**Date:** 2026-08-02
+**Type:** Feature
+
+- New `ebl clean [--all]` subcommand (`cli/src/commands/clean.cpp`, wired into
+  `main.cpp`/`CMakeLists.txt`): removes ebl's own stopped build containers
+  (labeled with `kAppPathLabel`, found via `DockerClient::listBuildContainers` —
+  a new `all=1` sibling of the existing `findRunningBuildContainerByAppPath`
+  query). Didn't exist before — every leftover container from an interrupted or
+  crashed build had to be found and removed with raw `docker` commands by hand,
+  which is exactly what this session spent several rounds doing. With `--all`,
+  also removes the shared `expo-builder-local_gradle-cache`/`_npm-cache` volumes
+  (new `DockerClient::removeVolume`) and the runner/orchestrator/web images (new
+  `DockerClient::removeImage`) — refuses if any build container is currently
+  running rather than pulling a cache volume out from under it (Docker's own
+  `DELETE /volumes` would just 409 on an in-use volume regardless, but this
+  gives a clearer message up front).
+- `windows/install.ps1`'s WSL2 step (added in v0.12.0) previously just silently
+  skipped tuning if `wsl.exe` wasn't found at all — now it warns explicitly,
+  with the exact `wsl --install` command and a reminder that it needs a
+  restart, mirroring how the existing Docker Desktop check already behaves
+  rather than leaving a WSL2-less machine with no guidance.
+- `README.md` (the project's actual landing page — not `expo-builder-gui/app/
+  page.tsx`, which is the in-app dashboard only ever seen *after* Docker/WSL2
+  already work) gained a numbered Windows setup order: install WSL2
+  (`wsl --install`, then restart) → install Docker Desktop → run the
+  installer, which now checks for and prompts about both rather than assuming
+  they're already present. Also states the real resource requirements this
+  session found the hard way: 16GB+ RAM recommended (a multi-ABI native
+  Android compile inside Docker Desktop's WSL2 VM can exhaust less, crashing
+  the Engine API into `500`s rather than just slowing down — see v0.12.0), and
+  ~40GB free disk (WSL2 swap headroom + the runner image + Gradle/npm caches),
+  reclaimable with the new `ebl clean --all`. `ebl clean` also added to the
+  Command reference table.
+
+**Files modified:** `cli/src/commands/clean.{hpp,cpp}` (new), `cli/src/main.cpp`,
+`cli/CMakeLists.txt`, `cli/src/docker_client.{hpp,cpp}`, `README.md`,
+`windows/install.ps1`
+
 ## v0.12.0 — Auto-tune WSL2 memory/swap from detected host RAM on install
 
 **Date:** 2026-08-02

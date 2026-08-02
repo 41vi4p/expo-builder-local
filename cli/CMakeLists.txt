@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # This VERSION is the single source of truth for the CLI's version (see main.cpp's
 # --version output) — kept in step with orchestrator/package.json and
 # expo-builder-gui/package.json per ../CLAUDE.md's version-management rule.
-project(expo-builder-local-cli VERSION 0.12.0 LANGUAGES CXX)
+project(expo-builder-local-cli VERSION 0.13.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,6 +53,7 @@ add_executable(ebl
   src/commands/setup.cpp
   src/commands/config.cpp
   src/commands/start.cpp
+  src/commands/clean.cpp
 )
 
 target_include_directories(ebl PRIVATE src)

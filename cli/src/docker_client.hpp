@@ -95,6 +95,23 @@ public:
    * just contend with the first over the shared npm/gradle cache volumes. */
   std::optional<std::string> findRunningBuildContainerByAppPath(const std::string& appPath);
 
+  struct BuildContainerInfo {
+    std::string id;
+    std::string state;  // "running", "exited", ...
+  };
+
+  /** Every container (running or stopped) ebl itself created — labeled with
+   * kAppPathLabel regardless of which project they were built for. Used by
+   * `ebl clean` to find its own leftover containers without guessing names. */
+  std::vector<BuildContainerInfo> listBuildContainers();
+
+  /** Deletes a volume by name; no-op (not an error) if it doesn't exist. Fails
+   * with Docker's own error if the volume is still in use by a container. */
+  void removeVolume(const std::string& name);
+
+  /** Deletes an image by tag; no-op (not an error) if it doesn't exist. */
+  void removeImage(const std::string& tag);
+
   /** Streams the container's combined stdout/stderr (Tty:true, so it's a raw,
    * unmultiplexed byte stream) — onChunk fires as bytes arrive. */
   void attachAndStream(const std::string& id, const std::function<void(const char*, size_t)>& onChunk);

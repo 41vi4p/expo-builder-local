@@ -7,6 +7,8 @@
 //   ebl stop     stop them
 //   ebl build    build a project into a signed APK/AAB (works standalone — no
 //                setup/config/start required at all)
+//   ebl clean    remove ebl's own stopped build containers (--all: also cache
+//                volumes and pulled images) to reclaim disk space
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -17,6 +19,7 @@
 #include <string>
 
 #include "commands/build.hpp"
+#include "commands/clean.hpp"
 #include "commands/config.hpp"
 #include "commands/setup.hpp"
 #include "commands/start.hpp"
@@ -56,6 +59,7 @@ Commands:
   start     Run the orchestrator + web GUI (as Docker containers)
   stop      Stop the orchestrator + web GUI
   build     Build a project — works standalone, no setup/config/start required
+  clean     Remove stopped build containers (--all: also cache volumes/images)
 
 Run `ebl <command> --help` for command-specific options. `ebl build .` is the most
 common starting point if you just want a build right now.
@@ -113,6 +117,7 @@ int main(int argc, char** argv) {
   if (command == "config") return ebl::commands::runConfig(subArgc, subArgv);
   if (command == "start") return ebl::commands::runStart(subArgc, subArgv);
   if (command == "stop") return ebl::commands::runStop(subArgc, subArgv);
+  if (command == "clean") return ebl::commands::runClean(subArgc, subArgv);
 
   std::cerr << "Unknown command: " << command << "\n\n";
   printTopLevelUsage();
