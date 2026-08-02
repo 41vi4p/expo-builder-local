@@ -3,6 +3,22 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.13.1 — Point uninstall instructions at `ebl clean --all` first
+
+**Date:** 2026-08-02
+**Type:** Fix
+
+- `README.md`'s Uninstall section only ever covered removing the `ebl` binary
+  itself (`apt remove`/`uninstall.ps1`/Add-or-Remove-Programs) — none of those
+  touch Docker, so the runner/orchestrator/web images, Gradle/npm cache
+  volumes, and any leftover build containers (see `ebl clean`, v0.13.0) were
+  silently left behind. Added a note at the top of the section pointing at
+  `ebl clean --all` first, while `ebl`/Docker are both still around to do it
+  cleanly — the alternative is hunting all of that down by hand with raw
+  `docker` commands after the fact.
+
+**Files modified:** `README.md`
+
 ## v0.13.0 — `ebl clean` command; landing page setup/requirements section
 
 **Date:** 2026-08-02

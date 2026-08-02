@@ -139,6 +139,13 @@ only for the optional web GUI (live dashboard, build history, keystore manager).
 
 ## Uninstall
 
+> **Run `ebl clean --all` first.** None of the steps below touch Docker — the
+> runner/orchestrator/web images, the Gradle/npm cache volumes, and any leftover
+> build containers all stay on disk after `ebl` itself is gone. `ebl clean --all`
+> (needs Docker Desktop/Docker still running) removes all of that safely in one
+> step; afterward you'd have to find and remove it by hand with raw `docker`
+> commands instead.
+
 ### Linux
 
 If installed via the APT repo or a `.deb`:
