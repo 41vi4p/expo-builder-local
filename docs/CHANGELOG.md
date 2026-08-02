@@ -3,6 +3,49 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.12.0 — Auto-tune WSL2 memory/swap from detected host RAM on install
+
+**Date:** 2026-08-02
+**Type:** Feature
+
+- `ebl.exe` itself never touches WSL2 (it talks to Docker Desktop's named pipe
+  directly), but the *build containers* run inside Docker Desktop's WSL2 VM
+  backend, and WSL2's own default cap (50% of host RAM, swap wherever the system
+  drive has room) proved routinely too little for a real Android build — a cold,
+  multi-ABI native compile (`react-native-worklets`/`react-native-screens` across
+  arm64-v8a/armeabi-v7a/x86/x86_64) plus Gradle/Kotlin daemons exhausted it,
+  which crashed Docker Desktop's backend (the Engine API started returning
+  `500`s on every request, not just the build's own) rather than just slowing
+  the build down. Reproduced and root-caused live on an ~15.5GB-RAM Windows
+  laptop: `vmmemWSL` pinned at its ~7.75GB default cap mid-`compileReleaseKotlin`,
+  `docker ps -a` itself failing with `500 Internal Server Error`.
+- `windows/install.ps1` now writes/updates `%UserProfile%\.wslconfig`'s `[wsl2]`
+  `memory=`/`swap=` from `Win32_ComputerSystem.TotalPhysicalMemory`: reserves the
+  larger of 3GB or 25% of RAM for Windows itself, gives the rest to the VM
+  (floor 4GB), and sets swap to 2x that memory figure (floor 8GB, cap 32GB) since
+  swap is cheap sparse disk space rather than RAM. Verified against the real
+  15.5GB machine above: formula gives memory=11GB/swap=22GB, matching the
+  11GB/24GB hand-tuned config that was confirmed to fix the crash.
+- If the system drive doesn't have (`swap size` + 20GB) free, the swap file is
+  instead placed on whichever other fixed drive has the most free space (under
+  `<drive>:\ebl-data\wsl-swap.vhdx`) — a build filling the system drive with its
+  own giant swap file is exactly the kind of self-inflicted disk pressure this
+  exists to prevent. Also reproduced live: the same machine's `C:` drive hit
+  0.2GB free during this investigation (WSL2/Docker Desktop VHDX + build caches),
+  which independently caused the same `500` failures.
+- Parses any existing `.wslconfig` into an ordered section/key map before
+  writing, so unrelated settings (a user's own `[experimental]` block,
+  `processors=`, etc.) survive. An existing `[wsl2]` `memory=` is treated as
+  deliberate (yours, or a previous ebl install's) and left alone unless
+  `-ForceWslConfig` is passed; `-SkipWslConfig` opts out entirely. Wrapped in
+  try/catch so a failure here (e.g. `Get-CimInstance` unavailable) warns and
+  falls through to the rest of setup rather than aborting the install — this
+  step is best-effort, not a hard prerequisite like the Docker Desktop check.
+  Applies to both the one-line web installer and the Inno Setup GUI installer,
+  since `ebl-setup.exe` just runs this same script with `-LocalInstallDir`.
+
+**Files modified:** `windows/install.ps1`
+
 ## v0.11.5 — Fix Windows build reliability: git clone exit 128, and flat-timeout kills of healthy builds
 
 **Date:** 2026-07-31
