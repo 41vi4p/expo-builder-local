@@ -7,6 +7,7 @@ export default function OSTabs({ linux, windows }: { linux: React.ReactNode; win
 
   // Best-effort default to the visitor's actual OS; either tab is always one click away.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- navigator isn't available during SSR/prerender
     if (navigator.userAgent.toLowerCase().includes("windows")) setOs("windows");
   }, []);
 

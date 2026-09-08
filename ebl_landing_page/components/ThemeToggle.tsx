@@ -9,6 +9,7 @@ export default function ThemeToggle() {
 
   // Avoid rendering theme-dependent UI until after hydration — the server has no
   // way to know the user's system preference, so the icon would flash/mismatch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time post-hydration flag, not derivable during SSR
   useEffect(() => setMounted(true), []);
 
   const isDark = mounted && resolvedTheme === "dark";

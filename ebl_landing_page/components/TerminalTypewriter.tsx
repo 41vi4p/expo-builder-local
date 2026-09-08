@@ -11,6 +11,7 @@ export default function TerminalTypewriter() {
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- window.matchMedia isn't available during SSR/prerender
     setReduced(mq.matches);
   }, []);
 

@@ -12,8 +12,8 @@
 # Remember to regenerate .SRCINFO (`makepkg --printsrcinfo > .SRCINFO`) any time
 # this file changes.
 pkgname=ebl
-pkgver=0.14.0
-pkgrel=2
+pkgver=0.14.1
+pkgrel=1
 pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
 # Matches every other release artifact in this repo (CI, the .deb, the Windows
 # build) — all x86_64-only for now (see install.sh's own uname -m check).
@@ -24,12 +24,14 @@ depends=('curl' 'openssl')
 makedepends=('cmake')
 optdepends=('docker: required at runtime to actually run builds')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-# Real checksum of the v0.14.0 tag archive (computed by hand after tagging, since
-# there's no per-release AUR-publishing step to do it automatically yet — see
-# ../../docs/RELEASING.md). Must be recomputed by hand on every pkgver bump; if that
-# step gets missed, just set it back to 'SKIP' rather than leave a stale checksum
-# that would fail installs.
-sha256sums=('7973d184798b78032e11456511bfaba984ba74e137520779837ecf87d6e39e22')
+# Real checksum of the tag archive, computed by hand after tagging (there's no
+# per-release AUR-publishing step to do it automatically yet — see
+# ../../docs/RELEASING.md). Reset to SKIP here because pkgver just moved to
+# 0.14.1 and that tag doesn't exist yet — recompute once it's tagged/released,
+# following ../../docs/RELEASING.md's "Arch Linux packaging" section. If this step
+# ever gets missed for an actual release, leave it as SKIP rather than ship a
+# stale/wrong checksum, which would make makepkg refuse to build entirely.
+sha256sums=('SKIP')
 
 build() {
   cd "expo-builder-local-$pkgver/cli"

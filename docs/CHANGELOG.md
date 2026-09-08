@@ -3,6 +3,33 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.14.1 — Patch vulnerable eslint/build-tooling transitive deps in the GUI
+
+**Date:** 2026-09-08
+**Type:** Fix
+
+- `npm audit` flagged 3 high-severity issues in `expo-builder-gui`, all transitive
+  devDependencies of `eslint`/`eslint-config-next` (lint/build tooling only — never
+  bundled into the built GUI image): `brace-expansion` (DoS via unbounded
+  expansion/intermediate arrays), `browserslist` (unbounded memory growth; a crash/
+  prototype-write via untrusted custom stats), `js-yaml` (quadratic CPU consumption
+  resolving `!!omap`). Fixed via plain `npm audit fix` — patched in place without
+  touching `eslint-config-next`'s own pinned version, so none of its lint rules
+  changed. `npm audit` now reports 0 vulnerabilities; `npm run lint` and `npm run
+  build` both still pass (a handful of pre-existing, unrelated lint findings —
+  `no-explicit-any`, two stale `eslint-disable` comments — were left alone, out of
+  scope for this fix).
+- Bumped per `../CLAUDE.md`'s version-management rule (any change to
+  `expo-builder-gui`, however small, moves the shared orchestrator+GUI+CLI version):
+  `pkgver` in `packaging/arch/PKGBUILD` reset to `0.14.1`/`pkgrel=1` and its
+  `sha256sums` reset to `SKIP` until `v0.14.1` is actually tagged/released (see
+  `docs/RELEASING.md`).
+
+**Files modified:** `expo-builder-gui/package-lock.json` (dependency fix; its
+`package.json` itself didn't need to change), `orchestrator/package.json`,
+`expo-builder-gui/package.json` (version bump only), `cli/CMakeLists.txt`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
 ## Arch packaging follow-up (PKGBUILD pkgrel 1 → 2, no ebl version change)
 
 **Date:** 2026-09-08
