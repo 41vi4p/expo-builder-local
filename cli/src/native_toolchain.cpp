@@ -5,10 +5,12 @@
 #include <windows.h>
 
 #include <curl/curl.h>
+#include <io.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <stdexcept>
 
 #include "native_process.hpp"
@@ -51,11 +53,66 @@ std::string getEnvVar(const char* name) {
   return v ? std::string(v) : std::string();
 }
 
+// One-line, in-place-redrawn (via \r, same idea as pull_progress.cpp's Docker-pull
+// renderer, just simpler since a toolchain download is always a single file, never
+// concurrent layers) progress bar — routed through the same `onLog` callback every
+// other status line already uses, so setup.cpp's caller (which just does
+// `std::cout << line << std::flush` per line) renders it correctly without needing
+// its own special case: intermediate updates carry no trailing '\n', the final one
+// does. Without this, a large JDK/SDK/Node download sat there with zero visible
+// feedback for however long it took — indistinguishable from having hung.
+struct DownloadProgress {
+  const std::function<void(const std::string&)>& onLog;
+  bool isTty;
+  int lastWholePercent = -1;
+
+  static std::string formatMb(curl_off_t bytes) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.1f", static_cast<double>(bytes) / (1024.0 * 1024.0));
+    return buf;
+  }
+
+  void update(curl_off_t downloaded, curl_off_t total) {
+    if (total <= 0) return;
+    int pct = static_cast<int>((downloaded * 100) / total);
+    if (pct == lastWholePercent) return;
+    lastWholePercent = pct;
+
+    int filled = pct / 5;  // 20-segment bar
+    std::string bar(static_cast<size_t>(filled), '=');
+    bar.append(static_cast<size_t>(20 - filled), ' ');
+    std::string line = "  [" + bar + "] " + std::to_string(pct) + "% (" + formatMb(downloaded) + "/" +
+                        formatMb(total) + " MB)";
+
+    if (isTty) {
+      onLog("\r" + line);
+    } else if (pct % 10 == 0) {
+      // Non-TTY (piped/redirected, e.g. install.ps1's own captured output): a
+      // redrawn-in-place line is useless there, so just log full lines at 10%
+      // increments instead of spamming every percent.
+      onLog(line + "\n");
+    }
+  }
+
+  void finish() {
+    if (isTty && lastWholePercent >= 0) onLog("\n");
+  }
+};
+
+int curlProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t /*ultotal*/,
+                          curl_off_t /*ulnow*/) {
+  static_cast<DownloadProgress*>(clientp)->update(dlnow, dltotal);
+  return 0;
+}
+
 /** Downloads `url` to `destPath` via libcurl (already linked — find_package(CURL
  * REQUIRED) in CMakeLists.txt). Follows redirects (Adoptium/nodejs.org both
  * redirect to a CDN), fails on HTTP error status rather than writing an error page
- * to the file, and verifies TLS normally (no verification is disabled here). */
-void downloadFile(const std::string& url, const std::string& destPath) {
+ * to the file, verifies TLS normally (no verification is disabled here), and
+ * reports live progress via onLog so a large download isn't indistinguishable from
+ * a hang. */
+void downloadFile(const std::string& url, const std::string& destPath,
+                   const std::function<void(const std::string&)>& onLog) {
   fs::create_directories(fs::path(destPath).parent_path());
 
   FILE* fp = std::fopen(destPath.c_str(), "wb");
@@ -67,18 +124,24 @@ void downloadFile(const std::string& url, const std::string& destPath) {
     throw std::runtime_error("Could not initialize libcurl for downloading " + url);
   }
 
+  DownloadProgress progress{onLog, ::_isatty(::_fileno(stdout)) != 0, -1};
+
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "expo-builder-local-ebl");
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 1800L);  // 30 min ceiling for a big SDK/JDK zip on a slow link
+  curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+  curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, curlProgressCallback);
+  curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &progress);
 
   CURLcode res = curl_easy_perform(curl);
   long httpStatus = 0;
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpStatus);
   curl_easy_cleanup(curl);
   std::fclose(fp);
+  progress.finish();
 
   if (res != CURLE_OK) {
     fs::remove(destPath);
@@ -123,22 +186,23 @@ std::string detectExistingJdk17() {
 
 std::string ensureJdk(NativeToolchainConfig& toolchain, const std::function<void(const std::string&)>& onLog) {
   if (!toolchain.jdkHome.empty() && fs::exists(fs::path(toolchain.jdkHome) / "bin" / "javac.exe")) {
-    onLog("JDK already provisioned at " + toolchain.jdkHome);
+    onLog("JDK already provisioned at " + toolchain.jdkHome + "\n");
     return toolchain.jdkHome;
   }
 
   if (std::string existing = detectExistingJdk17(); !existing.empty()) {
-    onLog("Found an existing JDK at " + existing + " (JAVA_HOME) — reusing it.");
+    onLog("Found an existing JDK at " + existing + " (JAVA_HOME) — reusing it.\n");
     toolchain.jdkHome = existing;
     toolchain.jdkInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No JDK 17 found — downloading Eclipse Temurin 17 (Adoptium)...");
+  onLog("No JDK 17 found — downloading Eclipse Temurin 17 (Adoptium)...\n");
   std::string root = toolchainRoot();
   std::string zipPath = root + "\\jdk17.zip";
   std::string extractDir = root + "\\jdk17";
-  downloadFile("https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse", zipPath);
+  downloadFile("https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse", zipPath,
+               onLog);
   extractZip(zipPath, extractDir, onLog);
   fs::remove(zipPath);
 
@@ -152,7 +216,7 @@ std::string ensureJdk(NativeToolchainConfig& toolchain, const std::function<void
   }
   if (jdkHome.empty()) throw std::runtime_error("Extracted JDK zip did not contain a recognizable JDK layout");
 
-  onLog("JDK installed at " + jdkHome);
+  onLog("JDK installed at " + jdkHome + "\n");
   toolchain.jdkHome = jdkHome;
   toolchain.jdkInstalledByEbl = true;
   return jdkHome;
@@ -174,25 +238,25 @@ std::string detectExistingAndroidSdk() {
 std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string& jdkHome,
                               const std::function<void(const std::string&)>& onLog) {
   if (!toolchain.androidSdkRoot.empty() && fs::exists(fs::path(toolchain.androidSdkRoot) / "platform-tools")) {
-    onLog("Android SDK already provisioned at " + toolchain.androidSdkRoot);
+    onLog("Android SDK already provisioned at " + toolchain.androidSdkRoot + "\n");
     return toolchain.androidSdkRoot;
   }
 
   if (std::string existing = detectExistingAndroidSdk(); !existing.empty()) {
-    onLog("Found an existing Android SDK at " + existing + " — reusing it (won't touch its packages).");
+    onLog("Found an existing Android SDK at " + existing + " — reusing it (won't touch its packages).\n");
     toolchain.androidSdkRoot = existing;
     toolchain.androidSdkInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No Android SDK found — downloading the command-line tools...");
+  onLog("No Android SDK found — downloading the command-line tools...\n");
   std::string root = toolchainRoot();
   std::string sdkRoot = root + "\\android-sdk";
   std::string zipPath = root + "\\cmdline-tools.zip";
   std::string extractDir = sdkRoot + "\\cmdline-tools-tmp";
   downloadFile("https://dl.google.com/android/repository/commandlinetools-win-" +
                    std::string(kAndroidCmdlineToolsVersion) + "_latest.zip",
-               zipPath);
+               zipPath, onLog);
   extractZip(zipPath, extractDir, onLog);
   fs::remove(zipPath);
 
@@ -208,14 +272,14 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
   std::vector<std::string> env = {"JAVA_HOME=" + jdkHome,
                                    "PATH=" + jdkHome + "\\bin;" + getEnvVar("PATH")};
 
-  onLog("Accepting Android SDK licenses...");
+  onLog("Accepting Android SDK licenses...\n");
   std::string acceptLicensesCmd =
       "cmd.exe /c \"(for /L %i in (1,1,20) do @echo y) | \"" + sdkmanager + "\" --licenses\"";
   runProcessWithTimeout(acceptLicensesCmd, "", env, 120, [&](const char* d, size_t n) { onLog(std::string(d, n)); });
 
   onLog("Installing Android SDK packages (platform-tools, platforms " + std::string(kAndroidPlatform) + "/" +
         kAndroidPlatformMin + ", build-tools " + kAndroidBuildTools + ", ndk " + kNdkVersion + ", cmake " +
-        kCmakeVersion + ")...");
+        kCmakeVersion + ")...\n");
   std::string installCmd = "\"" + sdkmanager + "\" \"platform-tools\" \"platforms;" + std::string(kAndroidPlatform) +
                             "\" \"platforms;" + kAndroidPlatformMin + "\" \"build-tools;" + kAndroidBuildTools +
                             "\" \"ndk;" + kNdkVersion + "\" \"cmake;" + kCmakeVersion + "\"";
@@ -225,7 +289,7 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
     throw std::runtime_error("sdkmanager package install failed (exit " + std::to_string(exitCode) + ")");
   }
 
-  onLog("Android SDK installed at " + sdkRoot);
+  onLog("Android SDK installed at " + sdkRoot + "\n");
   toolchain.androidSdkRoot = sdkRoot;
   toolchain.androidSdkInstalledByEbl = true;
   return sdkRoot;
@@ -251,23 +315,23 @@ std::string detectExistingNode() {
 
 std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<void(const std::string&)>& onLog) {
   if (!toolchain.nodeHome.empty() && fs::exists(fs::path(toolchain.nodeHome) / "node.exe")) {
-    onLog("Node already provisioned at " + toolchain.nodeHome);
+    onLog("Node already provisioned at " + toolchain.nodeHome + "\n");
     return toolchain.nodeHome;
   }
 
   if (std::string existing = detectExistingNode(); !existing.empty()) {
-    onLog("Found an existing Node install at " + existing + " — reusing it.");
+    onLog("Found an existing Node install at " + existing + " — reusing it.\n");
     toolchain.nodeHome = existing;
     toolchain.nodeInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No Node install found — downloading Node " + std::string(kNodeVersion) + "...");
+  onLog("No Node install found — downloading Node " + std::string(kNodeVersion) + "...\n");
   std::string root = toolchainRoot();
   std::string zipPath = root + "\\node.zip";
   std::string extractDir = root + "\\node-tmp";
   downloadFile("https://nodejs.org/dist/v" + std::string(kNodeVersion) + "/node-v" + kNodeVersion + "-win-x64.zip",
-               zipPath);
+               zipPath, onLog);
   extractZip(zipPath, extractDir, onLog);
   fs::remove(zipPath);
 
@@ -287,7 +351,7 @@ std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<voi
   fs::rename(extracted, nodeHome);
   fs::remove_all(extractDir);
 
-  onLog("Installing eas-cli (into its own prefix under this Node install, not the system-wide npm global)...");
+  onLog("Installing eas-cli (into its own prefix under this Node install, not the system-wide npm global)...\n");
   // -g *and* --prefix together is the documented way to get npm's normal
   // global-style layout (a runnable "eas.cmd" shim directly under the prefix
   // dir, not buried in node_modules/.bin) rooted at a custom directory instead
@@ -301,7 +365,7 @@ std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<voi
     throw std::runtime_error("npm install eas-cli failed (exit " + std::to_string(exitCode) + ")");
   }
 
-  onLog("Node installed at " + nodeHome);
+  onLog("Node installed at " + nodeHome + "\n");
   toolchain.nodeHome = nodeHome;
   toolchain.nodeInstalledByEbl = true;
   return nodeHome;

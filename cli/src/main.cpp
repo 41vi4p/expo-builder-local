@@ -43,6 +43,21 @@ void enableAnsiOnWindowsConsole() {
     ::SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
   }
 }
+
+// Every source file in this CLI is UTF-8 (em dashes, checkmarks, etc. show up
+// throughout printed strings, not just comments), but the Windows console defaults
+// to the legacy OEM/ANSI codepage for both directions - without this, a literal
+// "—" written as its 3 raw UTF-8 bytes gets decoded one byte at a time against
+// that codepage instead, producing exactly the kind of "ГÇö" mojibake garbage a
+// real install first surfaced. SetConsoleCP is for completeness (keyboard input,
+// e.g. promptString's Cyrillic/CJK argument echoing); SetConsoleOutputCP is what
+// actually fixes stdout/stderr. Best-effort, same as enableAnsiOnWindowsConsole
+// above - failure here just leaves the pre-existing garbled behavior, not a hard
+// error.
+void enableUtf8OnWindowsConsole() {
+  ::SetConsoleCP(CP_UTF8);
+  ::SetConsoleOutputCP(CP_UTF8);
+}
 #endif
 
 #ifndef EXPO_BUILDER_CLI_VERSION
@@ -93,6 +108,7 @@ Repository:   https://github.com/41vi4p/expo-builder-local
 int main(int argc, char** argv) {
 #ifdef _WIN32
   enableAnsiOnWindowsConsole();
+  enableUtf8OnWindowsConsole();
 #endif
   if (argc == 1) {
     printTopLevelUsage();
