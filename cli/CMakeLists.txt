@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # This VERSION is the single source of truth for the CLI's version (see main.cpp's
 # --version output) — kept in step with orchestrator/package.json and
 # expo-builder-gui/package.json per ../CLAUDE.md's version-management rule.
-project(expo-builder-local-cli VERSION 0.15.0 LANGUAGES CXX)
+project(expo-builder-local-cli VERSION 0.16.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,8 +27,16 @@ find_package(Threads REQUIRED)
 # transport (Unix socket via libcurl vs. Docker Desktop's named pipe, hand-rolled —
 # see src/http_client.hpp). winpath.cpp is the identity function on non-Windows, so
 # it's built everywhere unconditionally rather than split per-platform.
+#
+# native_toolchain.cpp/native_build.cpp: the Windows-only native (non-Docker) build
+# engine — see ../CLAUDE.md's native-engine section and src/native_build.hpp's own
+# comment. Windows-exclusive by design (Docker Desktop/WSL2 friction is a Windows
+# problem; Linux/macOS keep the existing Docker-only path unconditionally), so these
+# are only ever compiled here, never on Linux/macOS — UNVERIFIED ON REAL WINDOWS
+# HARDWARE, written from the Docker engine's exact contract with no way to actually
+# build/run this code from a non-Windows machine.
 if(WIN32)
-  set(EBL_PLATFORM_SOURCES src/http_client_win.cpp)
+  set(EBL_PLATFORM_SOURCES src/http_client_win.cpp src/native_process.cpp src/native_toolchain.cpp src/native_build.cpp)
 else()
   set(EBL_PLATFORM_SOURCES src/http_client_unix.cpp)
 endif()
@@ -79,8 +87,19 @@ if(EXISTS "${RUNNER_SRC_DIR}")
   file(COPY "${RUNNER_SRC_DIR}/" DESTINATION "${RUNNER_BUILD_DIR}")
 endif()
 
+# Same idea, but just the two signing helper scripts (patch-android-signing.js,
+# write-eas-credentials.js) — the Windows-only native engine reuses them unmodified
+# via the provisioned/detected Node install; see src/runner_context.cpp's
+# resolveNativeScriptsDir() for the runtime lookup order.
+set(NATIVE_SCRIPTS_SRC_DIR "${CMAKE_SOURCE_DIR}/../docker/runner/scripts")
+set(NATIVE_SCRIPTS_BUILD_DIR "${CMAKE_BINARY_DIR}/native-scripts")
+if(EXISTS "${NATIVE_SCRIPTS_SRC_DIR}")
+  file(COPY "${NATIVE_SCRIPTS_SRC_DIR}/" DESTINATION "${NATIVE_SCRIPTS_BUILD_DIR}")
+endif()
+
 install(TARGETS ebl RUNTIME DESTINATION bin)
 install(DIRECTORY "${RUNNER_BUILD_DIR}/" DESTINATION share/expo-builder-local/runner OPTIONAL)
+install(DIRECTORY "${NATIVE_SCRIPTS_BUILD_DIR}/" DESTINATION share/expo-builder-local/native-scripts OPTIONAL)
 
 # --- .deb packaging (`cpack -G DEB` after building — see ../Makefile's `deb` target,
 # and ../docs/RELEASING.md for how CI builds + signs this on a tagged release) --------

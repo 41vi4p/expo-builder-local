@@ -143,46 +143,85 @@ function WindowsInstall() {
     <div className="space-y-10">
       <p className="text-sm text-text-dim">
         <code className="font-mono text-accent">ebl.exe</code> is a native Windows build of the same CLI every other
-        platform uses &mdash; it talks directly to Docker Desktop&apos;s{" "}
-        <code className="font-mono text-accent">\\.\pipe\docker_engine</code> named pipe (the same endpoint{" "}
-        <code className="font-mono text-accent">docker.exe</code> itself uses), so{" "}
-        <code className="font-mono text-accent">ebl.exe</code> itself needs no WSL2 distro or separate Linux install.
-        Docker Desktop&apos;s own default backend <em>is</em> a WSL2 VM, though, and that&apos;s what actually runs
-        your builds.
+        platform uses, with <strong className="text-text">two build engines</strong> to choose from &mdash; Docker
+        Desktop/WSL2 was, until now, the only option on Windows, and it&apos;s the single biggest source of Windows
+        friction (VM overhead, WSL2 memory tuning, Docker Desktop&apos;s own licensing/install).{" "}
+        <strong className="text-text">Native mode is the default</strong>: it installs the Android SDK, JDK 17, and
+        Node.js directly on this machine (isolated under <code className="font-mono text-accent">%LOCALAPPDATA%\ebl</code>,
+        never touching an existing install) and runs builds as real processes on your system &mdash; no Docker
+        Desktop or WSL2 at all.
       </p>
 
       <section className="rounded-lg border border-accent/40 bg-accent-soft p-6">
-        <h3 className="font-display text-base font-semibold">Setup order</h3>
-        <ol className="mt-3 list-decimal space-y-3 pl-5 text-sm text-text-dim">
-          <li>
-            <strong className="text-text">WSL2</strong>, if you don&apos;t already have it &mdash; in an elevated
-            PowerShell or Command Prompt: <code className="font-mono text-accent">wsl --install</code>, then{" "}
-            <strong className="text-text">restart your computer</strong> (required).
-          </li>
-          <li>
-            <strong className="text-text">
-              <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                Docker Desktop
-              </a>
-            </strong>{" "}
-            &mdash; install and start it.
-          </li>
-          <li>
-            <strong className="text-text">Run the installer</strong> below. Neither installer installs WSL2 or Docker
-            Desktop for you &mdash; both need their own reboot/license handling &mdash; but both check for each up
-            front and tell you exactly what&apos;s missing and how to fix it, rather than failing partway through.
-          </li>
-        </ol>
+        <h3 className="font-display text-base font-semibold">⚠️ Native mode is unverified on real Windows hardware</h3>
+        <p className="mt-2 text-sm text-text-dim">
+          It was built with no Windows machine available to test it on &mdash; written to mirror the Docker
+          engine&apos;s exact behavior and checked wherever possible, but it hasn&apos;t actually run a real build
+          yet. Docker mode is the original, actually-used-in-production engine if you&apos;d rather not be the first
+          to find native mode&apos;s rough edges (pass <code className="font-mono text-accent">-Mode Docker</code>{" "}
+          / <code className="font-mono text-accent">--runtime docker</code>). Please{" "}
+          <a
+            href="https://github.com/41vi4p/expo-builder-local/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            report
+          </a>{" "}
+          anything that doesn&apos;t work.
+        </p>
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-border">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="px-4 py-3 font-display font-semibold"></th>
+              <th className="px-4 py-3 font-display font-semibold">Native (default)</th>
+              <th className="px-4 py-3 font-display font-semibold">Docker</th>
+            </tr>
+          </thead>
+          <tbody className="text-text-dim">
+            <tr className="border-b border-border">
+              <td className="px-4 py-3 font-mono text-xs">Requires</td>
+              <td className="px-4 py-3">Nothing extra &mdash; installs its own JDK/SDK/Node</td>
+              <td className="px-4 py-3">Docker Desktop (+ usually WSL2)</td>
+            </tr>
+            <tr className="border-b border-border">
+              <td className="px-4 py-3 font-mono text-xs">Isolation</td>
+              <td className="px-4 py-3">Runs directly on your system</td>
+              <td className="px-4 py-3">Disposable, fully isolated Linux container</td>
+            </tr>
+            <tr>
+              <td className="px-4 py-3 font-mono text-xs">Status</td>
+              <td className="px-4 py-3">New, unverified on real hardware</td>
+              <td className="px-4 py-3">The original engine &mdash; what Linux/macOS also use</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section>
         <StepHeading n={1} title="One-line installer (PowerShell)" />
         <p className="mt-3 text-sm text-text-dim">
-          Checks for WSL2 and Docker Desktop, sizes WSL2&apos;s memory/swap limits from your actual installed RAM,
-          downloads and installs <code className="font-mono text-accent">ebl.exe</code>, and puts it on your PATH.
+          Installs in Native mode by default, puts <code className="font-mono text-accent">ebl.exe</code> on your
+          PATH, then runs <code className="font-mono text-accent">ebl setup --runtime native</code> for you &mdash;
+          that&apos;s where the JDK/Android SDK/Node downloads actually happen, so a fresh install takes a while.
         </p>
         <div className="mt-4">
           <CodeBlock label="powershell" code="irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex" />
+        </div>
+        <p className="mt-3 text-sm text-text-dim">
+          Prefer Docker instead? Pass <code className="font-mono text-accent">-Mode Docker</code> &mdash; this also
+          checks for Docker Desktop and sizes WSL2&apos;s memory/swap limits from your actual installed RAM, since
+          its 50%-of-host default is routinely too little for a real Android build:
+        </p>
+        <div className="mt-4">
+          <CodeBlock
+            label="powershell"
+            code={`irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 -OutFile install.ps1
+.\\install.ps1 -Mode Docker`}
+          />
         </div>
       </section>
 
@@ -190,8 +229,8 @@ function WindowsInstall() {
         <StepHeading n={2} title="Or the GUI installer" />
         <p className="mt-3 text-sm text-text-dim">
           Grab <code className="font-mono text-accent">ebl-setup-*.exe</code>{" "}
-          and run it &mdash; a thin Inno Setup wrapper that bundles the same files and runs the same install script
-          under the hood, with a familiar Windows installer UI and an entry in{" "}
+          and run it &mdash; a wizard page lets you pick Native or Docker (Native pre-selected), then it runs the
+          same install script under the hood, with a familiar Windows installer UI and an entry in{" "}
           <em>Add or Remove Programs</em>.
         </p>
         <a
@@ -205,8 +244,9 @@ function WindowsInstall() {
       </section>
 
       <p className="text-sm text-text-dim">
-        If disk space gets tight afterward (build caches, the runner image, WSL2&apos;s swap file), reclaim it any
-        time with <code className="font-mono text-accent">ebl clean --all</code>.
+        Switch modes later any time with <code className="font-mono text-accent">ebl setup --runtime docker|native</code>.
+        Docker mode: if disk space gets tight afterward (build caches, the runner image, WSL2&apos;s swap file),
+        reclaim it any time with <code className="font-mono text-accent">ebl clean --all</code>.
       </p>
     </div>
   );
@@ -235,16 +275,27 @@ function WindowsUninstall() {
     <div className="space-y-4 text-sm text-text-dim">
       <p>
         If you used the <strong className="text-text">one-line/PowerShell install</strong>, run the uninstaller
-        script it left behind &mdash; removes <code className="font-mono text-accent">ebl.exe</code> and its PATH
-        entry:
+        script it left behind &mdash; from a terminal, so it can interactively ask about anything beyond the
+        always-safe removal (<code className="font-mono text-accent">ebl.exe</code> + its PATH entry):
       </p>
       <CodeBlock label="powershell" code={String.raw`& "$env:LOCALAPPDATA\Programs\ebl\uninstall.ps1"`} />
       <p>
+        For a Native-mode install, it also offers to remove the Android SDK/JDK/Node toolchain it downloaded
+        &mdash; only ever the components it actually installed itself; anything it detected and reused instead is
+        never touched. Pass <code className="font-mono text-accent">-Quiet</code> to skip those prompts.
+      </p>
+      <p>
         If you used the <strong className="text-text">ebl-setup-*.exe GUI installer</strong>, uninstall it the normal
         Windows way instead &mdash; <em>Settings &rarr; Apps &rarr; ebl (expo-local-builder) &rarr; Uninstall</em>, or
-        from <em>Add or Remove Programs</em>.
+        from <em>Add or Remove Programs</em>. It always runs non-interactively, so it only does the always-safe
+        removal &mdash; run <code className="font-mono text-accent">uninstall.ps1</code> directly from a terminal
+        instead for the toolchain/config cleanup prompts.
       </p>
-      <p>Either way, Docker Desktop itself is left alone &mdash; it&apos;s your system&apos;s own component, not ebl&apos;s.</p>
+      <p>
+        Either way, Docker Desktop itself is left alone (Docker-mode installs) &mdash; it&apos;s your system&apos;s
+        own component, not ebl&apos;s. <code className="font-mono text-accent">.wslconfig</code>&apos;s WSL2
+        memory/swap tuning is also left as-is.
+      </p>
     </div>
   );
 }

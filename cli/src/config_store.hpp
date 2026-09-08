@@ -20,6 +20,22 @@ struct ExpoTokenEntry {
   std::string token;  // plaintext once loaded into memory; encrypted on disk
 };
 
+/** Windows-only native build engine's provisioned toolchain (see
+ * cli/src/native_toolchain.hpp) — installs the Android SDK/JDK/Node directly on the
+ * host instead of using a Docker container. Each *InstalledByEbl flag is per
+ * component, not a single global one, because `ebl setup --runtime native` prefers
+ * an already-installed toolchain component over downloading its own copy — only the
+ * components it actually downloaded should ever be removed by an uninstall/cleanup,
+ * never something the user already had (e.g. an existing Android Studio SDK). */
+struct NativeToolchainConfig {
+  std::string jdkHome;              // empty if not provisioned
+  bool jdkInstalledByEbl = false;
+  std::string androidSdkRoot;
+  bool androidSdkInstalledByEbl = false;
+  std::string nodeHome;
+  bool nodeInstalledByEbl = false;
+};
+
 struct EblConfig {
   std::string projectsRoot;
   int orchestratorPort = 4001;
@@ -28,6 +44,13 @@ struct EblConfig {
   std::string expoToken;   // default/fallback token, used when no owner-specific entry matches (may be empty)
   std::vector<ExpoTokenEntry> expoTokensByOwner;
   int64_t setupCompletedAt = 0;  // 0 = setup has never completed
+
+  // Windows-only: "docker" or "native" (see ../CLAUDE.md's native-engine section).
+  // Empty means "never chosen yet" — `ebl setup`/`ebl build` default it to "native"
+  // on Windows the first time, "docker" everywhere else (the only valid value on
+  // non-Windows). Not encrypted — no secret material, same as runnerImage() etc.
+  std::string buildMode;
+  NativeToolchainConfig nativeToolchain;
 
   // All three always come from the canonical upstream account — this used to be
   // configurable (a "Docker Hub namespace" field/prompt in `ebl config`), but that

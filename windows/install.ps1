@@ -5,48 +5,66 @@
 
 .DESCRIPTION
     ebl.exe is a native Windows build of the same CLI every other platform uses
-    (cli/) - it talks directly to Docker Desktop's named pipe
-    (\\.\pipe\docker_engine), the same endpoint docker.exe itself uses. No WSL2, no
-    separate Linux distro, no "enable WSL integration" step - just Docker Desktop,
-    installed and running.
+    (cli/). Two build engines are available on Windows, chosen via -Mode (default
+    Native — see ../CLAUDE.md's native-engine section, UNVERIFIED ON REAL WINDOWS
+    HARDWARE):
+
+      Native (default): installs the Android SDK, JDK 17, and Node.js directly on
+        this machine, isolated under %LOCALAPPDATA%\ebl — no Docker Desktop or
+        WSL2 required. Detects and reuses an existing JDK/SDK/Node install first
+        rather than downloading its own copy where possible.
+      Docker: talks directly to Docker Desktop's named pipe (\\.\pipe\docker_engine,
+        the same endpoint docker.exe itself uses) and runs builds in a disposable
+        Linux container — the same engine Linux/macOS use. Requires Docker Desktop
+        (and usually WSL2) installed separately.
 
     This script:
-      0. Checks that Docker Desktop is installed. It does NOT install Docker Desktop
-         itself (a much heavier installer with its own license/reboot
-         considerations) - Docker Desktop is a hard prerequisite you install
-         yourself first, from https://www.docker.com/products/docker-desktop/.
-      1. If Docker Desktop's WSL2 backend is present, tunes its memory/swap limits
-         in %UserProfile%\.wslconfig from the host's actual installed RAM (see
-         PARAMETER SkipWslConfig below) - ebl.exe itself talks to Docker Desktop
-         directly over its named pipe and never touches WSL2, but the *build
-         containers* run inside that WSL2 VM, and WSL2's own default cap (50% of
-         host RAM, swap wherever the system drive happens to have room) is
+      0. (Docker mode only) Checks that Docker Desktop is installed. It does NOT
+         install Docker Desktop itself (a much heavier installer with its own
+         license/reboot considerations) - Docker Desktop is a hard prerequisite you
+         install yourself first, from https://www.docker.com/products/docker-desktop/.
+      1. (Docker mode only) If Docker Desktop's WSL2 backend is present, tunes its
+         memory/swap limits in %UserProfile%\.wslconfig from the host's actual
+         installed RAM (see PARAMETER SkipWslConfig below) - ebl.exe itself talks to
+         Docker Desktop directly over its named pipe and never touches WSL2, but the
+         *build containers* run inside that WSL2 VM, and WSL2's own default cap (50%
+         of host RAM, swap wherever the system drive happens to have room) is
          routinely too little for a real Android build: a cold, multi-ABI native
          compile (react-native-worklets/react-native-screens across
          arm64-v8a/armeabi-v7a/x86/x86_64) plus Gradle/Kotlin daemons can exhaust
          it, which crashes Docker Desktop's backend (the Engine API starts
          returning 500s) rather than just slowing the build down.
       2. Downloads the ebl release archive (ebl.exe plus the bundled Android runner
-         build context it needs to build the runner image locally if it isn't
-         published yet) from this repo's GitHub Releases, and installs it under
-         %LOCALAPPDATA%\Programs\ebl.
+         build context/native-build signing scripts it needs) from this repo's
+         GitHub Releases, and installs it under %LOCALAPPDATA%\Programs\ebl.
       3. Adds %LOCALAPPDATA%\Programs\ebl\bin to your Windows PATH.
+      4. Runs `ebl setup --runtime <Mode>` — in Native mode this is where the actual
+         JDK/Android SDK/Node downloads happen (noticeably longer than a Docker-mode
+         install, which is just a Docker Desktop reachability check + image pulls).
 
-    One-line usage:
+    One-line usage (installs in Native mode by default):
       irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
 
+.PARAMETER Mode
+    "Native" (default) or "Docker" - which build engine to set up. See DESCRIPTION.
+
 .PARAMETER SkipDockerCheck
-    Skip the Docker Desktop presence check (e.g. if it's installed somewhere this
-    script's detection doesn't recognize).
+    Docker mode only. Skip the Docker Desktop presence check (e.g. if it's
+    installed somewhere this script's detection doesn't recognize).
 
 .PARAMETER SkipWslConfig
-    Skip WSL2 memory/swap auto-tuning entirely - leave %UserProfile%\.wslconfig
-    (if any) untouched.
+    Docker mode only. Skip WSL2 memory/swap auto-tuning entirely - leave
+    %UserProfile%\.wslconfig (if any) untouched.
 
 .PARAMETER ForceWslConfig
-    Re-run the WSL2 memory/swap auto-tuning even if %UserProfile%\.wslconfig
-    already sets a [wsl2] memory limit. Without this, an existing memory= setting
-    is treated as deliberate (yours or a previous ebl install's) and left alone.
+    Docker mode only. Re-run the WSL2 memory/swap auto-tuning even if
+    %UserProfile%\.wslconfig already sets a [wsl2] memory limit. Without this, an
+    existing memory= setting is treated as deliberate (yours or a previous ebl
+    install's) and left alone.
+
+.PARAMETER SkipRuntimeSetup
+    Skip the automatic `ebl setup --runtime <Mode>` step at the end - just install
+    the binary/PATH and stop there. Mainly for testing this script itself.
 
 .PARAMETER LocalInstallDir
     Used by the Inno Setup GUI installer (ebl-setup.exe), which already bundles and
@@ -56,9 +74,12 @@
 #>
 
 param(
+    [ValidateSet("Native", "Docker")]
+    [string]$Mode = "Native",
     [switch]$SkipDockerCheck,
     [switch]$SkipWslConfig,
     [switch]$ForceWslConfig,
+    [switch]$SkipRuntimeSetup,
     [string]$LocalInstallDir
 )
 
@@ -72,12 +93,15 @@ $BinDir = Join-Path $InstallDir "bin"
 $ExePath = Join-Path $BinDir "ebl.exe"
 $ReleaseZipUrl = "https://github.com/41vi4p/expo-builder-local/releases/latest/download/ebl-windows-amd64.zip"
 
-# --- 0. Docker Desktop ---------------------------------------------------------
-# ebl talks to Docker Desktop's own named pipe - checked first, before touching the
-# install directory at all, so someone without Docker Desktop hits a clear message
-# now instead of finishing setup only to find Docker unreachable at `ebl build` time.
+Write-Step "Installing in $Mode mode..."
 
-if (-not $SkipDockerCheck) {
+# --- 0. Docker Desktop ---------------------------------------------------------
+# Docker mode only - native mode never touches Docker Desktop/WSL2 at all. ebl talks
+# to Docker Desktop's own named pipe - checked first, before touching the install
+# directory at all, so someone without Docker Desktop hits a clear message now
+# instead of finishing setup only to find Docker unreachable at `ebl build` time.
+
+if ($Mode -eq "Docker" -and -not $SkipDockerCheck) {
     Write-Step "Checking for Docker Desktop..."
     $dockerDesktopExe = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
     $dockerDesktopFound = Test-Path $dockerDesktopExe
@@ -106,7 +130,7 @@ if (-not $SkipDockerCheck) {
 # (reproduced firsthand on an 8-16GB laptop - see docs/CHANGELOG.md). Sized once
 # here from actually-installed RAM rather than left at WSL2's 50%-of-host default.
 
-if (-not $SkipWslConfig -and -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+if ($Mode -eq "Docker" -and -not $SkipWslConfig -and -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     Write-Warn "WSL2 doesn't appear to be installed."
     Write-Warn "Docker Desktop's default backend needs it. If Docker Desktop is already"
     Write-Warn "working for you, it's using a different backend and you can ignore this -"
@@ -117,7 +141,7 @@ if (-not $SkipWslConfig -and -not (Get-Command wsl.exe -ErrorAction SilentlyCont
     Write-Warn "installer (or just ebl setup) to auto-tune its memory/swap limits."
 }
 
-if (-not $SkipWslConfig -and (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+if ($Mode -eq "Docker" -and -not $SkipWslConfig -and (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     try {
         Write-Step "Tuning WSL2 memory/swap for this machine..."
 
@@ -228,11 +252,31 @@ if (($userPath -split ";") -notcontains $BinDir) {
 Write-Host ""
 Write-Host "ebl installed." -ForegroundColor Green
 Write-Host "  Location: $ExePath"
+
+# --- 4. Runtime setup --------------------------------------------------------------
+# Runs right here (using the exe's real path directly, not relying on the PATH
+# update above having taken effect in this same process) rather than leaving it as
+# a manual follow-up step - in Native mode especially, this is where the actual
+# JDK/Android SDK/Node downloads happen, so the install isn't silently "incomplete"
+# until someone remembers to run `ebl setup`.
+
+if (-not $SkipRuntimeSetup) {
+    Write-Host ""
+    if ($Mode -eq "Native") {
+        Write-Step "Setting up the native build engine - this downloads the Android SDK/JDK/Node and can take a while..."
+    } else {
+        Write-Step "Setting up Docker mode (checking Docker Desktop, pulling images)..."
+    }
+    & $ExePath setup --runtime $Mode.ToLower()
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "ebl setup --runtime $($Mode.ToLower()) didn't finish cleanly (exit $LASTEXITCODE) - re-run it yourself later: ebl setup --runtime $($Mode.ToLower())"
+    }
+}
+
 Write-Host ""
 Write-Host "PATH updated, but a shell that was already open won't see it - that includes an"
 Write-Host "already-open terminal tab in VS Code/Cursor/etc., since it inherits the editor's"
 Write-Host "own already-running process. Open a NEW terminal window from the Start Menu/"
 Write-Host "taskbar (or fully quit and relaunch the editor), then try:"
-Write-Host "  ebl setup"
 Write-Host "  cd path\to\your\expo\app"
 Write-Host "  ebl build ."

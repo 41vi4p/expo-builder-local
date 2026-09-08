@@ -14,19 +14,35 @@
 #include "../docker_client.hpp"
 #include "../pull_progress.hpp"
 
+#ifdef _WIN32
+#include "../native_toolchain.hpp"
+#endif
+
 namespace ebl::commands {
 
 namespace {
 
 #ifdef _WIN32
 void printUsage() {
-  std::cout << R"(ebl setup
+  std::cout << R"(ebl setup [--runtime docker|native]
 
-One-time setup: makes sure Docker Desktop is reachable, then pulls the runner/
-orchestrator/web images so `ebl build`/`ebl start` are ready to go immediately.
+One-time setup. Two runtimes, Windows only — everywhere else this is always
+"docker":
+
+  native  (default on Windows) Installs the Android SDK, JDK 17, and Node.js
+          directly on this machine, isolated under %LOCALAPPDATA%\ebl — no Docker
+          Desktop or WSL2 required. Detects and reuses an existing JDK/SDK/Node
+          install first rather than downloading its own copy where possible.
+  docker  Makes sure Docker Desktop is reachable, then pulls the runner/
+          orchestrator/web images — the same engine Linux/macOS use.
+
+Whichever you pick is remembered (~/.config/ebl or %APPDATA%\ebl) for `ebl build`
+to use by default afterward; override per-run with `ebl build --runtime <...>`.
 
 Options:
-  -h, --help   Show this help
+      --runtime <docker|native>  Which engine to set up (default: native, or
+                                 whatever was chosen last time)
+  -h, --help                     Show this help
 )";
 }
 #else
@@ -62,13 +78,71 @@ bool promptYesNo(const std::string& question) {
 void printSetupUsage() { printUsage(); }
 
 int runSetup(int argc, char** argv) {
+  std::string runtimeFlag;
   for (int i = 0; i < argc; i++) {
     std::string arg = argv[i];
     if (arg == "-h" || arg == "--help") {
       printUsage();
       return 0;
     }
+    if (arg == "--runtime") {
+      if (i + 1 >= argc) {
+        std::cerr << ebl::color::red("Missing value for --runtime") << "\n";
+        return 2;
+      }
+      runtimeFlag = argv[++i];
+      continue;
+    }
   }
+
+  auto cfg = ebl::loadConfig().value_or(ebl::EblConfig{});
+
+  // Resolution order: explicit --runtime > previously saved choice > platform
+  // default. "native" only ever exists on Windows — everywhere else this is
+  // unconditionally "docker", full stop, so the rest of this function (and the
+  // Linux/macOS behavior above it) is completely unchanged from before native mode
+  // existed.
+#ifndef _WIN32
+  if (runtimeFlag == "native") {
+    std::cerr << ebl::color::red("Native mode is Windows-only — this platform only supports --runtime docker.")
+              << "\n";
+    return 2;
+  }
+  if (!runtimeFlag.empty() && runtimeFlag != "docker") {
+    std::cerr << ebl::color::red("--runtime must be \"docker\" on this platform, got \"" + runtimeFlag + "\"")
+              << "\n";
+    return 2;
+  }
+#endif
+#ifdef _WIN32
+  std::string runtime = !runtimeFlag.empty() ? runtimeFlag : (!cfg.buildMode.empty() ? cfg.buildMode : "native");
+  if (runtime != "docker" && runtime != "native") {
+    std::cerr << ebl::color::red("--runtime must be \"docker\" or \"native\", got \"" + runtime + "\"") << "\n";
+    return 2;
+  }
+  if (runtime == "native") {
+    std::cout << ebl::color::bold("Setting up the native build engine (no Docker/WSL2 needed)...") << "\n";
+    std::cout << ebl::color::dim(
+                      "UNVERIFIED ON REAL WINDOWS HARDWARE — see ../CLAUDE.md's native-engine section. Please "
+                      "report anything that doesn't work.")
+              << "\n\n";
+    try {
+      ebl::provisionNativeToolchain(cfg.nativeToolchain,
+                                     [](const std::string& line) { std::cout << line << std::flush; });
+    } catch (const std::exception& e) {
+      std::cerr << "\n" << ebl::color::red(std::string("Native toolchain setup failed: ") + e.what()) << "\n";
+      return 1;
+    }
+    cfg.buildMode = "native";
+    cfg.setupCompletedAt = static_cast<int64_t>(time(nullptr));
+    ebl::saveConfig(cfg);
+    std::cout << "\n" << ebl::color::green(ebl::color::bold("Setup complete.")) << "\n";
+    std::cout << "Next: " << ebl::color::cyan("ebl config") << " (optional — only needed for the web GUI), then "
+              << ebl::color::cyan("ebl build .") << " from an Expo project.\n";
+    return 0;
+  }
+  cfg.buildMode = "docker";
+#endif
 
   ebl::DockerClient docker("/var/run/docker.sock");
 
@@ -141,8 +215,6 @@ int runSetup(int argc, char** argv) {
 #endif
   }
   std::cout << ebl::color::green("Docker is up.") << "\n\n";
-
-  auto cfg = ebl::loadConfig().value_or(ebl::EblConfig{});
 
   std::cout << ebl::color::bold("Pulling images...") << "\n";
   bool anyFailed = false;

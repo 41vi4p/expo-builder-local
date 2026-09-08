@@ -17,7 +17,7 @@ const NAV = [
 ];
 
 const COMMANDS = [
-  { cmd: "ebl setup", body: "One-time: checks Docker is installed and running (offers to install it if not), then pulls the runner/orchestrator/web images." },
+  { cmd: "ebl setup", body: "One-time: checks Docker is installed and running (offers to install it if not), then pulls the runner/orchestrator/web images. On Windows, --runtime native (the default there) instead provisions a JDK/Android SDK/Node toolchain directly on the host — no Docker/WSL2 needed; unverified on real hardware." },
   { cmd: "ebl config", body: "Interactive wizard: projects folder, a default Expo token plus optional per-account tokens, orchestrator/web ports." },
   { cmd: "ebl start", body: "Runs the orchestrator + web GUI as Docker containers, waits for both to report healthy, prints the GUI URL." },
   { cmd: "ebl stop", body: "Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved." },

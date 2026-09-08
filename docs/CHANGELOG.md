@@ -3,6 +3,82 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.16.0 — Native Windows build engine (Docker Desktop/WSL2 no longer required)
+
+**Date:** 2026-09-08
+**Type:** Feature
+
+- Added a second, Windows-only build engine — **Native**, which installs the
+  Android SDK, JDK 17, and Node.js directly on the host (isolated under
+  `%LOCALAPPDATA%\ebl\toolchain\`, detecting and reusing an existing JDK/SDK/Node
+  install first rather than downloading its own copy) and runs builds as real host
+  processes, no Docker Desktop or WSL2 at all. **Native is now the Windows
+  default** — `ebl setup`/`ebl build`/`windows/install.ps1` all default to it;
+  Docker remains fully available via `--runtime docker` / `-Mode Docker` (the
+  installer's wizard page, and `ebl setup --runtime <docker|native>`, let you
+  choose either way). CLI-only for now — the web GUI/orchestrator stay Docker-only.
+- **⚠️ Entirely unverified on real Windows hardware** — built with no Windows
+  machine available. Verified what's actually possible from a Linux sandbox: the
+  Linux/macOS CLI build is completely unaffected (new files only compile under
+  `if(WIN32)`), both `.ps1` scripts parse cleanly and their core logic (JSON
+  config reading, per-component `installedByEbl` safety checks, `-Mode`
+  string handling) was exercised in isolation via PowerShell Core, and the Inno
+  Setup `[Code]` wizard page follows documented `TInputOptionWizardPage` patterns
+  — but none of it has actually built/run a real project. Treat it like the
+  existing `BUILD_UID`/`BUILD_GID` Windows placeholder: carefully reasoned, not
+  proven. Please report anything that doesn't work.
+- New CLI internals: `cli/src/native_process.*` (Windows Job-Object-based process
+  runner — wall-clock + idle-CPU timeouts, the analog of
+  `build-entrypoint.sh`'s `timeout`/`run_with_idle_timeout`), `native_toolchain.*`
+  (provisioning, called from `ebl setup --runtime native`), `native_build.*` (the
+  engine itself — the direct analog of `docker/runner/build-entrypoint.sh`,
+  emitting the byte-for-byte same `@@PHASE:`/`@@PROGRESS:`/`@@ENGINE:`/
+  `@@BUILD_NUMBER:`/`@@ARTIFACT:`/`@@DURATION:`/`@@ERROR:` marker protocol so
+  `commands/build.cpp`'s existing parser/reporting works unchanged regardless of
+  engine). Reuses `docker/runner/scripts/patch-android-signing.js`/
+  `write-eas-credentials.js` unmodified via the provisioned Node, rather than
+  reimplementing Gradle-file patching in C++. Deliberately does *not* port the
+  Docker path's UID/GID re-homing or git `safe.directory` workaround — both are
+  pure Docker/Linux-bind-mount artifacts that don't exist when the build runs as
+  the real invoking user against the real filesystem. Known v1 simplification:
+  Gradle runs with `--console=plain`, not `--console=rich` (no way to verify
+  ConPTY↔Gradle TTY detection remotely), so native builds get phase-level
+  progress only, not Docker mode's live percentage.
+- `EblConfig` gained `buildMode` ("docker"/"native") and a per-component
+  `nativeToolchain` (`jdkHome`/`androidSdkRoot`/`nodeHome` + `*InstalledByEbl`
+  flags) — the `installedByEbl` flags are load-bearing: they're what let
+  `windows/uninstall.ps1` later remove exactly what ebl downloaded and never touch
+  something the user already had.
+- `windows/install.ps1` gained `-Mode Native|Docker` (default `Native`) — Docker
+  mode's existing Desktop-check/WSL2-tuning steps are unchanged and now
+  conditional on `-Mode Docker`; either way it finishes by running
+  `ebl setup --runtime <Mode>` itself, so Native installs actually provision the
+  toolchain as part of installing, not a manual follow-up step.
+  `windows/installer/ebl.iss` gained its first `[Code]` section (previously none
+  existed): a wizard page choosing Native (pre-selected) or Docker, threaded
+  through to `install.ps1` via `-Mode`.
+- `windows/uninstall.ps1` now reads `%APPDATA%\ebl\config.json` before removing
+  anything, and (interactively — skipped with the new `-Quiet`, which is what the
+  GUI uninstaller's hidden `[UninstallRun]` step now passes) offers to also remove
+  the native toolchain components ebl actually installed and/or the saved
+  config/tokens directory — neither was ever cleaned up before this. Still never
+  touches Docker Desktop or `.wslconfig`'s WSL2 tuning (shared, machine-wide
+  state).
+- This work accumulates on a dedicated `windows` git branch going forward (see
+  `../CLAUDE.md`'s new Windows-branch-workflow note) — `ebl_landing_page`/root
+  docs stay main-branch-deploy-authoritative regardless of which branch edits
+  them.
+
+**Files modified:** `cli/src/native_process.{hpp,cpp}` (new),
+`cli/src/native_toolchain.{hpp,cpp}` (new), `cli/src/native_build.{hpp,cpp}`
+(new), `cli/src/config_store.{hpp,cpp}`, `cli/src/runner_context.{hpp,cpp}`,
+`cli/src/commands/setup.cpp`, `cli/src/commands/build.cpp`, `cli/CMakeLists.txt`,
+`windows/install.ps1`, `windows/uninstall.ps1`, `windows/installer/ebl.iss`,
+`README.md`, `ebl_landing_page/app/download/page.tsx`,
+`ebl_landing_page/app/docs/page.tsx`, `../CLAUDE.md`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.15.0 — `ebl update`, and a fix for eas-cli getting stuck stale
 
 **Date:** 2026-09-08

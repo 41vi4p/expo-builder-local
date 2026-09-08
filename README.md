@@ -105,43 +105,59 @@ header for why, and [`docs/RELEASING.md`](./docs/RELEASING.md) for release notes
 
 ### Windows
 
-`ebl.exe` is a native Windows build of the same CLI every other platform uses — it
-talks directly to Docker Desktop's `\\.\pipe\docker_engine` named pipe (the same
-endpoint `docker.exe` itself uses), so `ebl.exe` itself needs no WSL2 distro or
-separate Linux install. Docker Desktop's own default backend *is* a WSL2 VM, though,
-and that's what actually runs your builds. See [`windows/`](./windows) and
-[`cli/`](./cli) for how it's built.
+`ebl.exe` is a native Windows build of the same CLI every other platform uses, with
+**two build engines to choose from** — Docker Desktop/WSL2 was, until now, the only
+option on Windows, and it's the single biggest source of Windows friction (VM
+overhead, WSL2 memory tuning, Docker Desktop's own licensing/install). **Native
+mode is the default**: it installs the Android SDK, JDK 17, and Node.js directly on
+this machine (isolated under `%LOCALAPPDATA%\ebl`, never touching an existing
+install) and runs builds as real processes on your system — no Docker Desktop or
+WSL2 at all.
 
-**Setup order:**
+> **⚠️ Native mode is unverified on real Windows hardware.** It was built with no
+> Windows machine available to test it on — written to mirror the Docker engine's
+> exact behavior and carefully checked wherever possible (compiles cleanly,
+> PowerShell scripts parse correctly), but it hasn't actually run a real build yet.
+> Docker mode is the original, actually-used-in-production engine if you'd rather
+> not be the first to find native mode's rough edges — pass `-Mode Docker` /
+> `--runtime docker`. Please [report](https://github.com/41vi4p/expo-builder-local/issues)
+> anything that doesn't work.
 
-1. **WSL2**, if you don't already have it — in an elevated PowerShell or Command
-   Prompt:
-   ```powershell
-   wsl --install
-   ```
-   then **restart your computer** (required for it to take effect).
-2. **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — install
-   and start it.
-3. **Run the installer** (below). Neither installer installs WSL2 or Docker Desktop
-   for you — both need their own reboot/license handling — but both check for each
-   up front and tell you exactly what's missing and how to fix it (the `wsl --install`
-   command above, or a direct Docker Desktop download link) rather than failing
-   partway through.
+| | Native (default) | Docker |
+|---|---|---|
+| Requires | Nothing extra — installs its own JDK/SDK/Node | Docker Desktop (+ usually WSL2) |
+| Isolation | Runs directly on your system | Disposable, fully isolated Linux container |
+| Disk/memory overhead | Just the toolchain itself | Container runtime + VM on top |
+| Status | New, **unverified on real hardware** | The original engine — what Linux/macOS also use |
 
-**One-line installer** (PowerShell) — checks for WSL2 and Docker Desktop, sizes
-WSL2's memory/swap limits from your actual installed RAM (see the requirements note
-above — this is what makes that automatic on Windows), downloads and installs
-`ebl.exe`, and puts it on your PATH:
+**One-line installer** (PowerShell) — installs in Native mode by default:
 
 ```powershell
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
 ```
 
+Pass `-Mode Docker` to use Docker instead (checks for Docker Desktop, tunes WSL2's
+memory/swap limits from your actual installed RAM, since its 50%-of-host default is
+routinely too little for a real Android build):
+
+```powershell
+irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 -OutFile install.ps1; .\install.ps1 -Mode Docker
+```
+
+Either way, the installer finishes by running `ebl setup --runtime <mode>` for you —
+in Native mode that's where the JDK/Android SDK/Node downloads actually happen
+(noticeably longer than Docker mode's image-pull step), so don't be surprised if a
+fresh Native install takes a while.
+
 **Or the GUI installer** — grab `ebl-setup-*.exe` from
-[Releases](https://github.com/41vi4p/expo-builder-local/releases) and run it; it's a
-thin Inno Setup wrapper that bundles the same files and runs the same
-`install.ps1` under the hood, so it does exactly the same thing with a familiar
-Windows installer UI and an entry in *Add or Remove Programs*.
+[Releases](https://github.com/41vi4p/expo-builder-local/releases) and run it; a
+wizard page lets you pick Native or Docker (Native pre-selected), then it runs the
+same `install.ps1` under the hood with a familiar Windows installer UI and an entry
+in *Add or Remove Programs*.
+
+Switch modes later any time with `ebl setup --runtime <docker|native>` — `ebl
+build`/`ebl start` use whichever was set up last, overridable per-run with
+`ebl build --runtime <docker|native>`.
 
 If disk space gets tight afterward (build caches, the runner image, WSL2's swap
 file), reclaim it any time with `ebl clean --all` — see
@@ -192,18 +208,30 @@ rm -rf ~/.config/ebl
 ### Windows
 
 If you used the **one-line/PowerShell install**, run the uninstaller script it left
-behind — this removes `ebl.exe` and its PATH entry:
+behind directly from a terminal — this always removes `ebl.exe` and its PATH entry,
+and (interactively, native-mode installs only) also offers to remove the Android
+SDK/JDK/Node toolchain it downloaded and/or your saved settings:
 
 ```powershell
 & "$env:LOCALAPPDATA\Programs\ebl\uninstall.ps1"
 ```
 
+It only ever offers to remove a toolchain component ebl actually downloaded itself
+— anything it detected and reused instead (an existing JDK/Android SDK/Node you
+already had) is never touched. Pass `-Quiet` to skip those prompts and just do the
+always-safe part (same as before this existed).
+
 If you used the **`ebl-setup-*.exe` GUI installer**, uninstall it the normal Windows
 way instead — *Settings → Apps → ebl (expo-local-builder) → Uninstall*, or from *Add
-or Remove Programs*.
+or Remove Programs*. The GUI uninstaller always runs non-interactively (no console
+to prompt on), so it only does the always-safe removal — run `uninstall.ps1`
+directly from a terminal instead if you want the native-toolchain/config cleanup
+prompts.
 
-Either way, Docker Desktop itself is left alone — it's your system's own component,
-not ebl's, in case anything else on your machine depends on it.
+Either way, Docker Desktop itself is left alone (Docker-mode installs) — it's your
+system's own component, not ebl's, in case anything else on your machine depends on
+it. `.wslconfig`'s WSL2 memory/swap tuning is also left as-is — it's shared,
+machine-wide state other software may depend on by now.
 
 ## Why this exists
 
@@ -245,11 +273,11 @@ for why that matters.
 
 | Command | What it does |
 |---|---|
-| `ebl setup` | One-time: checks Docker is installed and running (offers to install it via the official convenience script if not — asks first, needs sudo), then pulls the runner/orchestrator/web images. |
+| `ebl setup [--runtime docker\|native]` | One-time. Docker mode: checks Docker is installed and running (offers to install it via the official convenience script if not — asks first, needs sudo), then pulls the runner/orchestrator/web images. Native mode (Windows only, the default there): detects/provisions the JDK/Android SDK/Node toolchain instead — see [Windows](#windows) above. Whichever you pick is remembered for `ebl build` to use by default afterward. |
 | `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), a default Expo access token plus optional per-account tokens (see [Multiple Expo accounts](#multiple-expo-accounts) below), orchestrator/web ports. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
-| `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. |
+| `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. Docker-only — see [Windows](#windows) above for native mode's current CLI-only scope. |
 | `ebl stop` | Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved. |
-| `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. |
+| `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. `--runtime docker\|native` overrides which engine to use for just this run (Windows only; default is whatever `ebl setup` last configured). |
 | `ebl update` | Force-refreshes the runner/orchestrator/web images right now, unconditionally. `ebl build`/`ebl start` already pull on every run, but that only ever transfers layers that changed upstream — it can't fix an image whose published tag was itself built from a stale layer cache. `ebl update` always re-pulls all three, and for the runner image specifically, rebuilds it from scratch (Docker's build cache fully disabled) if pulling isn't possible at all. |
 | `ebl clean [--all]` | Removes ebl's own stopped build containers (leftovers from an interrupted/crashed build). With `--all`, also removes the shared Gradle/npm cache volumes and the runner/orchestrator/web images — the next `ebl build`/`ebl setup` just re-pulls/re-creates whatever it needs, so this is safe, just slower on the next run. Refuses `--all` while a build is currently running. |
 
@@ -510,3 +538,16 @@ an absolute, real host path.
   expects the project's `eas.json` profile to be otherwise valid.
 - **AAB isn't accepted by the Play Store** — make sure you built with **Release**
   signing (`--release`/GUI Release) and a real upload keystore, not the debug default.
+- **`ebl build` on Windows says the native toolchain isn't set up yet** — run
+  `ebl setup --runtime native` first (or `ebl setup --runtime docker` to switch to
+  Docker mode instead).
+- **Native mode (Windows) is misbehaving** — it's unverified on real hardware (see
+  [Windows](#windows) above); `ebl setup --runtime docker` switches back to the
+  original, battle-tested engine while you [report](https://github.com/41vi4p/expo-builder-local/issues)
+  what went wrong.
+- **Docker Desktop crashes/becomes unreachable mid-build on Windows (Docker mode)**
+  — almost always WSL2 running out of memory during a cold, multi-ABI native
+  compile; `install.ps1 -Mode Docker`/`ebl setup --runtime docker` size
+  `.wslconfig`'s memory/swap from your actual RAM automatically, but if you skipped
+  that (`-SkipWslConfig`) or it's an old install, re-run the installer or tune
+  `%UserProfile%\.wslconfig` by hand and `wsl --shutdown` to apply it.

@@ -40,6 +40,10 @@ bool looksLikeRunnerContext(const fs::path& dir) {
   return fs::exists(dir / "Dockerfile");
 }
 
+bool looksLikeNativeScriptsDir(const fs::path& dir) {
+  return fs::exists(dir / "patch-android-signing.js") && fs::exists(dir / "write-eas-credentials.js");
+}
+
 }  // namespace
 
 std::string resolveRunnerContextDir() {
@@ -61,6 +65,26 @@ std::string resolveRunnerContextDir() {
       "Could not locate the bundled Android runner build context (looked in " + installed.string() + " and " +
       buildDirCopy.string() +
       "). Set EXPO_BUILDER_RUNNER_DIR to docker/runner from an expo-builder-local checkout, or rebuild this CLI.");
+}
+
+std::string resolveNativeScriptsDir() {
+  if (const char* envDir = std::getenv("EXPO_BUILDER_NATIVE_SCRIPTS_DIR")) {
+    if (looksLikeNativeScriptsDir(fs::path(envDir))) return envDir;
+  }
+
+  fs::path exeDir = selfExecutablePath().parent_path();
+
+  fs::path installed = exeDir.parent_path() / "share" / "expo-builder-local" / "native-scripts";
+  if (looksLikeNativeScriptsDir(installed)) return installed.string();
+
+  fs::path buildDirCopy = exeDir / "native-scripts";
+  if (looksLikeNativeScriptsDir(buildDirCopy)) return buildDirCopy.string();
+
+  throw std::runtime_error(
+      "Could not locate the bundled native-build signing scripts (looked in " + installed.string() + " and " +
+      buildDirCopy.string() +
+      "). Set EXPO_BUILDER_NATIVE_SCRIPTS_DIR to docker/runner/scripts from an expo-builder-local checkout, or "
+      "rebuild this CLI.");
 }
 
 }  // namespace ebl

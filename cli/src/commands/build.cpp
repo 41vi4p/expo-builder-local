@@ -31,6 +31,10 @@
 #include "../pull_progress.hpp"
 #include "../runner_context.hpp"
 
+#ifdef _WIN32
+#include "../native_build.hpp"
+#endif
+
 namespace fs = std::filesystem;
 using ebl::BuildParams;
 using ebl::DockerClient;
@@ -131,6 +135,9 @@ Options:
       --docker-socket <path>     Docker socket path (default: /var/run/docker.sock;
                                   ignored on Windows, which always talks to Docker
                                   Desktop's \\.\pipe\docker_engine)
+      --runtime <docker|native>  Windows only: which engine to build with (default:
+                                  whatever `ebl setup` last configured, else native).
+                                  Elsewhere this is always "docker".
   -h, --help                     Show this help
 )";
 }
@@ -151,6 +158,7 @@ struct Options {
   std::string gradleCacheVolume = "expo-builder-local_gradle-cache";
   std::string npmCacheVolume = "expo-builder-local_npm-cache";
   std::string dockerSocket = "/var/run/docker.sock";
+  std::optional<std::string> runtime;
 };
 
 bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
@@ -186,6 +194,7 @@ bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
       if (arg == "--gradle-cache-volume") { opts.gradleCacheVolume = needValue(i, "--gradle-cache-volume"); continue; }
       if (arg == "--npm-cache-volume") { opts.npmCacheVolume = needValue(i, "--npm-cache-volume"); continue; }
       if (arg == "--docker-socket") { opts.dockerSocket = needValue(i, "--docker-socket"); continue; }
+      if (arg == "--runtime") { opts.runtime = needValue(i, "--runtime"); continue; }
       if (!arg.empty() && arg[0] == '-') {
         std::cerr << ebl::color::red("Unknown option: " + arg) << "\n";
         exitCode = 2;
@@ -314,6 +323,18 @@ int runBuild(int argc, char** argv) {
     std::cerr << ebl::color::red("Keystore not found: " + fs::absolute(*opts.keystore).string()) << "\n";
     return 2;
   }
+#ifndef _WIN32
+  if (opts.runtime && *opts.runtime == "native") {
+    std::cerr << ebl::color::red("Native mode is Windows-only — this platform only supports --runtime docker.")
+              << "\n";
+    return 2;
+  }
+  if (opts.runtime && *opts.runtime != "docker") {
+    std::cerr << ebl::color::red("--runtime must be \"docker\" on this platform, got \"" + *opts.runtime + "\"")
+              << "\n";
+    return 2;
+  }
+#endif
 
   std::string profile;
   if (opts.profile) {
@@ -398,6 +419,87 @@ int runBuild(int argc, char** argv) {
     params.keystore.keyAlias = opts.keyAlias.value_or("");
     params.keystore.keyPassword = opts.keyPassword.value_or(envOrNullopt("EXPO_BUILDER_KEY_PASSWORD").value_or(""));
   }
+
+#ifdef _WIN32
+  // Resolution order: explicit --runtime > previously saved choice > default
+  // ("native" — see ../CLAUDE.md's native-engine section). This whole branch is a
+  // self-contained early return specifically so the Docker path below it (the
+  // curl_global_init(...) block and everything after) stays byte-for-byte
+  // unchanged for anyone who picks --runtime docker or is on Linux/macOS, where
+  // none of this compiles at all.
+  std::string runtime = opts.runtime.value_or(savedConfig && !savedConfig->buildMode.empty()
+                                                   ? savedConfig->buildMode
+                                                   : "native");
+  if (runtime != "docker" && runtime != "native") {
+    std::cerr << ebl::color::red("--runtime must be \"docker\" or \"native\", got \"" + runtime + "\"") << "\n";
+    return 2;
+  }
+
+  if (runtime == "native") {
+    ebl::NativeToolchainConfig toolchain =
+        savedConfig ? savedConfig->nativeToolchain : ebl::NativeToolchainConfig{};
+    if (toolchain.jdkHome.empty() || toolchain.androidSdkRoot.empty() || toolchain.nodeHome.empty()) {
+      std::cerr << ebl::color::red("Native toolchain isn't set up yet — run `ebl setup --runtime native` first.")
+                << "\n";
+      return 1;
+    }
+
+    std::cout << "\n"
+              << ebl::color::bold("Building " + ebl::color::cyan(appPath.string())) << " "
+              << ebl::color::dim("(native — UNVERIFIED ON REAL WINDOWS HARDWARE)") << "\n";
+    std::cout << ebl::color::dim("  profile=" + profile + " artifact=" + artifact + " engine=" + opts.engine +
+                                  " signing=" + params.signingMode)
+              << "\n\n";
+
+    std::string resolvedEngine, artifactPath, errorMessage, buildNumber, residual;
+    auto onChunk = [&](const char* data, size_t len) {
+      std::cout.write(data, static_cast<std::streamsize>(len));
+      std::cout.flush();
+      residual.append(data, len);
+      size_t pos;
+      while ((pos = residual.find_first_of("\r\n")) != std::string::npos) {
+        std::string line = residual.substr(0, pos);
+        residual.erase(0, pos + 1);
+        if (line.rfind("@@ENGINE:", 0) == 0) resolvedEngine = line.substr(9);
+        else if (line.rfind("@@ARTIFACT:", 0) == 0) artifactPath = toHostArtifactPath(params.appPath, line.substr(11));
+        else if (line.rfind("@@ERROR:", 0) == 0) errorMessage = line.substr(8);
+        else if (line.rfind("@@BUILD_NUMBER:", 0) == 0) buildNumber = line.substr(15);
+      }
+    };
+
+    time_t startedAt = time(nullptr);
+    int exitStatus = ebl::runNativeBuild(params, toolchain, onChunk);
+    long durationSeconds = static_cast<long>(time(nullptr) - startedAt);
+
+    if (exitStatus == 0 && !artifactPath.empty()) {
+      ebl::ArtifactMetrics metrics = ebl::extractArtifactMetrics(params.appPath, artifactPath);
+      std::cout << "\n"
+                << ebl::color::green(ebl::color::bold("Build " + (buildNumber.empty() ? "" : "#" + buildNumber + " ") +
+                                                       "succeeded in " + formatDuration(durationSeconds)))
+                << "\n";
+      std::cout << "  " << ebl::color::dim("Artifact:") << "     " << artifactPath << "\n";
+      std::cout << "  " << ebl::color::dim("Size:") << "         " << formatBytes(metrics.sizeBytes) << "\n";
+      std::cout << "  " << ebl::color::dim("Version:") << "      "
+                << (metrics.versionName.empty() ? "?" : metrics.versionName);
+      if (!metrics.versionCode.empty()) std::cout << " (versionCode " << metrics.versionCode << ")";
+      std::cout << "\n";
+      if (!metrics.applicationId.empty())
+        std::cout << "  " << ebl::color::dim("Application:") << "  " << metrics.applicationId << "\n";
+      std::cout << "  " << ebl::color::dim("Engine:") << "       " << (resolvedEngine.empty() ? opts.engine : resolvedEngine)
+                << "\n";
+      if (!metrics.gitCommit.empty())
+        std::cout << "  " << ebl::color::dim("Git:") << "          " << metrics.gitBranch << "@" << metrics.gitCommit
+                  << "\n";
+      std::cout << "  " << ebl::color::dim("SHA-256:") << "      " << metrics.sha256 << "\n\n";
+      return 0;
+    }
+    std::cout << "\n" << ebl::color::red(ebl::color::bold("Build failed after " + formatDuration(durationSeconds))) << "\n";
+    if (!errorMessage.empty()) std::cout << "  " << errorMessage << "\n";
+    else std::cout << "  Build process exited with status " << exitStatus << "\n";
+    std::cout << "\n";
+    return 1;
+  }
+#endif
 
   curl_global_init(CURL_GLOBAL_DEFAULT);
   int result = 1;

@@ -79,18 +79,33 @@ expo-builder-local/
 │       ├── http_client_common.cpp      (httpGetTcp/urlEncode — plain TCP, shared by both)
 │       ├── winpath.*                   (Windows-only path→Docker-bind-mount translation,
 │       │                                 e.g. "D:\App" → "//d/App"; identity elsewhere)
+│       ├── native_process.*            (Windows-only: shared Job-Object-based process
+│       │                                 runner — wall-clock + idle-CPU timeouts —
+│       │                                 used by native_toolchain.* and native_build.*)
+│       ├── native_toolchain.*          (Windows-only: detects/provisions the native
+│       │                                 engine's JDK/Android SDK/Node — see the
+│       │                                 Native Windows build engine section below)
+│       ├── native_build.*              (Windows-only: the native engine itself — the
+│       │                                 direct analog of build-entrypoint.sh, see below)
 │       └── {docker_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
 └── windows/               ← Windows-specific packaging only — ebl.exe itself is just
                               `cli/` built for Windows (see above), not a separate binary
-    ├── install.ps1         (one-line installer: Docker Desktop presence check,
-    │                         downloads+extracts the ebl.exe + docker/runner/ release
-    │                         archive, puts ebl.exe's bin/ dir on PATH)
-    ├── uninstall.ps1
+    ├── install.ps1         (one-line installer: -Mode Native|Docker (default Native)
+    │                         — Docker Desktop presence check + WSL2 tuning in Docker
+    │                         mode only; downloads+extracts the ebl.exe release archive,
+    │                         puts ebl.exe's bin/ dir on PATH, then runs
+    │                         `ebl setup --runtime <Mode>` either way)
+    ├── uninstall.ps1       (always removes the install dir + PATH entry; interactively
+    │                         offers to also remove the native toolchain
+    │                         (%LOCALAPPDATA%\ebl\toolchain\...) and/or saved config
+    │                         (%APPDATA%\ebl) — skipped entirely with -Quiet, which is
+    │                         what the GUI uninstaller's hidden [UninstallRun] passes)
     └── installer/
         └── ebl.iss         (Inno Setup script → ebl-setup.exe; bundles the same
                               `cmake --install`ed bin/+share/ tree plus the two .ps1
-                              files above, and just runs install.ps1
-                              -LocalInstallDir — no separate install logic of its own)
+                              files above; its [Code] section adds a wizard page
+                              choosing Native vs Docker, threaded into install.ps1
+                              via -Mode — see GetInstallModeArg)
 ```
 
 ## 🖥️ CLI package (`cli/`)
@@ -154,7 +169,99 @@ Windows-only placeholder pending real-hardware verification: `commands/start.cpp
 `1000`/`1000` on Windows (no POSIX uid/gid to report) — this is what
 `docker/runner/build-entrypoint.sh`'s UID/GID re-homing step consumes, and the actual
 value Docker Desktop's file-sharing layer presents bind-mounted host files under
-hasn't been confirmed against a real install yet.
+hasn't been confirmed against a real install yet. (This placeholder is specific to
+Docker mode — the native engine below has no container/UID concept at all, so it
+sidesteps this whole class of problem entirely.)
+
+## 🪟 Native Windows build engine (Docker vs. Native)
+
+Windows is the only platform with two build engines, chosen via `--runtime`
+(`ebl setup --runtime <docker|native>`, `ebl build --runtime <docker|native>`) and
+persisted in `EblConfig::buildMode`. **Native is the Windows default** — installs
+the Android SDK/JDK/Node directly on the host instead of using Docker Desktop/WSL2
+at all, since that VM layer is the single biggest source of Windows friction (WSL2
+memory tuning, Docker Desktop licensing/install, crashed Engine API under memory
+pressure). Docker remains fully available and is what Linux/macOS always use — this
+whole section and everything it describes is **Windows-only**; on every other
+platform `buildMode` is always `"docker"` and none of this code even compiles
+(`native_process.cpp`/`native_toolchain.cpp`/`native_build.cpp` are only added to
+`cli/CMakeLists.txt`'s sources under `if(WIN32)`).
+
+**⚠️ UNVERIFIED ON REAL WINDOWS HARDWARE.** This entire subsystem was written with
+no Windows machine available to build or run it on — it compiles cleanly as part of
+the Windows-only CMake source list (never exercised, since this sandbox can't
+target Windows), the two `.ps1` scripts and the Inno Setup `[Code]` wizard page were
+checked with PowerShell's own parser (`[System.Management.Automation.Language.Parser]::ParseFile`)
+and reasoned through carefully against documented Win32/Inno Setup APIs, but none of
+it has actually run for real. Treat it the same as the `BUILD_UID`/`BUILD_GID`
+placeholder above: plausible and carefully reasoned, not proven. Report anything
+that doesn't work.
+
+- **`native_toolchain.*`** — `provisionNativeToolchain()`, called from
+  `commands/setup.cpp`'s `--runtime native` branch. Detects an existing JDK 17/
+  Android SDK/Node install first (env vars / `where node`) and reuses it untouched;
+  downloads anything missing into an ebl-owned, isolated
+  `%LOCALAPPDATA%\ebl\toolchain\{jdk17,android-sdk,node}` (JDK: Adoptium Temurin;
+  Android SDK: **same pinned versions as `docker/runner/Dockerfile`'s ARGs** — keep
+  both in sync if those ever change; Node: official nodejs.org zip, `kNodeVersion`
+  in `native_toolchain.cpp` is a hand-pinned snapshot to bump periodically, since
+  there's no rolling-LTS channel to point at the way the Dockerfile's
+  `setup_lts.x` has). Each component's `EblConfig::NativeToolchainConfig` flag
+  (`jdkInstalledByEbl` etc.) is per-component and load-bearing — it's what lets
+  `windows/uninstall.ps1` later remove exactly what ebl downloaded and never touch
+  something the user already had.
+- **`native_build.*`** — `runNativeBuild()`, the direct analog of
+  `docker/runner/build-entrypoint.sh`, called from `commands/build.cpp`'s
+  `--runtime native` branch instead of the whole `DockerClient` create/start/
+  attach/wait/remove sequence. Mirrors that script's phases, env-var contract, and
+  **byte-for-byte the same marker protocol** (`@@PHASE:`/`@@PROGRESS:`/`@@ENGINE:`/
+  `@@BUILD_NUMBER:`/`@@ARTIFACT:`/`@@DURATION:`/`@@ERROR:`) through the exact same
+  `onChunk` callback shape `DockerClient::attachAndStream` uses — this is what lets
+  `commands/build.cpp`'s existing marker-line parser and success/failure reporting
+  work completely unchanged regardless of which engine ran. Reuses
+  `docker/runner/scripts/patch-android-signing.js`/`write-eas-credentials.js`
+  **unmodified** (bundled to `share/expo-builder-local/native-scripts/` — see
+  `CMakeLists.txt`'s `NATIVE_SCRIPTS_SRC_DIR`/`resolveNativeScriptsDir()`) via the
+  provisioned/detected Node, rather than reimplementing Gradle-file patching in
+  C++. Two whole categories of the Docker path's complexity simply don't exist
+  here and were deliberately *not* ported: `docker-entrypoint.sh`'s UID/GID
+  re-homing, and the git `safe.directory` bind-mount-ownership workaround — both
+  are pure Docker/Linux-bind-mount artifacts, moot when the build runs as the real
+  invoking user directly against the real filesystem. **Known v1 simplification**:
+  Gradle runs with `--console=plain`, not `--console=rich` — no way to verify
+  ConPTY↔Gradle TTY detection from a non-Windows sandbox, so native builds only get
+  phase-level 0/100 progress, not Docker mode's live "NN% EXECUTING" bar.
+- **`native_process.*`** — shared by both of the above: `runProcessWithTimeout`
+  (flat wall-clock ceiling) and `runProcessWithIdleTimeout` (kills only if CPU time
+  hasn't advanced for N seconds *or* a hard ceiling is hit) — the Windows Job-Object
+  based analog of `build-entrypoint.sh`'s `timeout --foreground`/`run_with_idle_timeout`
+  pgrep+ps polling loop. A Job Object can `TerminateJobObject` an entire process
+  tree atomically, so — unlike the bash version's `kill_tree`, which has to signal
+  each descendant individually to avoid killing its own monitor loop via a shared
+  process group — there's no equivalent hazard to work around here.
+- If you add a new build phase/marker/env var to `build-entrypoint.sh`, this makes
+  **three** independent consumers to keep in sync by hand (was two): the GUI path
+  (`orchestrator/src/build/progress.ts`/`manager.ts`), the CLI's Docker path
+  (`commands/build.cpp`'s marker parser), and now `native_build.cpp`.
+- `windows/install.ps1`'s `-Mode Native|Docker` (default `Native`) and
+  `windows/installer/ebl.iss`'s `[Code]` wizard page (`GetInstallModeArg`) are the
+  two places a user actually picks a mode; both just end up calling
+  `ebl setup --runtime <mode>`, which is the only place that persists the choice
+  (`EblConfig::buildMode`) — there's no separate installer-side manifest file.
+  `windows/uninstall.ps1` reads that same `config.json` (via PowerShell's built-in
+  `ConvertFrom-Json`, no new dependency) to decide what it can safely offer to clean
+  up.
+
+## 🌿 Windows-branch workflow
+
+Windows-native-engine work (everything in the section above, plus the `windows/`
+packaging scripts) accumulates on a dedicated long-lived `windows` git branch, not
+`main` — check `git branch --show-current` before starting further work here.
+`ebl_landing_page/` and the root `README.md`/`docs/CHANGELOG.md` are **main-branch-
+deploy-authoritative**: the landing page only goes live from `main`, so doc/
+landing-page edits made on the `windows` branch are fine to include (keeps the
+branch mergeable/complete) but won't be live for real users until the branch is
+actually merged — don't treat them as already deployed.
 
 `attachAndStream` blocks on a libcurl call until the container's output stream closes
 — it runs on its own `std::thread` while the main thread starts/waits on the
@@ -227,11 +334,13 @@ are compatible, so tracking them separately would just invite drift.
   the identical host path.
 - `docker/runner/build-entrypoint.sh` emits a small marker protocol on stdout
   (`@@PHASE:`, `@@PROGRESS:`, `@@ENGINE:`, `@@BUILD_NUMBER:`, `@@ARTIFACT:`,
-  `@@ERROR:`) that both `orchestrator/src/build/progress.ts`/`manager.ts` (GUI path)
-  and `cli/src/commands/build.cpp` (CLI path) parse independently — if you add a new
-  build phase, marker, or change engine behavior, update **both** consumers, plus the
-  phase weight tables in `progress.ts` and the phase sequence in
-  `expo-builder-gui/components/BuildTimeline.tsx`.
+  `@@ERROR:`) parsed independently by `orchestrator/src/build/progress.ts`/
+  `manager.ts` (GUI path), `cli/src/commands/build.cpp`'s Docker-path parser (CLI
+  path), and — Windows-only — `cli/src/native_build.cpp`, which *emits* those same
+  markers itself rather than parsing them (see the Native Windows build engine
+  section above). If you add a new build phase, marker, or change engine behavior,
+  update all **three**, plus the phase weight tables in `progress.ts` and the phase
+  sequence in `expo-builder-gui/components/BuildTimeline.tsx`.
 - Every build's artifact lands in `<project>/ebl_builds/v<app-version>-build<n>/` —
   `n` comes from `ebl_builds/.build-counter`, a bare-integer file
   `build-entrypoint.sh` increments itself (not something either the CLI or the

@@ -120,6 +120,16 @@ std::optional<EblConfig> loadConfig() {
   cfg.orchestratorPort = static_cast<int>(root.get("orchestratorPort").asInt(cfg.orchestratorPort));
   cfg.webPort = static_cast<int>(root.get("webPort").asInt(cfg.webPort));
   cfg.setupCompletedAt = root.get("setupCompletedAt").asInt(0);
+  cfg.buildMode = root.get("buildMode").asString();
+  Json nativeToolchain = root.get("nativeToolchain");
+  if (nativeToolchain.isObject()) {
+    cfg.nativeToolchain.jdkHome = nativeToolchain.get("jdkHome").asString();
+    cfg.nativeToolchain.jdkInstalledByEbl = nativeToolchain.get("jdkInstalledByEbl").asBool(false);
+    cfg.nativeToolchain.androidSdkRoot = nativeToolchain.get("androidSdkRoot").asString();
+    cfg.nativeToolchain.androidSdkInstalledByEbl = nativeToolchain.get("androidSdkInstalledByEbl").asBool(false);
+    cfg.nativeToolchain.nodeHome = nativeToolchain.get("nodeHome").asString();
+    cfg.nativeToolchain.nodeInstalledByEbl = nativeToolchain.get("nodeInstalledByEbl").asBool(false);
+  }
 
   AesKey key = loadOrCreateMachineKey();
   std::string masterKeyEnc = root.get("masterKeyEnc").asString();
@@ -166,6 +176,17 @@ void saveConfig(EblConfig& config) {
   root.set("orchestratorPort", Json(config.orchestratorPort));
   root.set("webPort", Json(config.webPort));
   root.set("setupCompletedAt", Json(static_cast<double>(config.setupCompletedAt)));
+  if (!config.buildMode.empty()) root.set("buildMode", Json(config.buildMode));
+  {
+    Json nativeToolchain = Json::object();
+    nativeToolchain.set("jdkHome", Json(config.nativeToolchain.jdkHome));
+    nativeToolchain.set("jdkInstalledByEbl", Json(config.nativeToolchain.jdkInstalledByEbl));
+    nativeToolchain.set("androidSdkRoot", Json(config.nativeToolchain.androidSdkRoot));
+    nativeToolchain.set("androidSdkInstalledByEbl", Json(config.nativeToolchain.androidSdkInstalledByEbl));
+    nativeToolchain.set("nodeHome", Json(config.nativeToolchain.nodeHome));
+    nativeToolchain.set("nodeInstalledByEbl", Json(config.nativeToolchain.nodeInstalledByEbl));
+    root.set("nativeToolchain", nativeToolchain);
+  }
   root.set("masterKeyEnc", Json(aesEncrypt(config.masterKey, key)));
   if (!config.expoToken.empty()) root.set("expoTokenEnc", Json(aesEncrypt(config.expoToken, key)));
 
