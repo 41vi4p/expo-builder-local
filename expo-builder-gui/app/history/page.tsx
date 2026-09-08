@@ -87,10 +87,10 @@ export default function HistoryPage() {
                   <StatusPill status={b.status} />
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs text-text-dim">
-                  {b.durationSeconds != null ? `${b.durationSeconds}s` : "—"}
+                  {b.durationSeconds != null ? `${b.durationSeconds}s` : "-"}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs text-text-dim">
-                  {b.artifactSizeBytes != null ? formatBytes(b.artifactSizeBytes) : "—"}
+                  {b.artifactSizeBytes != null ? formatBytes(b.artifactSizeBytes) : "-"}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs text-text-dim">{formatDate(b.createdAt)}</td>
               </tr>

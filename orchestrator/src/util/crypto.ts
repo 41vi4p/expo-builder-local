@@ -5,7 +5,7 @@ import { config } from '../config';
  * AES-256-GCM at-rest encryption for keystore passwords. The master key is provided
  * once via MASTER_KEY (base64 or hex, 32 bytes) and never stored alongside the data.
  * Encrypted values are only ever decrypted in-memory, immediately before being passed
- * as an env var into a short-lived runner container — the API never returns them.
+ * as an env var into a short-lived runner container - the API never returns them.
  */
 
 function resolveKey(): Buffer {

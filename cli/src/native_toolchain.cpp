@@ -36,7 +36,7 @@ constexpr const char* kCmakeVersion = "3.22.1";
 
 // Node LTS is a rolling target in docker/runner/Dockerfile (NodeSource's
 // "setup_lts.x" always resolves to whatever's current). A native install has to
-// pin something concrete instead — this is a best-effort snapshot of a recent
+// pin something concrete instead - this is a best-effort snapshot of a recent
 // Node 22.x LTS point release (matching CLAUDE.md's "Node 22 LTS" baseline) and
 // should be bumped by hand periodically; it is not auto-resolved against
 // nodejs.org's "latest-lts" listing to avoid the added fragility of parsing a
@@ -56,7 +56,7 @@ std::string getEnvVar(const char* name) {
   return v ? std::string(v) : std::string();
 }
 
-/** CreateProcess cannot launch a .bat/.cmd file directly — only cmd.exe itself
+/** CreateProcess cannot launch a .bat/.cmd file directly - only cmd.exe itself
  * understands batch-file execution; CreateProcess needs a real PE image (.exe) as
  * its target, and sdkmanager ships only as sdkmanager.bat. Wraps an
  * already-correctly-quoted command line (e.g. `"C:\...\sdkmanager.bat" --licenses`)
@@ -65,18 +65,18 @@ std::string getEnvVar(const char* name) {
  * thing is one bare executable path" fast path (which `innerCommand` won't, since
  * it has 2+ quotes of its own plus arguments), cmd strips only the very first and
  * very last quote character and executes everything between them completely
- * unmodified — so one more wrapping quote pair here reproduces `innerCommand`
+ * unmodified - so one more wrapping quote pair here reproduces `innerCommand`
  * byte-for-byte on the other side. */
 std::string wrapCmdExe(const std::string& innerCommand) { return "cmd.exe /c \"" + innerCommand + "\""; }
 
 // One-line, in-place-redrawn (via \r, same idea as pull_progress.cpp's Docker-pull
 // renderer, just simpler since a toolchain download is always a single file, never
-// concurrent layers) progress bar — routed through the same `onLog` callback every
+// concurrent layers) progress bar - routed through the same `onLog` callback every
 // other status line already uses, so setup.cpp's caller (which just does
 // `std::cout << line << std::flush` per line) renders it correctly without needing
 // its own special case: intermediate updates carry no trailing '\n', the final one
 // does. Without this, a large JDK/SDK/Node download sat there with zero visible
-// feedback for however long it took — indistinguishable from having hung.
+// feedback for however long it took - indistinguishable from having hung.
 struct DownloadProgress {
   const std::function<void(const std::string&)>& onLog;
   bool isTty;
@@ -121,7 +121,7 @@ int curlProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, cu
   return 0;
 }
 
-/** Downloads `url` to `destPath` via libcurl (already linked — find_package(CURL
+/** Downloads `url` to `destPath` via libcurl (already linked - find_package(CURL
  * REQUIRED) in CMakeLists.txt). Follows redirects (Adoptium/nodejs.org both
  * redirect to a CDN), fails on HTTP error status rather than writing an error page
  * to the file, verifies TLS normally (no verification is disabled here), and
@@ -169,16 +169,16 @@ void downloadFile(const std::string& url, const std::string& destPath,
   }
 }
 
-/** Extracts a zip via PowerShell's Expand-Archive — the same tool
- * windows/install.ps1 already uses for the CLI's own release zip — rather than
+/** Extracts a zip via PowerShell's Expand-Archive - the same tool
+ * windows/install.ps1 already uses for the CLI's own release zip - rather than
  * adding a new C++ zip-library dependency just for this.
  *
  * Expand-Archive prints nothing at all by default, so a large JDK/Android-SDK zip
  * (tens of seconds to extract) looked *identical* to a hang once the preceding
- * download's progress bar hit 100% — a real install first surfaced exactly that
+ * download's progress bar hit 100% - a real install first surfaced exactly that
  * ("no output... feels like it got stuck"). Runs the extraction on its own thread
  * so the calling thread can render a simple elapsed-time heartbeat in the
- * meantime — not real byte-level progress (Expand-Archive doesn't report any),
+ * meantime - not real byte-level progress (Expand-Archive doesn't report any),
  * but enough to show it's still alive. */
 void extractZip(const std::string& zipPath, const std::string& destDir,
                  const std::function<void(const std::string&)>& onLog) {
@@ -211,7 +211,7 @@ void extractZip(const std::string& zipPath, const std::string& destDir,
   worker.join();
   if (isTty) onLog("\n");
   // Expand-Archive is normally silent, but forward anything it did print (e.g. an
-  // error) — buffered until here rather than streamed live from the worker thread,
+  // error) - buffered until here rather than streamed live from the worker thread,
   // since onLog isn't safe to call concurrently from two threads at once (the
   // heartbeat above and this).
   if (!capturedOutput.empty()) onLog(capturedOutput);
@@ -226,10 +226,10 @@ void extractZip(const std::string& zipPath, const std::string& destDir,
 std::string detectExistingJdk17() {
   std::string javaHome = getEnvVar("JAVA_HOME");
   if (!javaHome.empty() && fs::exists(fs::path(javaHome) / "bin" / "javac.exe")) {
-    // Best-effort version check only — if javac exists under JAVA_HOME at all,
+    // Best-effort version check only - if javac exists under JAVA_HOME at all,
     // assume it's usable rather than parsing `javac -version`'s stdout (which
     // Java has, at various points, written to stderr instead depending on
-    // version — not worth the fragility for a detect-and-reuse heuristic).
+    // version - not worth the fragility for a detect-and-reuse heuristic).
     return javaHome;
   }
   return "";
@@ -242,13 +242,13 @@ std::string ensureJdk(NativeToolchainConfig& toolchain, const std::function<void
   }
 
   if (std::string existing = detectExistingJdk17(); !existing.empty()) {
-    onLog("Found an existing JDK at " + existing + " (JAVA_HOME) — reusing it.\n");
+    onLog("Found an existing JDK at " + existing + " (JAVA_HOME) - reusing it.\n");
     toolchain.jdkHome = existing;
     toolchain.jdkInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No JDK 17 found — downloading Eclipse Temurin 17 (Adoptium)...\n");
+  onLog("No JDK 17 found - downloading Eclipse Temurin 17 (Adoptium)...\n");
   std::string root = toolchainRoot();
   std::string zipPath = root + "\\jdk17.zip";
   std::string extractDir = root + "\\jdk17";
@@ -294,13 +294,13 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
   }
 
   if (std::string existing = detectExistingAndroidSdk(); !existing.empty()) {
-    onLog("Found an existing Android SDK at " + existing + " — reusing it (won't touch its packages).\n");
+    onLog("Found an existing Android SDK at " + existing + " - reusing it (won't touch its packages).\n");
     toolchain.androidSdkRoot = existing;
     toolchain.androidSdkInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No Android SDK found — downloading the command-line tools...\n");
+  onLog("No Android SDK found - downloading the command-line tools...\n");
   std::string root = toolchainRoot();
   std::string sdkRoot = root + "\\android-sdk";
   std::string zipPath = root + "\\cmdline-tools.zip";
@@ -311,11 +311,20 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
   extractZip(zipPath, extractDir, onLog);
   fs::remove(zipPath);
 
-  // sdkmanager expects <sdkRoot>/cmdline-tools/latest/bin/sdkmanager.bat — the zip
+  // sdkmanager expects <sdkRoot>/cmdline-tools/latest/bin/sdkmanager.bat - the zip
   // extracts a top-level "cmdline-tools/" directory, so move its contents into the
   // "latest" subdirectory sdkmanager itself expects to find its own tools under.
   fs::path latestDir = fs::path(sdkRoot) / "cmdline-tools" / "latest";
   fs::create_directories(latestDir.parent_path());
+  // Windows' rename (MoveFileExW under the hood) refuses to replace an existing
+  // directory at the destination - MOVEFILE_REPLACE_EXISTING is documented as not
+  // supported when either path names a directory, and surfaces as a plain "Access
+  // is denied" with no hint why. A previous run that got this far before failing
+  // later (a real, confirmed failure mode - see ../CLAUDE.md's native-engine
+  // section on incremental config saves) leaves exactly that kind of leftover
+  // here; clear it first so a retry can't collide with its own prior output.
+  std::error_code staleEc;
+  fs::remove_all(latestDir, staleEc);
   fs::rename(fs::path(extractDir) / "cmdline-tools", latestDir);
   fs::remove_all(extractDir);
 
@@ -326,12 +335,12 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
   onLog("Accepting Android SDK licenses...\n");
   // Feeding "y" via a dedicated stdin pipe (not a cmd.exe "echo y | ..." trick, and
   // not this process's own inherited console stdin) matters here specifically:
-  // sdkmanager is a Java tool, and System.console() — which some interactive
-  // prompts read from instead of System.in — only returns non-null when stdin is a
+  // sdkmanager is a Java tool, and System.console() - which some interactive
+  // prompts read from instead of System.in - only returns non-null when stdin is a
   // real, unredirected console. A genuinely separate pipe forces it to fall back to
   // System.in, which reliably sees these answers; inheriting the real console
   // (the previous approach) let sdkmanager bind straight to it and prompt directly,
-  // unanswerably, past whatever a shell-level pipe trick tried to feed it — exactly
+  // unanswerably, past whatever a shell-level pipe trick tried to feed it - exactly
   // what a real install first surfaced (a Y/N prompt with no way to answer it).
   std::string yesAnswers;
   for (int i = 0; i < 20; i++) yesAnswers += "y\n";
@@ -362,7 +371,7 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
 
 std::string detectExistingNode() {
   // A simple PATH-based check: `where node` (no timeout wrapper needed, this is a
-  // sub-second lookup) — reusing runProcessWithTimeout with a short ceiling keeps
+  // sub-second lookup) - reusing runProcessWithTimeout with a short ceiling keeps
   // this consistent with every other subprocess call in this file rather than
   // introducing a second ad hoc process-spawning path.
   std::string output;
@@ -383,13 +392,13 @@ std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<voi
   }
 
   if (std::string existing = detectExistingNode(); !existing.empty()) {
-    onLog("Found an existing Node install at " + existing + " — reusing it.\n");
+    onLog("Found an existing Node install at " + existing + " - reusing it.\n");
     toolchain.nodeHome = existing;
     toolchain.nodeInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No Node install found — downloading Node " + std::string(kNodeVersion) + "...\n");
+  onLog("No Node install found - downloading Node " + std::string(kNodeVersion) + "...\n");
   std::string root = toolchainRoot();
   std::string zipPath = root + "\\node.zip";
   std::string extractDir = root + "\\node-tmp";
@@ -399,7 +408,7 @@ std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<voi
   fs::remove(zipPath);
 
   // The zip's single top-level directory (e.g. "node-v22.11.0-win-x64") becomes
-  // the final node install dir directly — no separate "tools" subdirectory the
+  // the final node install dir directly - no separate "tools" subdirectory the
   // way the JDK/Android SDK need, Node's own zip layout is already flat/portable.
   std::string nodeHome = root + "\\node";
   fs::path extracted;
@@ -418,7 +427,7 @@ std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<voi
   // -g *and* --prefix together is the documented way to get npm's normal
   // global-style layout (a runnable "eas.cmd" shim directly under the prefix
   // dir, not buried in node_modules/.bin) rooted at a custom directory instead
-  // of the real global npm prefix — see native_build.cpp's kEasCmdRelativePath.
+  // of the real global npm prefix - see native_build.cpp's kEasCmdRelativePath.
   std::string npmCmd =
       "\"" + nodeHome + "\\npm.cmd\" install -g eas-cli --prefix \"" + nodeHome + "\\node-tools\"";
   std::vector<std::string> env = {"PATH=" + nodeHome + ";" + getEnvVar("PATH")};
@@ -436,11 +445,15 @@ std::string ensureNode(NativeToolchainConfig& toolchain, const std::function<voi
 
 }  // namespace
 
-void provisionNativeToolchain(NativeToolchainConfig& toolchain, const std::function<void(const std::string&)>& onLog) {
+void provisionNativeToolchain(NativeToolchainConfig& toolchain, const std::function<void(const std::string&)>& onLog,
+                               const std::function<void()>& onComponentDone) {
   fs::create_directories(toolchainRoot());
   std::string jdkHome = ensureJdk(toolchain, onLog);
+  if (onComponentDone) onComponentDone();
   ensureAndroidSdk(toolchain, jdkHome, onLog);
+  if (onComponentDone) onComponentDone();
   ensureNode(toolchain, onLog);
+  if (onComponentDone) onComponentDone();
 }
 
 }  // namespace ebl

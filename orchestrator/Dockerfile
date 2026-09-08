@@ -25,7 +25,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apk upgrade --no-cache
 # `git` is used (best-effort, non-fatal if absent) to attach commit/branch metadata to
-# each build's metrics; `docker-cli` is NOT needed — we talk to the daemon over the
+# each build's metrics; `docker-cli` is NOT needed - we talk to the daemon over the
 # mounted socket via dockerode, not the CLI.
 RUN apk add --no-cache git
 COPY package.json package-lock.json* ./

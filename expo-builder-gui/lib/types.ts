@@ -1,4 +1,4 @@
-// Mirrors orchestrator/src/types.ts — kept as a plain duplicate rather than a shared
+// Mirrors orchestrator/src/types.ts - kept as a plain duplicate rather than a shared
 // package since the two services deploy independently; if you change one, change both.
 
 export type ArtifactType = "apk" | "aab";
@@ -73,7 +73,7 @@ export interface KeystoreRecord {
   createdAt: number;
 }
 
-/** A saved Expo access token for one EAS account ("owner" — app.json's `expo.owner`
+/** A saved Expo access token for one EAS account ("owner" - app.json's `expo.owner`
  * slug). owner: "" is the default/fallback entry used when a project has no `owner`
  * field, or no entry matches the owner it does declare. */
 export interface ExpoTokenRecord {

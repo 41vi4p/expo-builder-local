@@ -17,7 +17,7 @@ class PullProgressRenderer {
    * Downloaded newer image for ..."), which is always printed as its own line and
    * never redrawn in place. progress: a pre-rendered bar string (e.g.
    * "[==>       ]  1.2MB/5MB"), synthesized by DockerClient::pullImage from the
-   * daemon's raw progressDetail byte counts — may be empty. */
+   * daemon's raw progressDetail byte counts - may be empty. */
   void onEvent(const std::string& id, const std::string& status, const std::string& progress);
 
  private:

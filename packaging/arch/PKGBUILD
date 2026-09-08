@@ -3,7 +3,7 @@
 # Builds the `ebl` CLI from source against the distro's own curl/openssl, so there's
 # no prebuilt-binary ABI mismatch risk the way there would be shipping the .deb's
 # ubuntu:24.04-linked binary here (see ../../cli/CMakeLists.txt and
-# ../../docs/RELEASING.md). Not (yet) published to the AUR — see
+# ../../docs/RELEASING.md). Not (yet) published to the AUR - see
 # ../../CLAUDE.md#-version-management for why pkgver here is bumped by hand in step
 # with the other four version fields, and ../../docs/RELEASING.md for the sha256sums
 # note below. Usable right now either via `makepkg -si` directly in this directory,
@@ -16,7 +16,7 @@ pkgver=0.16.3
 pkgrel=1
 pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
 # Matches every other release artifact in this repo (CI, the .deb, the Windows
-# build) — all x86_64-only for now (see install.sh's own uname -m check).
+# build) - all x86_64-only for now (see install.sh's own uname -m check).
 arch=('x86_64')
 url="https://github.com/41vi4p/expo-builder-local"
 license=('GPL3')
@@ -25,9 +25,9 @@ makedepends=('cmake')
 optdepends=('docker: required at runtime to actually run builds')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # Real checksum of the tag archive, computed by hand after tagging (there's no
-# per-release AUR-publishing step to do it automatically yet — see
+# per-release AUR-publishing step to do it automatically yet - see
 # ../../docs/RELEASING.md). Reset to SKIP here because pkgver just moved to
-# 0.14.1 and that tag doesn't exist yet — recompute once it's tagged/released,
+# 0.14.1 and that tag doesn't exist yet - recompute once it's tagged/released,
 # following ../../docs/RELEASING.md's "Arch Linux packaging" section. If this step
 # ever gets missed for an actual release, leave it as SKIP rather than ship a
 # stale/wrong checksum, which would make makepkg refuse to build entirely.

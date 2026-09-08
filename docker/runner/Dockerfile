@@ -4,7 +4,7 @@
 # into a signed Android APK/AAB, either via `eas build --local` or `expo prebuild` + Gradle.
 #
 # This image is built once (`make build-image` / `docker compose build runner`) and is
-# NOT run as a long-lived service — the orchestrator spawns a fresh, disposable container
+# NOT run as a long-lived service - the orchestrator spawns a fresh, disposable container
 # from it for every build (see orchestrator/src/docker/runner.ts).
 
 FROM ubuntu:24.04 AS base
@@ -30,15 +30,15 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
       python3 file gosu openjdk-17-jdk-headless procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Docker Desktop for Windows' bind-mount layer doesn't map host ownership at all —
+# Docker Desktop for Windows' bind-mount layer doesn't map host ownership at all -
 # every bind-mounted file shows up root-owned inside the container regardless of
 # BUILD_UID (see docker-entrypoint.sh's re-homing comment), which trips git's
 # post-CVE-2022-24765 "dubious ownership" check the moment anything treats the
-# mounted app dir as a repo — including `eas build --local`'s own internal
+# mounted app dir as a repo - including `eas build --local`'s own internal
 # `git clone file:///work/app ...` snapshot step, which spawns git in an environment
 # that doesn't necessarily inherit build-entrypoint.sh's `--global` safe.directory
 # exception. `--system` writes to /etc/gitconfig (root-owned, world-readable) so it
-# applies regardless of which user or HOME the eas-cli subprocess ends up using —
+# applies regardless of which user or HOME the eas-cli subprocess ends up using -
 # must be set here (build time, still root) since build-entrypoint.sh already runs
 # as the non-root `builder` user by the time it executes. No-op on native Linux
 # bind mounts, which already preserve real host ownership and never hit this check.
@@ -53,7 +53,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
 # when *this* layer actually rebuilds. Without EAS_CLI_CACHE_BUST changing, Docker's
 # build cache (including docker-publish.yml's GHA cache-from/cache-to, which persists
 # across separate CI runs, unlike a plain local build cache) would keep reusing
-# whatever version resolved the very first time this layer was built — silently
+# whatever version resolved the very first time this layer was built - silently
 # stale on every later publish, not just a one-time snapshot problem. CI passes a
 # fresh value on every release (see docker-publish.yml); local dev builds
 # (Makefile/docker-compose) don't, so they keep normal layer-cache reuse for fast
@@ -88,7 +88,7 @@ RUN yes | sdkmanager --licenses >/dev/null \
 # not root. We create a default "builder" user here; docker-entrypoint.sh re-homes it via
 # gosu if the runtime UID/GID differ.
 # Recent ubuntu:24.04 point releases ship a default non-root "ubuntu" user/group
-# already occupying UID/GID 1000 — remove it first (no-op on older base images that
+# already occupying UID/GID 1000 - remove it first (no-op on older base images that
 # don't have it) so our own UID/GID-1000 "builder" user can be created either way.
 RUN (id -u ubuntu >/dev/null 2>&1 && userdel -r ubuntu || true) \
     && (getent group ubuntu >/dev/null 2>&1 && groupdel ubuntu || true) \

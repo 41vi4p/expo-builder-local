@@ -98,7 +98,7 @@ export default function DirectoryBrowser({
                 {project.androidPackage && <> · {project.androidPackage}</>}
               </div>
               {!project.hasEnvFile && (
-                <div className="font-mono text-xs text-accent">No .env found — build may be missing config</div>
+                <div className="font-mono text-xs text-accent">No .env found - build may be missing config</div>
               )}
               <button
                 onClick={() => path && onSelect(path, project)}

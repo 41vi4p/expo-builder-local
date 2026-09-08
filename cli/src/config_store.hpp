@@ -1,9 +1,9 @@
 #pragma once
-// Local, persisted CLI configuration — the result of `ebl config` — read by `ebl
+// Local, persisted CLI configuration - the result of `ebl config` - read by `ebl
 // start` (and consulted by `ebl setup`). Lives at ~/.config/ebl/config.json (0600),
 // with the Expo token and the orchestrator's generated MASTER_KEY encrypted at rest
 // using a machine-local key at ~/.config/ebl/machine.key (0600, generated on first
-// use) — see crypto.hpp. Neither file is ever meant to leave this machine.
+// use) - see crypto.hpp. Neither file is ever meant to leave this machine.
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -12,7 +12,7 @@
 namespace ebl {
 
 /** A saved token for one EAS account (app.json's `expo.owner` slug, e.g.
- * "project-cell"). `owner` is never empty here — the single unscoped fallback lives
+ * "project-cell"). `owner` is never empty here - the single unscoped fallback lives
  * in EblConfig::expoToken instead, so there's exactly one place a "no owner
  * matched" token comes from. */
 struct ExpoTokenEntry {
@@ -21,10 +21,10 @@ struct ExpoTokenEntry {
 };
 
 /** Windows-only native build engine's provisioned toolchain (see
- * cli/src/native_toolchain.hpp) — installs the Android SDK/JDK/Node directly on the
+ * cli/src/native_toolchain.hpp) - installs the Android SDK/JDK/Node directly on the
  * host instead of using a Docker container. Each *InstalledByEbl flag is per
  * component, not a single global one, because `ebl setup --runtime native` prefers
- * an already-installed toolchain component over downloading its own copy — only the
+ * an already-installed toolchain component over downloading its own copy - only the
  * components it actually downloaded should ever be removed by an uninstall/cleanup,
  * never something the user already had (e.g. an existing Android Studio SDK). */
 struct NativeToolchainConfig {
@@ -46,13 +46,13 @@ struct EblConfig {
   int64_t setupCompletedAt = 0;  // 0 = setup has never completed
 
   // Windows-only: "docker" or "native" (see ../CLAUDE.md's native-engine section).
-  // Empty means "never chosen yet" — `ebl setup`/`ebl build` default it to "native"
+  // Empty means "never chosen yet" - `ebl setup`/`ebl build` default it to "native"
   // on Windows the first time, "docker" everywhere else (the only valid value on
-  // non-Windows). Not encrypted — no secret material, same as runnerImage() etc.
+  // non-Windows). Not encrypted - no secret material, same as runnerImage() etc.
   std::string buildMode;
   NativeToolchainConfig nativeToolchain;
 
-  // All three always come from the canonical upstream account — this used to be
+  // All three always come from the canonical upstream account - this used to be
   // configurable (a "Docker Hub namespace" field/prompt in `ebl config`), but that
   // was removed: nobody actually needs to point this at a different account, and
   // it just added an unused prompt to the setup wizard. Hardcode a new
@@ -63,7 +63,7 @@ struct EblConfig {
   std::string webImage() const { return "41vi4p/expo-builder-local-web:latest"; }
 
   /** Resolves the token to use for a project whose app.json declares `owner`
-   * (empty string if it doesn't declare one) — an exact owner match wins, otherwise
+   * (empty string if it doesn't declare one) - an exact owner match wins, otherwise
    * falls back to the single default `expoToken`. */
   std::string expoTokenFor(const std::string& owner) const {
     if (!owner.empty()) {

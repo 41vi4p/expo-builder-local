@@ -11,7 +11,7 @@ export default function CodeBlock({ code, label }: { code: string; label?: strin
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Clipboard API unavailable (e.g. insecure context) — nothing to fall back to
+      // Clipboard API unavailable (e.g. insecure context) - nothing to fall back to
       // gracefully; the code is still selectable/visible.
     }
   }

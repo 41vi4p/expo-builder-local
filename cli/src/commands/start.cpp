@@ -32,7 +32,7 @@ void printStartUsageImpl() {
 
 Starts the orchestrator + web GUI as Docker containers (pulling their images if
 needed, or prompting to check for a newer one if already cached) using the settings
-saved by `ebl config`. No git checkout or docker-compose.yml required — this drives
+saved by `ebl config`. No git checkout or docker-compose.yml required - this drives
 the containers directly.
 
 Options:
@@ -51,8 +51,8 @@ Options:
 )";
 }
 
-/** Pulls an image if it isn't already present locally — no prompt, nothing running
- * yet to disrupt. Unlike the runner image, there's no local-build fallback here —
+/** Pulls an image if it isn't already present locally - no prompt, nothing running
+ * yet to disrupt. Unlike the runner image, there's no local-build fallback here -
  * the orchestrator/web images are meant to be pre-built and published; before
  * they're published, build them from this repo checkout (`docker compose build`)
  * so they exist locally for `ebl start` to find.
@@ -60,7 +60,7 @@ Options:
  * If a cached image is already present, asks first instead of pulling
  * unconditionally: `ebl start` always tears down and recreates its containers
  * (createServiceContainer removes any same-named container before creating), so a
- * newer image takes effect immediately on this same run — worth confirming before
+ * newer image takes effect immediately on this same run - worth confirming before
  * spending the time/bandwidth on every single `ebl start`, unlike `ebl build`'s
  * always-pull (a fresh disposable container either way, nothing to disrupt).
  * Defaults to yes on Enter/non-interactive stdin (EOF), so scripted use still gets
@@ -71,7 +71,7 @@ void ensureServiceImage(ebl::DockerClient& docker, const std::string& tag, const
     std::string answer =
         ebl::promptString("Check for a newer " + std::string(friendlyName) + " image (" + tag + ")?", "y");
     if (!answer.empty() && answer[0] != 'y' && answer[0] != 'Y') {
-      std::cout << ebl::color::dim("Skipping update check — using the cached " + std::string(friendlyName) +
+      std::cout << ebl::color::dim("Skipping update check - using the cached " + std::string(friendlyName) +
                                     " image.")
                 << "\n";
       return;
@@ -88,11 +88,11 @@ void ensureServiceImage(ebl::DockerClient& docker, const std::string& tag, const
     });
   } catch (const std::exception& e) {
     // A cached image to fall back to turns a failed check into a soft warning; with
-    // no cache yet (first-time pull), the same failure is fatal — same as before
-    // this function could prompt at all — so rethrow and let runStart's outer catch
+    // no cache yet (first-time pull), the same failure is fatal - same as before
+    // this function could prompt at all - so rethrow and let runStart's outer catch
     // report it.
     if (!cachedLocally) throw;
-    std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") — using the cached " +
+    std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") - using the cached " +
                                   friendlyName + " image.")
               << "\n";
   }
@@ -153,13 +153,13 @@ int runStart(int argc, char** argv) {
     // Same path on both sides: the orchestrator talks to the *host* Docker daemon
     // over the mounted socket (a sibling container, not a nested one), so any path
     // it hands to the daemon for a build container's bind mount must already be a
-    // real host path — not remapped inside this container. toDockerBindPath() is
+    // real host path - not remapped inside this container. toDockerBindPath() is
     // the identity function on non-Windows; on Windows it turns "D:\Projects" into
-    // "//d/Projects" — a form Linux (inside the orchestrator container) still
+    // "//d/Projects" - a form Linux (inside the orchestrator container) still
     // accepts as an ordinary absolute mount destination, so the "same path both
     // sides" trick still holds and the orchestrator ends up seeing/emitting paths
     // already in the form the daemon needs for build-container binds too. Note:
-    // this only covers the *native ebl.exe* side of that bind string — the
+    // this only covers the *native ebl.exe* side of that bind string - the
     // orchestrator itself (orchestrator/src, a separate Node/TS codebase) must
     // independently be Windows-path-aware for anything it does beyond relaying
     // this same string; not addressed by this CLI-side change.
@@ -185,7 +185,7 @@ int runStart(int argc, char** argv) {
         // Windows has no POSIX uid/gid to report. Docker Desktop's file-sharing
         // layer presents bind-mounted host files inside its Linux VM under a
         // fixed synthetic UID/GID (commonly 1000:1000) regardless of the real
-        // Windows account — this is a placeholder pending verification against a
+        // Windows account - this is a placeholder pending verification against a
         // real Docker Desktop instance (see expo-builder-local/CLAUDE.md /
         // docker/runner/build-entrypoint.sh's UID/GID re-homing step, which is
         // what actually consumes this value).

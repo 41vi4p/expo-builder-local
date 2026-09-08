@@ -1,14 +1,14 @@
 name: Build and publish APT repository
 
 # Builds the `ebl` .deb inside a pinned ubuntu:24.04 container (matching the host
-# this was validated against locally — see cli/CMakeLists.txt for the CPack DEB
+# this was validated against locally - see cli/CMakeLists.txt for the CPack DEB
 # config), assembles a signed APT repository tree, and publishes it to the gh-pages
 # branch under /apt so `apt install ebl` works from
 # https://41vi4p.github.io/expo-builder-local/apt. Also attaches the same .deb (plus
 # a plain tarball for install.sh) to a GitHub Release as a direct-download fallback.
 # A second job (windows-build-and-publish) then builds cli/ natively for Windows
 # (MSVC + vcpkg for curl/OpenSSL) and the Inno Setup installer (windows/installer),
-# and attaches both to the same release — see windows/install.ps1's header comment
+# and attaches both to the same release - see windows/install.ps1's header comment
 # for what those are.
 #
 # Requires (set up once via docs/APT_REPO_SETUP_GUIDE.md, not by this workflow):
@@ -52,13 +52,13 @@ jobs:
         run: |
           set -e
           # Bind-mounted at the SAME absolute path inside the container as outside it
-          # (not /repo) — CMake bakes absolute paths into the generated
+          # (not /repo) - CMake bakes absolute paths into the generated
           # cmake_install.cmake at configure time, and the next step runs `cmake
           # --install` on this same build/ directory *outside* the container, on the
           # bare runner. A different mount path here would make that install script
           # reference paths that don't exist outside the container.
           # The container runs as root (needed for apt-get), so everything it writes
-          # into the bind-mounted build/ dir is root-owned on the host too — the next
+          # into the bind-mounted build/ dir is root-owned on the host too - the next
           # step (`cmake --install`) runs as the unprivileged runner user, so we chown
           # the output back before the container exits, while we still can.
           docker run --rm -v "$PWD":"$PWD" -w "$PWD/cli" \
@@ -138,8 +138,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -e
-          # docs/CHANGELOG.md entries look like "## v0.16.3 — Title" (see
-          # ../CLAUDE.md's changelog entry format) — pull out just the block for
+          # docs/CHANGELOG.md entries look like "## v0.16.3 - Title" (see
+          # ../CLAUDE.md's changelog entry format) - pull out just the block for
           # this tag: from its own "## vX.Y.Z " heading up to (not including) the
           # next "## " heading, or EOF if this is the most recent entry.
           awk -v want="## ${GITHUB_REF_NAME} " '
@@ -149,7 +149,7 @@ jobs:
           ' docs/CHANGELOG.md > /tmp/release-notes.md
 
           if [ ! -s /tmp/release-notes.md ]; then
-            echo "::warning::No docs/CHANGELOG.md entry found for ${GITHUB_REF_NAME} — falling back to a generated summary."
+            echo "::warning::No docs/CHANGELOG.md entry found for ${GITHUB_REF_NAME} - falling back to a generated summary."
             gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
               -f tag_name="${GITHUB_REF_NAME}" -q .body > /tmp/release-notes.md
           else
@@ -178,10 +178,10 @@ jobs:
             SHA256SUMS.txt
 
   windows-build-and-publish:
-    # Runs after build-and-publish so the release already exists — this job only
+    # Runs after build-and-publish so the release already exists - this job only
     # attaches the Windows artifacts to it via `gh release upload`, it doesn't
     # create the release itself. ebl.exe here is cli/ built natively for Windows
-    # (same source every other platform uses — see windows/install.ps1's header);
+    # (same source every other platform uses - see windows/install.ps1's header);
     # ebl-setup-<version>.exe wraps that same build in an Inno Setup GUI installer.
     needs: build-and-publish
     if: startsWith(github.ref, 'refs/tags/')
@@ -213,7 +213,7 @@ jobs:
       - name: Build
         run: cmake --build cli\build --config Release
 
-      - name: Install (bin/ + share/ tree — same layout the .deb uses, see runner_context.cpp)
+      - name: Install (bin/ + share/ tree - same layout the .deb uses, see runner_context.cpp)
         run: cmake --install cli\build --config Release --prefix cli\build\install
 
       - name: Package the direct-download zip

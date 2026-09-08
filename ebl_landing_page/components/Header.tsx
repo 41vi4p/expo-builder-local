@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import ThemeToggle from "./ThemeToggle";
 // Plain <img>, not next/image: a small static icon doesn't need Next's on-request
-// image optimization pipeline, which shells out to sharp at request time — simplest
+// image optimization pipeline, which shells out to sharp at request time - simplest
 // to just not exercise that code path at all for a fixed-size logo.
 
 const REPO_URL = "https://github.com/41vi4p/expo-builder-local";

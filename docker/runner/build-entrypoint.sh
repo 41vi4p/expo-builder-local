@@ -14,7 +14,7 @@
 #   @@ERROR:<message>          fatal error, human-readable
 #
 # Everything else on stdout/stderr is treated as raw log output and streamed
-# verbatim (after redaction — see orchestrator/src/util/redact.ts) to the GUI.
+# verbatim (after redaction - see orchestrator/src/util/redact.ts) to the GUI.
 
 set -eo pipefail
 
@@ -24,31 +24,31 @@ set -eo pipefail
 : "${ENGINE:=auto}"           # auto | eas | gradle
 : "${SIGNING_MODE:=debug}"    # debug | release
 # Bounded time budgets for every step that talks to a registry, a daemon, or does
-# real dependency/native-toolchain work — none of these should ever be able to hang
+# real dependency/native-toolchain work - none of these should ever be able to hang
 # a build forever. `npm ci` in particular is known to hang (rather than fail fast,
-# the way `npm install` does) when it needs to fall into live resolution — e.g. a
+# the way `npm install` does) when it needs to fall into live resolution - e.g. a
 # lock file that's drifted out of sync with package.json alongside a real
-# peer-dependency conflict — so its own fallback to `npm install` below is useless
+# peer-dependency conflict - so its own fallback to `npm install` below is useless
 # without a timeout forcing the handoff. All overridable via env for unusually large
 # projects or slow links.
-: "${INSTALL_TIMEOUT:=300}"          # npm ci — 5 min
-: "${INSTALL_FALLBACK_TIMEOUT:=600}" # npm install (fallback / no lock file) — 10 min
-: "${PREBUILD_TIMEOUT:=300}"         # expo prebuild — 5 min
+: "${INSTALL_TIMEOUT:=300}"          # npm ci - 5 min
+: "${INSTALL_FALLBACK_TIMEOUT:=600}" # npm install (fallback / no lock file) - 10 min
+: "${PREBUILD_TIMEOUT:=300}"         # expo prebuild - 5 min
 # EAS_BUILD_TIMEOUT/GRADLE_TIMEOUT are now an outer safety-net ceiling, not the
-# primary control — see run_with_idle_timeout below. A cold, multi-ABI native
+# primary control - see run_with_idle_timeout below. A cold, multi-ABI native
 # build (several C++ modules like react-native-worklets/react-native-screens
 # compiling for arm64-v8a/armeabi-v7a/x86/x86_64 with no warm Gradle cache) can
 # legitimately run well past the old 40-minute flat cap while still actively
-# compiling — that used to get killed here even though it was making real
+# compiling - that used to get killed here even though it was making real
 # progress. 2h is just the "something is truly runaway" backstop now; the
 # *_IDLE_TIMEOUT values below are what actually decides "stalled".
-: "${EAS_BUILD_TIMEOUT:=7200}"       # eas build --local — 2h hard ceiling
-: "${GRADLE_TIMEOUT:=7200}"          # gradlew assemble/bundleRelease — 2h hard ceiling
-: "${EAS_BUILD_IDLE_TIMEOUT:=600}"   # eas build --local — kill if no CPU activity for 10 min
-: "${GRADLE_IDLE_TIMEOUT:=600}"      # gradlew — kill if no CPU activity for 10 min
-: "${MIN_FREE_DISK_MB:=2048}"        # hard-fail below this much free space — 2 GB
+: "${EAS_BUILD_TIMEOUT:=7200}"       # eas build --local - 2h hard ceiling
+: "${GRADLE_TIMEOUT:=7200}"          # gradlew assemble/bundleRelease - 2h hard ceiling
+: "${EAS_BUILD_IDLE_TIMEOUT:=600}"   # eas build --local - kill if no CPU activity for 10 min
+: "${GRADLE_IDLE_TIMEOUT:=600}"      # gradlew - kill if no CPU activity for 10 min
+: "${MIN_FREE_DISK_MB:=2048}"        # hard-fail below this much free space - 2 GB
 SCRIPTS_DIR="/usr/local/lib/expo-builder"
-# Scratch space for intermediate engine output (the eas engine's --output target) —
+# Scratch space for intermediate engine output (the eas engine's --output target) -
 # deliberately NOT on the host bind mount, so nothing but the final ebl_builds/
 # folder ever appears in the developer's project directory.
 BUILD_OUTPUT_DIR="/tmp/ebl-scratch"
@@ -62,22 +62,22 @@ fail()     { echo "@@ERROR:$1"; exit "${2:-1}"; }
 # Runs "$@" under a hard wall-clock budget so a hang anywhere downstream (a
 # registry, a daemon, a native toolchain) turns into a bounded failure instead of
 # blocking the build indefinitely. SIGTERM first, SIGKILL 10s later if that alone
-# doesn't take — mirrors what we've observed hung npm/gradle processes actually need
+# doesn't take - mirrors what we've observed hung npm/gradle processes actually need
 # to die. Exit code 124 means "timed out"; anything else is the wrapped command's own
 # exit status, so existing `||` fallback chains keep working unmodified.
 #
 # --foreground is required: this container is created with Tty:true (see
-# cli/src/docker_client.cpp's createContainer) so its stdout/stderr is a real pty —
+# cli/src/docker_client.cpp's createContainer) so its stdout/stderr is a real pty -
 # but without --foreground, `timeout` puts "$@" in a *new* process group so
 # --kill-after can signal the whole subtree, and that new group is never made the
 # pty's foreground group. The pty's foreground pgrp stays whatever PID 1 started
 # with, so the moment the wrapped command touches the terminal (eas-cli/ora/enquirer
 # checking isTTY and doing an ioctl for its spinner, even under --non-interactive)
-# the kernel sends it SIGTTIN/SIGTTOU and stops it (ps STAT "T") — permanently,
+# the kernel sends it SIGTTIN/SIGTTOU and stops it (ps STAT "T") - permanently,
 # since nothing ever sends SIGCONT. That reads as an indefinite stall (reproduced:
 # `eas build --local` wedged right after "Using Keystore from configuration",
 # pgid != tpgid confirmed via `ps -o pid,pgid,tpgid`), not a timeout, because a
-# stopped process can't act on the eventual SIGTERM either — only the SIGKILL from
+# stopped process can't act on the eventual SIGTERM either - only the SIGKILL from
 # --kill-after actually lands. --foreground keeps "$@" in timeout's own group, which
 # stays in sync with the pty's foreground group, so it never triggers the stop.
 run_with_timeout() {
@@ -90,31 +90,31 @@ run_with_timeout() {
 # path) -----------------------------------------------------------------------
 #
 # A flat wall-clock cap (run_with_timeout above) can't tell "still compiling" apart
-# from "wedged" — a cold, multi-ABI native build (several C++ modules compiling for
+# from "wedged" - a cold, multi-ABI native build (several C++ modules compiling for
 # arm64-v8a/armeabi-v7a/x86/x86_64 with no warm Gradle cache) can legitimately run
 # for well over an hour while making real progress the whole time, and killing that
 # on a flat 40-minute cap is a false failure, not a safety net.
 #
 # run_with_idle_timeout instead polls cumulative CPU time across "$@"'s *whole*
-# descendant tree (not just stdout activity — a linker or a single large compile
+# descendant tree (not just stdout activity - a linker or a single large compile
 # unit can go silent on stdout for minutes while still genuinely burning CPU) and
 # only kills if that hasn't moved for idle_seconds. max_seconds is still enforced
 # as an outer backstop for the pathological case where something spins forever
 # without ever finishing.
 #
 # Deliberately does NOT redirect "$@"'s stdout/stderr (e.g. through `tee`, to watch
-# for output instead of polling CPU) — this container is created with Tty:true (see
+# for output instead of polling CPU) - this container is created with Tty:true (see
 # cli/src/docker_client.cpp's createContainer) specifically so the direct-gradle
 # path's `--console=rich` can detect a real TTY and render the "NN% EXECUTING"
 # progress line build/progress.ts parses; piping "$@"'s fd 1 through anything turns
 # it into a plain FIFO from the child's point of view and silently breaks that
 # detection. Since stdio is left untouched, "$@" also stays in this script's own
 # process group exactly as it does today (no `set -m` job control is ever enabled
-# here) — same pty-foreground-group situation the run_with_timeout comment above
+# here) - same pty-foreground-group situation the run_with_timeout comment above
 # describes, just never disturbed in the first place.
 #
 # kill_tree signals "$@" and its descendants individually (via recursive `pgrep
-# -P`), never the whole process group (e.g. `kill -TERM 0`) — everything this
+# -P`), never the whole process group (e.g. `kill -TERM 0`) - everything this
 # script runs, including this monitor loop itself, shares one process group, and a
 # group-wide SIGKILL is unignorable, so it would kill the monitor mid-kill before
 # it could report status 124 back to its caller.
@@ -145,7 +145,7 @@ tree_cpu_seconds() {
     esac
     IFS=: read -r a b c <<< "${rest}"
     if [ -n "${c}" ]; then h="${a}"; m="${b}"; s="${c}"; else h=0; m="${a}"; s="${b}"; fi
-    # `ps -o time=` zero-pads (e.g. "08", "09") — bash's arithmetic evaluator
+    # `ps -o time=` zero-pads (e.g. "08", "09") - bash's arithmetic evaluator
     # treats a leading-zero literal as octal, and "08"/"09" aren't valid octal
     # digits ("value too great for base"). Force base-10 with the `10#` prefix
     # on every component so real builds (which routinely cross these values)
@@ -186,7 +186,7 @@ run_with_idle_timeout() {
 
 # A near-full disk was a real contributor to at least one hang we've seen in
 # practice (extraction/write syscalls stalling under I/O pressure rather than
-# failing) — cheap to check, worth failing on fast rather than discovering it an
+# failing) - cheap to check, worth failing on fast rather than discovering it an
 # hour into a stalled install. Checks both the project bind mount and /cache (the
 # npm/gradle volumes), since they can be, and often are, on different filesystems.
 check_disk_space() {
@@ -195,7 +195,7 @@ check_disk_space() {
   free_mb="$(df -Pm "${path}" 2>/dev/null | awk 'NR==2{print $4}')"
   [ -n "${free_mb}" ] || return 0
   if [ "${free_mb}" -lt "${MIN_FREE_DISK_MB}" ]; then
-    fail "Only ${free_mb}MB free on ${label} (${path}) — need at least ${MIN_FREE_DISK_MB}MB. Free up disk space (docker system prune is usually the fastest way) and retry." 3
+    fail "Only ${free_mb}MB free on ${label} (${path}) - need at least ${MIN_FREE_DISK_MB}MB. Free up disk space (docker system prune is usually the fastest way) and retry." 3
   fi
 }
 
@@ -207,7 +207,7 @@ check_disk_space() {
 # exist inside a directory this same run just regenerated via `expo prebuild
 # --clean`), credentials.json lives at the project root and a developer may already
 # have their own committed there (EAS's own local-credentials format, used whenever
-# their eas.json sets credentialsSource: "local") — that's not ours to delete. Only
+# their eas.json sets credentialsSource: "local") - that's not ours to delete. Only
 # remove it if CREDENTIALS_JSON_WRITTEN records that *this run* wrote it (see the
 # EAS release-signing block below).
 EAS_JSON_BACKUP=""
@@ -224,21 +224,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cd "${APP_DIR}" || fail "APP_DIR ${APP_DIR} not found — did the bind mount fail?" 2
+cd "${APP_DIR}" || fail "APP_DIR ${APP_DIR} not found - did the bind mount fail?" 2
 
-# Docker Desktop's bind-mount for a host path doesn't preserve real host ownership —
+# Docker Desktop's bind-mount for a host path doesn't preserve real host ownership -
 # files show up owned by whichever UID its file-sharing layer defaults to (observed:
 # root, regardless of BUILD_UID/the actual Windows file owner), which almost never
 # matches the re-homed `builder` user this script runs as (see docker-entrypoint.sh).
-# That mismatch trips git's post-CVE-2022-24765 "dubious ownership" safety check —
+# That mismatch trips git's post-CVE-2022-24765 "dubious ownership" safety check -
 # without this exception, `eas build --local` doesn't surface that error at all, it
 # just falls back to a confusing "not a git repository, initialize one?" prompt that
 # then hangs forever (non-interactive, no stdin attached).
 git config --global --add safe.directory "${APP_DIR}"
 
-[ -f package.json ] || fail "No package.json found at ${APP_DIR} — not a project root" 2
+[ -f package.json ] || fail "No package.json found at ${APP_DIR} - not a project root" 2
 node -e "const p=require('./package.json'); process.exit((p.dependencies&&p.dependencies.expo)||(p.devDependencies&&p.devDependencies.expo)?0:1)" \
-  || fail "package.json has no 'expo' dependency — this doesn't look like an Expo project" 2
+  || fail "package.json has no 'expo' dependency - this doesn't look like an Expo project" 2
 
 check_disk_space "${APP_DIR}" "the project directory"
 check_disk_space "/cache" "the build cache volume"
@@ -254,7 +254,7 @@ if [ ! -f .npmrc ]; then
   echo "legacy-peer-deps=true" > .npmrc
 fi
 
-# Every build's output lands in ebl_builds/ inside the project — make sure it's
+# Every build's output lands in ebl_builds/ inside the project - make sure it's
 # gitignored from the very first build, so nobody accidentally commits a stack of
 # APKs/AABs. Idempotent: only appends the line if it isn't already present.
 if [ -f .gitignore ]; then
@@ -267,7 +267,7 @@ progress 100
 # ---------------------------------------------------------------------------
 phase install "Installing dependencies"
 if [ -f package-lock.json ]; then
-  # Deliberately `if CMD; then :; else ...; fi` rather than `if ! CMD; then` — under
+  # Deliberately `if CMD; then :; else ...; fi` rather than `if ! CMD; then` - under
   # `set -e`, negating with `!` also rewrites $? for the branch, so the real
   # underlying exit code (124 for a timeout vs. npm's own failure code) would be
   # lost right when we need it most to tell the two apart.
@@ -276,7 +276,7 @@ if [ -f package-lock.json ]; then
   else
     ci_status=$?
     if [ "${ci_status}" -eq 124 ]; then
-      echo "npm ci didn't finish within ${INSTALL_TIMEOUT}s — most likely package.json and" \
+      echo "npm ci didn't finish within ${INSTALL_TIMEOUT}s - most likely package.json and" \
            "package-lock.json have drifted out of sync (e.g. a dependency was added/bumped" \
            "without re-running npm install) combined with a peer-dependency conflict npm" \
            "can't resolve without deciding, which some npm versions hang on instead of" \
@@ -284,7 +284,7 @@ if [ -f package-lock.json ]; then
            "the lock file."
     fi
     run_with_timeout "${INSTALL_FALLBACK_TIMEOUT}" npm install --no-audit --no-fund --legacy-peer-deps \
-      || fail "npm install failed (or didn't finish within ${INSTALL_FALLBACK_TIMEOUT}s) after npm ci also failed — check for a genuine dependency conflict in package.json" 1
+      || fail "npm install failed (or didn't finish within ${INSTALL_FALLBACK_TIMEOUT}s) after npm ci also failed - check for a genuine dependency conflict in package.json" 1
   fi
 else
   run_with_timeout "${INSTALL_FALLBACK_TIMEOUT}" npm install --no-audit --no-fund --legacy-peer-deps \
@@ -296,7 +296,7 @@ progress 100
 # "auto" prefers EAS only when the project actually looks EAS-managed (has an
 # eas.json to pull a build profile from) AND a token is available to use it.
 # Requiring eas.json (not just a token) matters now that a token often resolves
-# even for projects that never touch EAS — ebl config's default/per-owner tokens
+# even for projects that never touch EAS - ebl config's default/per-owner tokens
 # (see config_store.hpp / CLAUDE.md's Multiple Expo accounts section) mean some
 # token being set is no longer a reliable signal that *this* project wants EAS;
 # eas.json's presence is a much stronger one. Without it, `eas build --local`
@@ -343,9 +343,9 @@ if [ "${RESOLVED_ENGINE}" = "eas" ]; then
   else
     eas_status=$?
     if [ "${eas_status}" -eq 124 ]; then
-      fail "eas build --local stalled — no CPU activity for ${EAS_BUILD_IDLE_TIMEOUT}s (or exceeded the ${EAS_BUILD_TIMEOUT}s hard ceiling)" 1
+      fail "eas build --local stalled - no CPU activity for ${EAS_BUILD_IDLE_TIMEOUT}s (or exceeded the ${EAS_BUILD_TIMEOUT}s hard ceiling)" 1
     else
-      fail "eas build --local failed (exit ${eas_status}) — see the eas-cli output above for the actual error" 1
+      fail "eas build --local failed (exit ${eas_status}) - see the eas-cli output above for the actual error" 1
     fi
   fi
   ARTIFACT_PATH="${BUILD_OUTPUT_DIR}/eas-output.${ARTIFACT_TYPE}"
@@ -365,7 +365,7 @@ else
       --storePassword "${KEYSTORE_PASSWORD:-}" \
       --keyAlias "${KEY_ALIAS:-}" \
       --keyPassword "${KEY_PASSWORD:-}" \
-      || fail "Failed to configure release signing — check android/app/build.gradle manually" 1
+      || fail "Failed to configure release signing - check android/app/build.gradle manually" 1
   fi
 
   phase gradle "Compiling (Gradle)"
@@ -385,9 +385,9 @@ else
   else
     gradle_status=$?
     if [ "${gradle_status}" -eq 124 ]; then
-      fail "gradlew ${GRADLE_TASK} stalled — no CPU activity for ${GRADLE_IDLE_TIMEOUT}s (or exceeded the ${GRADLE_TIMEOUT}s hard ceiling)" 1
+      fail "gradlew ${GRADLE_TASK} stalled - no CPU activity for ${GRADLE_IDLE_TIMEOUT}s (or exceeded the ${GRADLE_TIMEOUT}s hard ceiling)" 1
     else
-      fail "gradlew ${GRADLE_TASK} failed (exit ${gradle_status}) — see the gradlew output above for the actual error" 1
+      fail "gradlew ${GRADLE_TASK} failed (exit ${gradle_status}) - see the gradlew output above for the actual error" 1
     fi
   fi
 
@@ -403,7 +403,7 @@ APP_NAME="$(node -pe "require('./package.json').name || 'app'")"
 APP_VERSION="$(node -pe "require('./package.json').version || '0.0.0'")"
 
 # A simple monotonic build counter, scoped to this project (not the app's own
-# version) — every build gets a unique, human-referenceable "build N", regardless of
+# version) - every build gets a unique, human-referenceable "build N", regardless of
 # how many times a given app version gets rebuilt. Stored as a bare integer so it's
 # trivial to read/bump without a JSON dependency in this shell script.
 mkdir -p "${EBL_BUILDS_DIR}"

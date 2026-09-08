@@ -14,11 +14,11 @@ namespace ebl {
 namespace {
 
 /** Reads the current process's own environment block and layers `overrides`
- * ("NAME=value" strings) on top — replacing an existing NAME= entry
+ * ("NAME=value" strings) on top - replacing an existing NAME= entry
  * case-insensitively (Windows env var names are case-insensitive) or appending it.
  * Returns a CreateProcessA-shaped block: "NAME=value\0" entries, double-NUL
  * terminated. Passing nullptr to CreateProcessA instead would inherit the parent's
- * block unchanged, which isn't enough here — every caller needs to inherit *and*
+ * block unchanged, which isn't enough here - every caller needs to inherit *and*
  * add a few vars (JAVA_HOME, PATH prepends, EXPO_TOKEN, ...). */
 std::string buildEnvironmentBlock(const std::vector<std::string>& overrides) {
   LPCH base = ::GetEnvironmentStringsA();
@@ -63,7 +63,7 @@ struct JobHandle {
     job = ::CreateJobObjectA(nullptr, nullptr);
     if (job) {
       // Killing the job (TerminateJobObject) or even just closing this handle with
-      // no other reference left brings down every process it still contains — the
+      // no other reference left brings down every process it still contains - the
       // whole point of using a Job Object here instead of tracking/killing each
       // child process individually the way build-entrypoint.sh's kill_tree has to.
       JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli{};
@@ -79,7 +79,7 @@ struct JobHandle {
 };
 
 /** Cumulative CPU time (100ns units) across every process the job has ever
- * contained, live or dead — monotonically increasing, which is exactly what an
+ * contained, live or dead - monotonically increasing, which is exactly what an
  * idle-detection poll loop needs (compare successive readings; no change since the
  * last poll means nothing in the tree did any CPU work in that interval). Returns
  * -1 on failure (treated as "idle detection unavailable" by callers). */
@@ -96,7 +96,7 @@ long long totalCpuTime100ns(HANDLE job) {
  * combined stdout+stderr to onChunk from a background reader thread (mirroring
  * DockerClient::attachAndStream's own thread-plus-callback shape, so
  * native_build.cpp can feed the exact same marker-line parser build.cpp already
- * has for the Docker path), and blocks the calling thread inside `waitLoop` — which
+ * has for the Docker path), and blocks the calling thread inside `waitLoop` - which
  * owns the actual timeout/idle policy and returns true if it had to kill the
  * process, false if it exited on its own. */
 int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
@@ -115,7 +115,7 @@ int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
   }
   ::SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
 
-  // Only created when stdinData is non-empty — everyone else keeps inheriting the
+  // Only created when stdinData is non-empty - everyone else keeps inheriting the
   // real console stdin exactly as before. See runProcessWithTimeout's stdinData
   // doc comment for why a dedicated pipe (even used just for this) matters: it's
   // what forces a child JVM's System.console() to return null instead of binding
@@ -158,7 +158,7 @@ int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
   }
 
   if (stdinWritePipe) {
-    // stdinData is always tiny here (a handful of "y\n" lines) — well under the
+    // stdinData is always tiny here (a handful of "y\n" lines) - well under the
     // default pipe buffer, so a single synchronous WriteFile can't block on the
     // child not having started reading yet. Closing right after signals EOF, so
     // the child doesn't hang waiting for more input than it actually needs.
@@ -169,7 +169,7 @@ int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
 
   JobHandle jh;
   // Best-effort: if the Job Object couldn't be created (jh.job is null, extremely
-  // unlikely on any real Windows install), the process still runs — timeouts fall
+  // unlikely on any real Windows install), the process still runs - timeouts fall
   // back to TerminateProcess on just the direct child inside waitLoop below,
   // rather than the whole tree.
   if (jh.job) ::AssignProcessToJobObject(jh.job, pi.hProcess);
@@ -252,7 +252,7 @@ int runProcessWithIdleTimeout(const std::string& cmdLine, const std::string& wor
           return true;
         }
       }
-      // job == nullptr: Job Object unavailable, so idle detection is skipped —
+      // job == nullptr: Job Object unavailable, so idle detection is skipped -
       // only the maxSeconds hard ceiling above still applies.
     }
   });

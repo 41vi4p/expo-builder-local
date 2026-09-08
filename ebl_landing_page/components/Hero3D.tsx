@@ -5,9 +5,9 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 
-// Six blocks — one per real build phase from build-entrypoint.sh's own marker
+// Six blocks - one per real build phase from build-entrypoint.sh's own marker
 // protocol (setup/install/prebuild-or-eas/signing/compile/collect). Not labeled in
-// 3D (hard to read on a phone, bad for accessibility) — the "How it works" section
+// 3D (hard to read on a phone, bad for accessibility) - the "How it works" section
 // below spells them out in real DOM text. This scene is the atmosphere: a build
 // pipeline rendered as drifting, orbiting geometry with one warm light standing in
 // for the live progress indicator every build shows.

@@ -1,7 +1,7 @@
 const FEATURES = [
   {
     title: "No cloud queue",
-    body: "The default Gradle path never touches EAS — no build quota, no account, no waiting in line behind other builds.",
+    body: "The default Gradle path never touches EAS - no build quota, no account, no waiting in line behind other builds.",
   },
   {
     title: "CLI or GUI, your call",
@@ -9,11 +9,11 @@ const FEATURES = [
   },
   {
     title: "Disposable containers",
-    body: "Every build gets a fresh container with its own Android SDK, Node, and Gradle — torn down after, nothing lingers.",
+    body: "Every build gets a fresh container with its own Android SDK, Node, and Gradle - torn down after, nothing lingers.",
   },
   {
     title: "Real signing, handled safely",
-    body: "Debug by default, or wire in a release keystore — encrypted at rest, decrypted only in memory for the one build that needs it.",
+    body: "Debug by default, or wire in a release keystore - encrypted at rest, decrypted only in memory for the one build that needs it.",
   },
   {
     title: "Multiple EAS accounts",

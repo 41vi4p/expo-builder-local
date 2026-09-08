@@ -77,7 +77,7 @@ export interface KeystoreSecret extends KeystoreRecord {
 }
 
 /** A saved Expo access token for one EAS account, keyed by `owner` (app.json's
- * `expo.owner` slug, e.g. "project-cell") — empty string is the default/fallback
+ * `expo.owner` slug, e.g. "project-cell") - empty string is the default/fallback
  * entry used when a project has no `owner` field, or no entry matches its owner. */
 export interface ExpoTokenRecord {
   id: string;

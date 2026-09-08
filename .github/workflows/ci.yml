@@ -3,7 +3,7 @@ name: CI
 # Minimal build check: does the frontend (expo-builder-gui) still build, does cli/
 # still build natively for Windows (MSVC + vcpkg for curl/OpenSSL), and does the
 # Inno Setup installer script (windows/installer) still compile against that build?
-# Runs on every push and pull request. Deliberately scoped to just this — no Linux
+# Runs on every push and pull request. Deliberately scoped to just this - no Linux
 # CLI/orchestrator build checks, no test suite.
 
 on:
@@ -43,7 +43,7 @@ jobs:
         with:
           path: expo-builder-local
 
-      # windows-latest ships MSVC + CMake preinstalled — no mingw needed, and MSVC
+      # windows-latest ships MSVC + CMake preinstalled - no mingw needed, and MSVC
       # is what a real release build should use anyway. vcpkg supplies curl/OpenSSL
       # (static, so the release ships as a single ebl.exe with no extra DLLs).
       - name: Set up vcpkg
@@ -59,7 +59,7 @@ jobs:
       - run: cmake --build cli\build --config Release
       - run: cmake --install cli\build --config Release --prefix cli\build\install
 
-      # windows-latest also ships Chocolatey preinstalled — use it to compile the
+      # windows-latest also ships Chocolatey preinstalled - use it to compile the
       # Inno Setup installer script (ebl.iss) right after, against the tree just
       # installed above, so a script typo doesn't only surface at release time.
       - run: choco install innosetup -y

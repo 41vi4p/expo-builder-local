@@ -1,9 +1,9 @@
 const PHASES = [
-  { tag: "setup", title: "Prepare", body: "Your project is copied into a clean, disposable container — nothing on your machine changes." },
-  { tag: "install", title: "Install", body: "Dependencies install via npm — cached across builds, so only the first run is slow." },
+  { tag: "setup", title: "Prepare", body: "Your project is copied into a clean, disposable container - nothing on your machine changes." },
+  { tag: "install", title: "Install", body: "Dependencies install via npm - cached across builds, so only the first run is slow." },
   { tag: "prebuild", title: "Generate", body: "expo prebuild (or eas build --local) turns your managed project into a real native Android app." },
   { tag: "signing", title: "Sign", body: "Debug-signed by default, or wired up with your own release keystore for the Play Store." },
-  { tag: "compile", title: "Compile", body: "Gradle builds the APK or AAB — logs and CPU/memory/network charts stream live." },
+  { tag: "compile", title: "Compile", body: "Gradle builds the APK or AAB - logs and CPU/memory/network charts stream live." },
   { tag: "collect", title: "Collect", body: "The signed artifact, its SHA-256, and build metrics land in your project's ebl_builds/ folder." },
 ] as const;
 

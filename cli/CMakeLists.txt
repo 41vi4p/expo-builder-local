@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 # This VERSION is the single source of truth for the CLI's version (see main.cpp's
-# --version output) — kept in step with orchestrator/package.json and
+# --version output) - kept in step with orchestrator/package.json and
 # expo-builder-gui/package.json per ../CLAUDE.md's version-management rule.
 project(expo-builder-local-cli VERSION 0.16.3 LANGUAGES CXX)
 
@@ -12,27 +12,27 @@ endif()
 if(NOT MSVC)
   set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 endif()
-# MSVC's own default /O2 for a Release config already applies otherwise — no
+# MSVC's own default /O2 for a Release config already applies otherwise - no
 # equivalent override needed there.
 
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
-# The binary/command is named "ebl" (short for expo-local-builder) — deliberately
+# The binary/command is named "ebl" (short for expo-local-builder) - deliberately
 # distinct from the "expo-builder-local" project/repo name, which stays as the
 # directory and shared-data-dir name (see the install() calls below).
 #
 # http_client_unix.cpp/http_client_win.cpp: platform-specific Docker Engine API
-# transport (Unix socket via libcurl vs. Docker Desktop's named pipe, hand-rolled —
+# transport (Unix socket via libcurl vs. Docker Desktop's named pipe, hand-rolled -
 # see src/http_client.hpp). winpath.cpp is the identity function on non-Windows, so
 # it's built everywhere unconditionally rather than split per-platform.
 #
 # native_toolchain.cpp/native_build.cpp: the Windows-only native (non-Docker) build
-# engine — see ../CLAUDE.md's native-engine section and src/native_build.hpp's own
+# engine - see ../CLAUDE.md's native-engine section and src/native_build.hpp's own
 # comment. Windows-exclusive by design (Docker Desktop/WSL2 friction is a Windows
 # problem; Linux/macOS keep the existing Docker-only path unconditionally), so these
-# are only ever compiled here, never on Linux/macOS — UNVERIFIED ON REAL WINDOWS
+# are only ever compiled here, never on Linux/macOS - UNVERIFIED ON REAL WINDOWS
 # HARDWARE, written from the Docker engine's exact contract with no way to actually
 # build/run this code from a non-Windows machine.
 if(WIN32)
@@ -80,7 +80,7 @@ endif()
 # Bundle the Android runner build context (docker/runner/ at the repo root, one level
 # up from this cli/ package) into the build directory, so the compiled binary is
 # self-contained and can build the runner image itself without the rest of the repo
-# being present — see src/runner_context.cpp for the runtime lookup order.
+# being present - see src/runner_context.cpp for the runtime lookup order.
 set(RUNNER_SRC_DIR "${CMAKE_SOURCE_DIR}/../docker/runner")
 set(RUNNER_BUILD_DIR "${CMAKE_BINARY_DIR}/runner")
 if(EXISTS "${RUNNER_SRC_DIR}")
@@ -88,7 +88,7 @@ if(EXISTS "${RUNNER_SRC_DIR}")
 endif()
 
 # Same idea, but just the two signing helper scripts (patch-android-signing.js,
-# write-eas-credentials.js) — the Windows-only native engine reuses them unmodified
+# write-eas-credentials.js) - the Windows-only native engine reuses them unmodified
 # via the provisioned/detected Node install; see src/runner_context.cpp's
 # resolveNativeScriptsDir() for the runtime lookup order.
 set(NATIVE_SCRIPTS_SRC_DIR "${CMAKE_SOURCE_DIR}/../docker/runner/scripts")
@@ -101,9 +101,9 @@ install(TARGETS ebl RUNTIME DESTINATION bin)
 install(DIRECTORY "${RUNNER_BUILD_DIR}/" DESTINATION share/expo-builder-local/runner OPTIONAL)
 install(DIRECTORY "${NATIVE_SCRIPTS_BUILD_DIR}/" DESTINATION share/expo-builder-local/native-scripts OPTIONAL)
 
-# --- .deb packaging (`cpack -G DEB` after building — see ../Makefile's `deb` target,
+# --- .deb packaging (`cpack -G DEB` after building - see ../Makefile's `deb` target,
 # and ../docs/RELEASING.md for how CI builds + signs this on a tagged release) --------
-# Linux/Debian-only — the Windows build ships instead as ebl.exe + an Inno Setup
+# Linux/Debian-only - the Windows build ships instead as ebl.exe + an Inno Setup
 # installer (see ../windows/).
 if(NOT WIN32)
   set(CPACK_PACKAGE_NAME "ebl")
@@ -113,7 +113,7 @@ if(NOT WIN32)
   set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
       "Build managed Expo projects into signed Android APK/AABs in a disposable Docker container")
   set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/41vi4p/expo-builder-local")
-  # A .deb is conventionally rooted at /usr, not /usr/local — this only affects the
+  # A .deb is conventionally rooted at /usr, not /usr/local - this only affects the
   # packaged layout, not `make install-cli`'s normal ~/.local install.
   set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 

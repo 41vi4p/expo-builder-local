@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
-  Design system — shares the "build console" palette with expo-builder-gui (graphite-
+  Design system - shares the "build console" palette with expo-builder-gui (graphite-
   navy, never pure black, one warm copper/amber signal color) for brand continuity
   across the CLI/GUI/landing page. --glow is new here: a brighter, saturated version
   of the accent used only for the 3D hero scene's point light / bloom, since flat UI
@@ -158,7 +158,7 @@ body {
   border-radius: 4px;
 }
 
-/* The logo PNG is dark-charcoal-on-transparent, drawn for a light background — it
+/* The logo PNG is dark-charcoal-on-transparent, drawn for a light background - it
    nearly disappears against the dark theme's near-black header, so invert it there.
    Matches the same prefers-color-scheme-default + data-theme-override pattern the
    rest of this file uses, since next-themes drives data-theme, not Tailwind's

@@ -18,14 +18,14 @@ Removes ebl's own stopped build containers (the disposable per-build containers
 `ebl build` creates, left behind if a build was interrupted or the client
 disconnected before cleanup). With --all, also removes the shared gradle/npm
 cache volumes and the runner/orchestrator/web images `ebl setup`/`ebl build`
-pulled — the next build/setup just re-pulls/re-creates whatever it needs, so
+pulled - the next build/setup just re-pulls/re-creates whatever it needs, so
 this is safe, just slower on the next run.
 
 Options:
       --all                      Also remove cache volumes and pulled images,
                                   not just stopped containers
       --gradle-cache-volume <n>  Gradle cache volume name (default:
-                                  expo-builder-local_gradle-cache — must match
+                                  expo-builder-local_gradle-cache - must match
                                   what `ebl build` used, if you customized it)
       --npm-cache-volume <n>     npm cache volume name (default:
                                   expo-builder-local_npm-cache)
@@ -71,7 +71,7 @@ int runClean(int argc, char** argv) {
 
   ebl::DockerClient docker(dockerSocket);
   if (!docker.ping()) {
-    std::cerr << ebl::color::red("Docker isn't reachable — is it running?") << "\n";
+    std::cerr << ebl::color::red("Docker isn't reachable - is it running?") << "\n";
     return 1;
   }
 
@@ -107,13 +107,13 @@ int runClean(int argc, char** argv) {
     return 0;
   }
 
-  // Refuse rather than force a live build's cache volume out from under it —
+  // Refuse rather than force a live build's cache volume out from under it -
   // Docker's own DELETE /volumes already fails on an in-use volume, but checking
   // here gives a clearer message than surfacing that raw error to the user.
   if (anyRunning) {
     std::cerr << "\n"
               << ebl::color::red(
-                     "A build is currently running — refusing to remove cache volumes/images out from under it. "
+                     "A build is currently running - refusing to remove cache volumes/images out from under it. "
                      "Wait for it to finish (or stop it) and re-run `ebl clean --all`.")
               << "\n";
     return 1;

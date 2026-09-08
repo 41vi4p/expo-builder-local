@@ -1,31 +1,31 @@
-# expo-builder-local — Changelog
+# expo-builder-local - Changelog
 
-Version history for the orchestrator + GUI (versioned together — see
+Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
-## v0.16.3 — Native engine fixes from real-hardware testing (v0.16.1-v0.16.3)
+## v0.16.3 - Native engine fixes from real-hardware testing (v0.16.1-v0.16.3)
 
 **Date:** 2026-09-09
 **Type:** Fix
 
 First real-hardware (QEMU Windows VM) testing of v0.16.0's native engine, covering
-tags v0.16.1-v0.16.3 whose version fields/changelog were never updated when cut —
+tags v0.16.1-v0.16.3 whose version fields/changelog were never updated when cut -
 backfilled here as one entry. Every item below was found by actually running the
 installer, not by inspection.
 
 - **`install.ps1` self-copy crash (v0.16.1):** the Inno Setup GUI installer always
   calls `install.ps1 -LocalInstallDir "{app}"`, but `{app}` is pinned
   (`DisableDirPage`/`DefaultDirName`) to the exact same path `$InstallDir` already
-  resolves to — Inno's own `[Files]` section had already placed everything there.
+  resolves to - Inno's own `[Files]` section had already placed everything there.
   The resulting `Copy-Item "{app}\bin" -Destination "{app}"` self-copy threw under
   `$ErrorActionPreference = "Stop"`, silently killing the script before PATH setup
-  or runtime provisioning ever ran — a real install "did almost nothing." Fixed by
+  or runtime provisioning ever ran - a real install "did almost nothing." Fixed by
   skipping the copy when `-LocalInstallDir` already resolves to `$InstallDir`.
-- **Garbled console output (`ГÇö` for `—`), and zero download feedback (v0.16.2):**
+- **Garbled console output (`ГÇö` for `-`), and zero download feedback (v0.16.2):**
   the Windows console defaults to a legacy OEM/ANSI codepage, mangling every UTF-8
   em dash/punctuation character this CLI prints; fixed with
   `SetConsoleOutputCP(CP_UTF8)`/`SetConsoleCP(CP_UTF8)` at startup
-  (`main.cpp`) — fixes it everywhere, not just native mode's own messages.
+  (`main.cpp`) - fixes it everywhere, not just native mode's own messages.
   Separately, `native_toolchain.cpp`'s JDK/SDK/Node downloads had no progress
   output at all once started, indistinguishable from a hang; added a live,
   in-place-redrawn progress bar (libcurl `CURLOPT_XFERINFOFUNCTION`) plus fixed
@@ -39,7 +39,7 @@ installer, not by inspection.
   reliably forces `System.console()` to fall back to `System.in`. Separately,
   Inno's declarative `[Run]` section never checked the launched program's exit
   code at all, so closing the console mid-run (killing the process) still ended
-  in "Installed successfully" — moved the `install.ps1` invocation into `[Code]`'s
+  in "Installed successfully" - moved the `install.ps1` invocation into `[Code]`'s
   `CurStepChanged(ssPostInstall)` using `Exec()` + an explicit `ResultCode` check,
   showing a clear warning instead when setup didn't finish cleanly.
   `install.ps1` itself now also propagates a real nonzero exit code on failure.
@@ -49,13 +49,13 @@ installer, not by inspection.
   JDK/SDK zip) looked exactly like a second hang; added an "Extracting..."
   announcement plus a live elapsed-time heartbeat while it runs on its own
   thread. Also found and fixed a real bug the stdin-pipe fix above introduced:
-  `CreateProcess` cannot launch a `.bat`/`.cmd` file directly (not a PE image —
+  `CreateProcess` cannot launch a `.bat`/`.cmd` file directly (not a PE image -
   Windows returns `ERROR_BAD_EXE_FORMAT`), but the license-acceptance and
   package-install commands both invoke `sdkmanager.bat` directly; both now go
   through a `cmd.exe /c` wrapper (a new `wrapCmdExe` helper), matching how the
   pre-fix pipe-trick version worked by incidental cmd.exe wrapping.
 - Version fields (this project's canonical five) hadn't actually been bumped for
-  v0.16.1 or v0.16.2 when those tags were cut — both shipped as `0.16.0`
+  v0.16.1 or v0.16.2 when those tags were cut - both shipped as `0.16.0`
   internally despite the tag name. Caught and corrected as part of this entry;
   `ebl --version` and the release tag should no longer disagree going forward.
 
@@ -65,60 +65,60 @@ installer, not by inspection.
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt`, `packaging/arch/PKGBUILD`,
 `packaging/arch/.SRCINFO`
 
-## v0.16.0 — Native Windows build engine (Docker Desktop/WSL2 no longer required)
+## v0.16.0 - Native Windows build engine (Docker Desktop/WSL2 no longer required)
 
 **Date:** 2026-09-08
 **Type:** Feature
 
-- Added a second, Windows-only build engine — **Native**, which installs the
+- Added a second, Windows-only build engine - **Native**, which installs the
   Android SDK, JDK 17, and Node.js directly on the host (isolated under
   `%LOCALAPPDATA%\ebl\toolchain\`, detecting and reusing an existing JDK/SDK/Node
   install first rather than downloading its own copy) and runs builds as real host
   processes, no Docker Desktop or WSL2 at all. **Native is now the Windows
-  default** — `ebl setup`/`ebl build`/`windows/install.ps1` all default to it;
+  default** - `ebl setup`/`ebl build`/`windows/install.ps1` all default to it;
   Docker remains fully available via `--runtime docker` / `-Mode Docker` (the
   installer's wizard page, and `ebl setup --runtime <docker|native>`, let you
-  choose either way). CLI-only for now — the web GUI/orchestrator stay Docker-only.
-- **⚠️ Entirely unverified on real Windows hardware** — built with no Windows
+  choose either way). CLI-only for now - the web GUI/orchestrator stay Docker-only.
+- **⚠️ Entirely unverified on real Windows hardware** - built with no Windows
   machine available. Verified what's actually possible from a Linux sandbox: the
   Linux/macOS CLI build is completely unaffected (new files only compile under
   `if(WIN32)`), both `.ps1` scripts parse cleanly and their core logic (JSON
   config reading, per-component `installedByEbl` safety checks, `-Mode`
   string handling) was exercised in isolation via PowerShell Core, and the Inno
   Setup `[Code]` wizard page follows documented `TInputOptionWizardPage` patterns
-  — but none of it has actually built/run a real project. Treat it like the
+  - but none of it has actually built/run a real project. Treat it like the
   existing `BUILD_UID`/`BUILD_GID` Windows placeholder: carefully reasoned, not
   proven. Please report anything that doesn't work.
 - **First real-hardware test (QEMU Windows VM, GUI installer, Native mode) found
   a real bug, now fixed**: `windows/install.ps1`'s `-LocalInstallDir` path (what
   the Inno Setup GUI installer always uses) tried to `Copy-Item` `{app}\bin` onto
   itself, since `{app}` is pinned by `ebl.iss`'s `DisableDirPage`/`DefaultDirName`
-  to the exact same directory `$InstallDir` already resolves to — Inno's own
+  to the exact same directory `$InstallDir` already resolves to - Inno's own
   `[Files]` section had already placed the files there. That self-copy threw under
   `$ErrorActionPreference = "Stop"`, silently killing the script before PATH setup
-  or the native toolchain provisioning step ever ran — which is exactly why a real
+  or the native toolchain provisioning step ever ran - which is exactly why a real
   install "did almost nothing" with no visible sign of any dependency downloads.
   Fixed by skipping the copy when `-LocalInstallDir` already resolves to
-  `$InstallDir` (pre-existing bug, not introduced by native mode — just never
+  `$InstallDir` (pre-existing bug, not introduced by native mode - just never
   exercised on real hardware before, since this was likely the first time this
   script's `-LocalInstallDir` path had actually been run end to end). Separately
   confirmed the CI Windows build's `curl`/OpenSSL setup (`OpenSSL::Crypto` only,
-  no `OpenSSL::SSL` — vcpkg's `curl` port defaults to Schannel for TLS on Windows
+  no `OpenSSL::SSL` - vcpkg's `curl` port defaults to Schannel for TLS on Windows
   unless the `openssl` feature is explicitly requested, which it isn't here) means
   `native_toolchain.cpp`'s HTTPS downloads validate certs via the Windows store
   normally, not a second landmine.
 - New CLI internals: `cli/src/native_process.*` (Windows Job-Object-based process
-  runner — wall-clock + idle-CPU timeouts, the analog of
+  runner - wall-clock + idle-CPU timeouts, the analog of
   `build-entrypoint.sh`'s `timeout`/`run_with_idle_timeout`), `native_toolchain.*`
   (provisioning, called from `ebl setup --runtime native`), `native_build.*` (the
-  engine itself — the direct analog of `docker/runner/build-entrypoint.sh`,
+  engine itself - the direct analog of `docker/runner/build-entrypoint.sh`,
   emitting the byte-for-byte same `@@PHASE:`/`@@PROGRESS:`/`@@ENGINE:`/
   `@@BUILD_NUMBER:`/`@@ARTIFACT:`/`@@DURATION:`/`@@ERROR:` marker protocol so
   `commands/build.cpp`'s existing parser/reporting works unchanged regardless of
   engine). Reuses `docker/runner/scripts/patch-android-signing.js`/
   `write-eas-credentials.js` unmodified via the provisioned Node, rather than
   reimplementing Gradle-file patching in C++. Deliberately does *not* port the
-  Docker path's UID/GID re-homing or git `safe.directory` workaround — both are
+  Docker path's UID/GID re-homing or git `safe.directory` workaround - both are
   pure Docker/Linux-bind-mount artifacts that don't exist when the build runs as
   the real invoking user against the real filesystem. Known v1 simplification:
   Gradle runs with `--console=plain`, not `--console=rich` (no way to verify
@@ -126,10 +126,10 @@ installer, not by inspection.
   progress only, not Docker mode's live percentage.
 - `EblConfig` gained `buildMode` ("docker"/"native") and a per-component
   `nativeToolchain` (`jdkHome`/`androidSdkRoot`/`nodeHome` + `*InstalledByEbl`
-  flags) — the `installedByEbl` flags are load-bearing: they're what let
+  flags) - the `installedByEbl` flags are load-bearing: they're what let
   `windows/uninstall.ps1` later remove exactly what ebl downloaded and never touch
   something the user already had.
-- `windows/install.ps1` gained `-Mode Native|Docker` (default `Native`) — Docker
+- `windows/install.ps1` gained `-Mode Native|Docker` (default `Native`) - Docker
   mode's existing Desktop-check/WSL2-tuning steps are unchanged and now
   conditional on `-Mode Docker`; either way it finishes by running
   `ebl setup --runtime <Mode>` itself, so Native installs actually provision the
@@ -138,14 +138,14 @@ installer, not by inspection.
   existed): a wizard page choosing Native (pre-selected) or Docker, threaded
   through to `install.ps1` via `-Mode`.
 - `windows/uninstall.ps1` now reads `%APPDATA%\ebl\config.json` before removing
-  anything, and (interactively — skipped with the new `-Quiet`, which is what the
+  anything, and (interactively - skipped with the new `-Quiet`, which is what the
   GUI uninstaller's hidden `[UninstallRun]` step now passes) offers to also remove
   the native toolchain components ebl actually installed and/or the saved
-  config/tokens directory — neither was ever cleaned up before this. Still never
+  config/tokens directory - neither was ever cleaned up before this. Still never
   touches Docker Desktop or `.wslconfig`'s WSL2 tuning (shared, machine-wide
   state).
 - This work accumulates on a dedicated `windows` git branch going forward (see
-  `../CLAUDE.md`'s new Windows-branch-workflow note) — `ebl_landing_page`/root
+  `../CLAUDE.md`'s new Windows-branch-workflow note) - `ebl_landing_page`/root
   docs stay main-branch-deploy-authoritative regardless of which branch edits
   them.
 
@@ -159,7 +159,7 @@ installer, not by inspection.
 `expo-builder-gui/package.json`, `packaging/arch/PKGBUILD`,
 `packaging/arch/.SRCINFO`
 
-## v0.15.0 — `ebl update`, and a fix for eas-cli getting stuck stale
+## v0.15.0 - `ebl update`, and a fix for eas-cli getting stuck stale
 
 **Date:** 2026-09-08
 **Type:** Feature / Fix
@@ -167,28 +167,28 @@ installer, not by inspection.
 - Added `ebl update`: force-refreshes the runner/orchestrator/web images right
   now, unconditionally. `ebl build`/`ebl start` already pull on every run
   (`ensureRunnerImage`/`ensureServiceImage`), but a plain pull only transfers
-  layers that changed upstream — it can't fix an image whose *published* tag was
+  layers that changed upstream - it can't fix an image whose *published* tag was
   itself built from a stale Docker layer cache. For the runner image
   specifically, if pulling isn't possible at all (offline, or a custom
   `--runner-image` that was never published), `ebl update` rebuilds it from the
   bundled context with Docker's build cache fully disabled (`nocache=1&pull=1`,
-  not a normal cached build) — `DockerClient::buildImage` gained a `noCache`
+  not a normal cached build) - `DockerClient::buildImage` gained a `noCache`
   parameter for this; every other caller still leaves it `false`.
 - Root cause investigated: `docker/runner/Dockerfile`'s `npm install -g
   npm@latest eas-cli@latest` layer only ever re-resolves "latest" the first time
-  it's actually built — every build after that (local *or* CI) silently reuses
+  it's actually built - every build after that (local *or* CI) silently reuses
   whatever was "latest" back then, since Docker's cache key for that instruction
   doesn't depend on wall-clock time. `.github/workflows/docker-publish.yml`
   compounds this by caching across separate CI runs (`cache-from`/`cache-to:
   type=gha`), so a release with no earlier-layer changes could in principle
   silently republish the exact same stale eas-cli forever. (The specific
-  staleness that prompted this — a locally pulled runner image showing
-  `eas-cli/21.8.0` against a then-current `23.2.0` on npm — turned out to
+  staleness that prompted this - a locally pulled runner image showing
+  `eas-cli/21.8.0` against a then-current `23.2.0` on npm - turned out to
   actually be a 3-week-old local pull on one machine, not a stale Hub image; a
   fresh pull already returned `23.2.0`. The CI risk above is still real and
   worth closing pre-emptively, so it's fixed regardless.)
 - Fixed via a new `EAS_CLI_CACHE_BUST` build arg on that Dockerfile layer
-  (`RUN echo "cache-bust: ${EAS_CLI_CACHE_BUST}" && npm install ...` — the value
+  (`RUN echo "cache-bust: ${EAS_CLI_CACHE_BUST}" && npm install ...` - the value
   has to actually appear in the instruction for Docker to key its cache on it).
   `docker-publish.yml` and `scripts/publish-images.sh` (the manual publish path)
   both now pass a fresh value on every run; local dev builds
@@ -199,7 +199,7 @@ installer, not by inspection.
 - Verified `ebl update` end-to-end against real Docker: the pull-success path
   (all three images), and the pull-failure → local no-cache rebuild fallback
   (confirmed a real base-image re-pull via Docker's build log, not a cached
-  `FROM` layer) — cancelled once the mechanism was confirmed, since a full
+  `FROM` layer) - cancelled once the mechanism was confirmed, since a full
   from-scratch runner build takes ~10-20 minutes and wasn't otherwise needed.
 
 **Files modified:** `cli/src/commands/update.{hpp,cpp}` (new),
@@ -210,21 +210,21 @@ installer, not by inspection.
 `orchestrator/package.json`, `expo-builder-gui/package.json`,
 `windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
 
-## v0.14.1 — Patch vulnerable eslint/build-tooling transitive deps in the GUI
+## v0.14.1 - Patch vulnerable eslint/build-tooling transitive deps in the GUI
 
 **Date:** 2026-09-08
 **Type:** Fix
 
 - `npm audit` flagged 3 high-severity issues in `expo-builder-gui`, all transitive
-  devDependencies of `eslint`/`eslint-config-next` (lint/build tooling only — never
+  devDependencies of `eslint`/`eslint-config-next` (lint/build tooling only - never
   bundled into the built GUI image): `brace-expansion` (DoS via unbounded
   expansion/intermediate arrays), `browserslist` (unbounded memory growth; a crash/
   prototype-write via untrusted custom stats), `js-yaml` (quadratic CPU consumption
-  resolving `!!omap`). Fixed via plain `npm audit fix` — patched in place without
+  resolving `!!omap`). Fixed via plain `npm audit fix` - patched in place without
   touching `eslint-config-next`'s own pinned version, so none of its lint rules
   changed. `npm audit` now reports 0 vulnerabilities; `npm run lint` and `npm run
-  build` both still pass (a handful of pre-existing, unrelated lint findings —
-  `no-explicit-any`, two stale `eslint-disable` comments — were left alone, out of
+  build` both still pass (a handful of pre-existing, unrelated lint findings -
+  `no-explicit-any`, two stale `eslint-disable` comments - were left alone, out of
   scope for this fix).
 - Bumped per `../CLAUDE.md`'s version-management rule (any change to
   `expo-builder-gui`, however small, moves the shared orchestrator+GUI+CLI version):
@@ -249,7 +249,7 @@ installer, not by inspection.
   build/install/`ebl --version`/uninstall cycle still works end-to-end. Regenerated
   `packaging/arch/.SRCINFO` to match.
 - Per `../CLAUDE.md`'s PKGBUILD-only bump rule, this bumped `pkgrel` (1 → 2), not
-  the shared `pkgver`/orchestrator/GUI/CLI/Windows version — the underlying CLI
+  the shared `pkgver`/orchestrator/GUI/CLI/Windows version - the underlying CLI
   build is unchanged, only the packaging metadata was fixed.
 - Documented the Arch install path on the landing page
   (`ebl_landing_page/app/download/page.tsx`: a dedicated "One-line installer (any
@@ -258,30 +258,30 @@ installer, not by inspection.
   quick-start now points Arch users at the Download page instead of only showing
   the Debian/Ubuntu APT block) and expanded `docs/RELEASING.md`'s Arch section with
   the exact checksum-refresh command for future releases.
-- AUR submission itself remains on hold — no AUR account/SSH key for this project
+- AUR submission itself remains on hold - no AUR account/SSH key for this project
   yet; see `docs/RELEASING.md`.
 
 **Files modified:** `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`,
 `docs/RELEASING.md`, `ebl_landing_page/app/download/page.tsx`,
 `ebl_landing_page/app/docs/page.tsx`
 
-## v0.14.0 — Native package support for Arch-based distros
+## v0.14.0 - Native package support for Arch-based distros
 
 **Date:** 2026-09-08
 **Type:** Feature
 
 - Added `packaging/arch/PKGBUILD`, which builds the CLI from source (CMake) against
-  the installing machine's own `curl`/`openssl` via `makepkg` — no prebuilt-binary
+  the installing machine's own `curl`/`openssl` via `makepkg` - no prebuilt-binary
   ABI risk the way the Ubuntu-24.04-linked `.deb` would have on Arch, and no new CI
   publishing job needed since there's no binary artifact to sign/host. Verified
   end-to-end in an `archlinux:latest` container: `makepkg -si` builds, installs, and
   produces a fully pacman-tracked package (`pacman -Qi`/`-Ql`/`-R` all behave
   correctly).
 - `install.sh` now detects `pacman` and prefers this path (falling back to the
-  existing plain-tarball install when run as root — `makepkg` refuses that — or when
+  existing plain-tarball install when run as root - `makepkg` refuses that - or when
   `makepkg` itself is missing), inserted between the existing APT-repo and generic
   `.deb`/tarball paths without changing either of them.
-- Not published to the AUR yet (`sha256sums=('SKIP')` is deliberate until then — see
+- Not published to the AUR yet (`sha256sums=('SKIP')` is deliberate until then - see
   `docs/RELEASING.md`'s new "Arch Linux packaging" section for why and what a
   submission would need).
 - `packaging/arch/PKGBUILD`'s `pkgver` joins the four other version fields that must
@@ -292,25 +292,25 @@ installer, not by inspection.
 `cli/CMakeLists.txt`, `orchestrator/package.json`, `expo-builder-gui/package.json`,
 `windows/installer/ebl.iss`
 
-## v0.13.2 — Version the Inno Setup installer's filename; sync the real landing page
+## v0.13.2 - Version the Inno Setup installer's filename; sync the real landing page
 
 **Date:** 2026-08-02
 **Type:** Fix
 
 - `windows/installer/ebl.iss`'s `OutputBaseFilename` was the fixed
   `ebl-setup`, so every release's GUI installer was indistinguishable by name
-  (`ebl-setup.exe`) — now `ebl-setup-{#MyAppVersion}.exe`, matching how the
+  (`ebl-setup.exe`) - now `ebl-setup-{#MyAppVersion}.exe`, matching how the
   `.deb` is already versioned (`ebl_<version>_amd64.deb`). Safe to do: README/
   the landing page link to the Releases page, not a fixed `latest/download/`
   URL, so nothing depended on the name staying constant (unlike
-  `ebl-windows-amd64.zip`, which `install.ps1` *does* fetch by fixed name —
+  `ebl-windows-amd64.zip`, which `install.ps1` *does* fetch by fixed name -
   left untouched). Also added `VersionInfoVersion`/`VersionInfoProductVersion`/
   `VersionInfoDescription` so the compiled installer's own Win32 version
-  resource (Explorer → Properties → Details) shows the real version too — it
+  resource (Explorer → Properties → Details) shows the real version too - it
   was previously unset. `.github/workflows/release.yml`'s upload step now
   resolves the built filename with `Get-ChildItem ebl-setup-*.exe` instead of
   hardcoding it, so it doesn't need editing on every version bump.
-- Discovered `ebl_landing_page/` while making this change — a dedicated
+- Discovered `ebl_landing_page/` while making this change - a dedicated
   marketing site (separate from both `README.md` and
   `expo-builder-gui/app/page.tsx`, the in-app dashboard) with its own
   `/download` page duplicating install/uninstall/system-requirements content.
@@ -320,53 +320,53 @@ installer, not by inspection.
   figure corrected from a stale "20+ GB" to "~40 GB" to account for WSL2 swap
   headroom, which the original figure predated), `ebl clean --all` mentioned
   for reclaiming space, and the "run `ebl clean --all` first" uninstall
-  callout. Verified with a full `next build` (not just `tsc --noEmit`) — this
+  callout. Verified with a full `next build` (not just `tsc --noEmit`) - this
   page has no CI coverage (`ci.yml` only builds `expo-builder-gui`), so this
   was the only way to confirm the JSX actually compiles.
 
 **Files modified:** `windows/installer/ebl.iss`, `.github/workflows/release.yml`,
 `README.md`, `docs/RELEASING.md`, `ebl_landing_page/app/download/page.tsx`
 
-## v0.13.1 — Point uninstall instructions at `ebl clean --all` first
+## v0.13.1 - Point uninstall instructions at `ebl clean --all` first
 
 **Date:** 2026-08-02
 **Type:** Fix
 
 - `README.md`'s Uninstall section only ever covered removing the `ebl` binary
-  itself (`apt remove`/`uninstall.ps1`/Add-or-Remove-Programs) — none of those
+  itself (`apt remove`/`uninstall.ps1`/Add-or-Remove-Programs) - none of those
   touch Docker, so the runner/orchestrator/web images, Gradle/npm cache
   volumes, and any leftover build containers (see `ebl clean`, v0.13.0) were
   silently left behind. Added a note at the top of the section pointing at
   `ebl clean --all` first, while `ebl`/Docker are both still around to do it
-  cleanly — the alternative is hunting all of that down by hand with raw
+  cleanly - the alternative is hunting all of that down by hand with raw
   `docker` commands after the fact.
 
 **Files modified:** `README.md`
 
-## v0.13.0 — `ebl clean` command; landing page setup/requirements section
+## v0.13.0 - `ebl clean` command; landing page setup/requirements section
 
 **Date:** 2026-08-02
 **Type:** Feature
 
 - New `ebl clean [--all]` subcommand (`cli/src/commands/clean.cpp`, wired into
   `main.cpp`/`CMakeLists.txt`): removes ebl's own stopped build containers
-  (labeled with `kAppPathLabel`, found via `DockerClient::listBuildContainers` —
+  (labeled with `kAppPathLabel`, found via `DockerClient::listBuildContainers` -
   a new `all=1` sibling of the existing `findRunningBuildContainerByAppPath`
-  query). Didn't exist before — every leftover container from an interrupted or
+  query). Didn't exist before - every leftover container from an interrupted or
   crashed build had to be found and removed with raw `docker` commands by hand,
   which is exactly what this session spent several rounds doing. With `--all`,
   also removes the shared `expo-builder-local_gradle-cache`/`_npm-cache` volumes
   (new `DockerClient::removeVolume`) and the runner/orchestrator/web images (new
-  `DockerClient::removeImage`) — refuses if any build container is currently
+  `DockerClient::removeImage`) - refuses if any build container is currently
   running rather than pulling a cache volume out from under it (Docker's own
   `DELETE /volumes` would just 409 on an in-use volume regardless, but this
   gives a clearer message up front).
 - `windows/install.ps1`'s WSL2 step (added in v0.12.0) previously just silently
-  skipped tuning if `wsl.exe` wasn't found at all — now it warns explicitly,
+  skipped tuning if `wsl.exe` wasn't found at all - now it warns explicitly,
   with the exact `wsl --install` command and a reminder that it needs a
   restart, mirroring how the existing Docker Desktop check already behaves
   rather than leaving a WSL2-less machine with no guidance.
-- `README.md` (the project's actual landing page — not `expo-builder-gui/app/
+- `README.md` (the project's actual landing page - not `expo-builder-gui/app/
   page.tsx`, which is the in-app dashboard only ever seen *after* Docker/WSL2
   already work) gained a numbered Windows setup order: install WSL2
   (`wsl --install`, then restart) → install Docker Desktop → run the
@@ -374,7 +374,7 @@ installer, not by inspection.
   they're already present. Also states the real resource requirements this
   session found the hard way: 16GB+ RAM recommended (a multi-ABI native
   Android compile inside Docker Desktop's WSL2 VM can exhaust less, crashing
-  the Engine API into `500`s rather than just slowing down — see v0.12.0), and
+  the Engine API into `500`s rather than just slowing down - see v0.12.0), and
   ~40GB free disk (WSL2 swap headroom + the runner image + Gradle/npm caches),
   reclaimable with the new `ebl clean --all`. `ebl clean` also added to the
   Command reference table.
@@ -383,7 +383,7 @@ installer, not by inspection.
 `cli/CMakeLists.txt`, `cli/src/docker_client.{hpp,cpp}`, `README.md`,
 `windows/install.ps1`
 
-## v0.12.0 — Auto-tune WSL2 memory/swap from detected host RAM on install
+## v0.12.0 - Auto-tune WSL2 memory/swap from detected host RAM on install
 
 **Date:** 2026-08-02
 **Type:** Feature
@@ -391,7 +391,7 @@ installer, not by inspection.
 - `ebl.exe` itself never touches WSL2 (it talks to Docker Desktop's named pipe
   directly), but the *build containers* run inside Docker Desktop's WSL2 VM
   backend, and WSL2's own default cap (50% of host RAM, swap wherever the system
-  drive has room) proved routinely too little for a real Android build — a cold,
+  drive has room) proved routinely too little for a real Android build - a cold,
   multi-ABI native compile (`react-native-worklets`/`react-native-screens` across
   arm64-v8a/armeabi-v7a/x86/x86_64) plus Gradle/Kotlin daemons exhausted it,
   which crashed Docker Desktop's backend (the Engine API started returning
@@ -408,7 +408,7 @@ installer, not by inspection.
   11GB/24GB hand-tuned config that was confirmed to fix the crash.
 - If the system drive doesn't have (`swap size` + 20GB) free, the swap file is
   instead placed on whichever other fixed drive has the most free space (under
-  `<drive>:\ebl-data\wsl-swap.vhdx`) — a build filling the system drive with its
+  `<drive>:\ebl-data\wsl-swap.vhdx`) - a build filling the system drive with its
   own giant swap file is exactly the kind of self-inflicted disk pressure this
   exists to prevent. Also reproduced live: the same machine's `C:` drive hit
   0.2GB free during this investigation (WSL2/Docker Desktop VHDX + build caches),
@@ -419,42 +419,42 @@ installer, not by inspection.
   deliberate (yours, or a previous ebl install's) and left alone unless
   `-ForceWslConfig` is passed; `-SkipWslConfig` opts out entirely. Wrapped in
   try/catch so a failure here (e.g. `Get-CimInstance` unavailable) warns and
-  falls through to the rest of setup rather than aborting the install — this
+  falls through to the rest of setup rather than aborting the install - this
   step is best-effort, not a hard prerequisite like the Docker Desktop check.
   Applies to both the one-line web installer and the Inno Setup GUI installer,
   since `ebl-setup.exe` just runs this same script with `-LocalInstallDir`.
 
 **Files modified:** `windows/install.ps1`
 
-## v0.11.5 — Fix Windows build reliability: git clone exit 128, and flat-timeout kills of healthy builds
+## v0.11.5 - Fix Windows build reliability: git clone exit 128, and flat-timeout kills of healthy builds
 
 **Date:** 2026-07-31
 **Type:** Fix
 
 - `eas build --local`'s and `gradlew`'s long native-compile phases were killed by
   a flat wall-clock cap (`EAS_BUILD_TIMEOUT`/`GRADLE_TIMEOUT`, 40 min) even while
-  actively compiling — a cold, multi-ABI native build (several C++ modules like
+  actively compiling - a cold, multi-ABI native build (several C++ modules like
   `react-native-worklets`/`react-native-screens` compiling for
   arm64-v8a/armeabi-v7a/x86/x86_64 with no warm Gradle cache) can legitimately run
   well past that. Replaced with `run_with_idle_timeout` (new in
   `build-entrypoint.sh`): polls cumulative CPU time across the whole descendant
   process tree and only kills once that hasn't moved for
-  `EAS_BUILD_IDLE_TIMEOUT`/`GRADLE_IDLE_TIMEOUT` (default 10 min each) — a phase
+  `EAS_BUILD_IDLE_TIMEOUT`/`GRADLE_IDLE_TIMEOUT` (default 10 min each) - a phase
   that's silently CPU-busy (a linker, a large compile unit with no stdout for
   minutes) is no longer mistaken for a stall. `EAS_BUILD_TIMEOUT`/`GRADLE_TIMEOUT`
   still apply as an outer 2h safety-net ceiling. Deliberately does not redirect
-  the child's stdout/stderr to watch for output instead of CPU — this container
+  the child's stdout/stderr to watch for output instead of CPU - this container
   gets a real TTY (`Tty:true`) specifically so `--console=rich` can render the
   live Gradle progress line `build/progress.ts` parses; piping fd 1 through
   anything (e.g. `tee`, tested and reverted) turns it into a plain FIFO from the
   child's point of view and silently breaks that detection. `kill_tree` signals
   the stalled process and its descendants individually (recursive `pgrep -P`),
-  never the whole process group, since everything this script runs — including
-  the monitor loop itself — shares one process group and a group-wide `SIGKILL`
+  never the whole process group, since everything this script runs - including
+  the monitor loop itself - shares one process group and a group-wide `SIGKILL`
   would kill the monitor mid-kill before it could report back. Added `procps` to
   the runner image so `pgrep`/`ps` are guaranteed present rather than relying on
   them being pulled in transitively by the Ubuntu base image.
-- On Windows, Docker Desktop's bind-mount layer doesn't map host ownership —
+- On Windows, Docker Desktop's bind-mount layer doesn't map host ownership -
   bind-mounted project files show up **root-owned** inside the runner container
   regardless of `BUILD_UID`, unlike native Linux bind mounts which preserve real
   host ownership. This tripped git's "dubious ownership" safety check the moment
@@ -468,24 +468,24 @@ installer, not by inspection.
 - Root cause of why the existing `git config --global --add safe.directory
   "${APP_DIR}"` in `build-entrypoint.sh` didn't already cover this: it's scoped to
   one exact path and only takes effect if the process reading it has `$HOME` set
-  to `builder`'s home — `eas-cli`'s internal git subprocess isn't guaranteed to
+  to `builder`'s home - `eas-cli`'s internal git subprocess isn't guaranteed to
   inherit that environment.
 - Fixed by baking `git config --system --add safe.directory '*'` into the runner
-  image at build time (Dockerfile, still root at that point) instead — writes to
+  image at build time (Dockerfile, still root at that point) instead - writes to
   `/etc/gitconfig`, which is env-independent and applies regardless of which user
   or `$HOME` any subprocess ends up using. No effect on Linux, where the ownership
   mismatch never occurs in the first place.
 
 **Files modified:** `docker/runner/Dockerfile`, `docker/runner/build-entrypoint.sh`
 
-## v0.11.6 — Fix two bugs in v0.11.5's idle-timeout monitor
+## v0.11.6 - Fix two bugs in v0.11.5's idle-timeout monitor
 
 **Date:** 2026-07-31
 **Type:** Fix
 
 - Two bugs found via a real build after v0.11.5 landed, both now fixed:
   (1) `tree_cpu_seconds`'s `HH:MM:SS` parsing did plain `$(( ))` arithmetic on
-  `ps -o time=`'s zero-padded fields — bash's arithmetic evaluator treats a
+  `ps -o time=`'s zero-padded fields - bash's arithmetic evaluator treats a
   leading-zero literal as octal, and "08"/"09" aren't valid octal digits, so
   any build running past ~8 minutes of cumulative CPU time hit
   `value too great for base (error token is "08")`, silently broke CPU
@@ -494,7 +494,7 @@ installer, not by inspection.
   every component. Verified with a real ~9.5-minute CPU-busy process tree
   (crossing the 08/09 boundary repeatedly) surviving the full run without being
   killed. (2) The `|| fail "... stalled ..."` message at both call sites was
-  unconditional — it claimed "stalled" even when the wrapped command exited on
+  unconditional - it claimed "stalled" even when the wrapped command exited on
   its own with a real (non-124) failure code, which is exactly what made bug
   (1)'s false-positive kill read as a plausible timeout instead of the bug it
   was. Both call sites now branch on the actual exit status and only say
@@ -502,37 +502,37 @@ installer, not by inspection.
 
 **Files modified:** `docker/runner/build-entrypoint.sh`
 
-## v0.11.4 — Real progress bars for `docker pull`-style image pulls/updates
+## v0.11.4 - Real progress bars for `docker pull`-style image pulls/updates
 
 **Date:** 2026-07-30
 **Type:** Fix
 
 - `cli/src/pull_progress.hpp`'s `PullProgressRenderer` already redrew each layer's
   line in place (like the real `docker` CLI), but every "Downloading"/"Extracting"
-  line only ever showed bare status text, no bar — because the Docker Engine API's
+  line only ever showed bare status text, no bar - because the Docker Engine API's
   raw `/images/create` stream never actually includes a pre-rendered `progress` bar
   string (confirmed by curling `/images/create` directly against dockerd: only
   `progressDetail: {current, total}` byte counts come back). The bar the real
   `docker` CLI shows is rendered client-side from those counts, not sent over the
-  wire — `docker_client.cpp`'s old `event.contains("progress")` check was
+  wire - `docker_client.cpp`'s old `event.contains("progress")` check was
   effectively dead code.
 - `DockerClient::pullImage` (`cli/src/docker_client.cpp`) now synthesizes the bar
   itself from `progressDetail`: a fixed-width 30-char `[===>   ]` bar plus
   docker-style human sizes (1000-based, e.g. `2.506MB/3.418MB`, mirroring
-  `docker/pkg/units.CustomSize`'s `%.4g` formatting). One change point — `setup.cpp`
+  `docker/pkg/units.CustomSize`'s `%.4g` formatting). One change point - `setup.cpp`
   (`ebl setup`'s image pulls/updates), `build.cpp`, and `start.cpp` all get it for
   free since they only ever forward whatever `pullImage` hands them to the
   already-correct `PullProgressRenderer`.
 - Verified against a real pull through a pty (`script`): each layer's line now
   animates in place, e.g. `Downloading [=====================>        ]
   2.506MB/3.418MB` growing to completion, then `Extracting [...]`, then
-  `Pull complete` — matching real `docker pull` output.
+  `Pull complete` - matching real `docker pull` output.
 
 **Files modified:** `cli/src/docker_client.cpp`, `cli/src/pull_progress.hpp`,
 `orchestrator/package.json`, `expo-builder-gui/package.json`, `cli/CMakeLists.txt`,
 `windows/installer/ebl.iss`
 
-## v0.11.3 — Fix `eas build --local` wedging permanently inside the build container
+## v0.11.3 - Fix `eas build --local` wedging permanently inside the build container
 
 **Date:** 2026-07-30
 **Type:** Fix
@@ -542,18 +542,18 @@ installer, not by inspection.
   pty, but `docker/runner/build-entrypoint.sh`'s `run_with_timeout()` wrapped every
   step in plain `timeout --kill-after=10s`. Without `--foreground`, GNU `timeout`
   puts the wrapped command in a *new* process group (so `--kill-after` can signal
-  the whole subtree), and that new group never becomes the pty's foreground group —
+  the whole subtree), and that new group never becomes the pty's foreground group -
   it stays whatever PID 1 started with. The instant the wrapped command touches the
   terminal (`eas-cli`/its spinner libs checking `isTTY` and doing an ioctl, even
   under `--non-interactive`), the kernel sends it `SIGTTIN`/`SIGTTOU` and stops it
-  (confirmed via `ps -o pid,pgid,tpgid,stat`: `pgid=44`, `tpgid=1`, `STAT=Tl`) —
+  (confirmed via `ps -o pid,pgid,tpgid,stat`: `pgid=44`, `tpgid=1`, `STAT=Tl`) -
   permanently, since nothing ever sends `SIGCONT`. Read externally as an indefinite
   stall right after "Using Keystore from configuration", not a timeout, because a
-  *stopped* process can't act on `timeout`'s eventual `SIGTERM` either — only
+  *stopped* process can't act on `timeout`'s eventual `SIGTERM` either - only
   `--kill-after`'s `SIGKILL` would ever have landed, 40 minutes later.
 - Fix: added `--foreground` to the `timeout` invocation in `run_with_timeout()` so
   the wrapped command stays in `timeout`'s own process group, which stays in sync
-  with the pty's foreground group — no more TTY-triggered stop. Affects every step
+  with the pty's foreground group - no more TTY-triggered stop. Affects every step
   wrapped by `run_with_timeout` (`npm ci`/`install`, `expo prebuild`,
   `eas build --local`, `gradlew assemble/bundleRelease`), not just the EAS path.
 - This requires a rebuilt/re-pulled runner image to take effect (the script is
@@ -562,25 +562,25 @@ installer, not by inspection.
 **Files modified:** `docker/runner/build-entrypoint.sh`, `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt`, `windows/installer/ebl.iss`
 
-## v0.11.2 — `ebl setup` finishes a fresh Docker install properly
+## v0.11.2 - `ebl setup` finishes a fresh Docker install properly
 
 **Date:** 2026-07-30
 **Type:** Enhancement
 
 - `ebl setup`'s auto-install path (`cli/src/commands/setup.cpp`) ran the official
-  `get.docker.com` convenience script when Docker wasn't found, but stopped there —
+  `get.docker.com` convenience script when Docker wasn't found, but stopped there -
   the script installs the packages, but (unlike the manual apt flow) doesn't enable
   or start the systemd service, and never adds the invoking user to the `docker`
   group. A fresh install would report success and then immediately fail the
   `docker.ping()` check right after, or leave the daemon not actually running.
 - Now runs `sudo systemctl enable docker` + `sudo systemctl start docker` and
-  `sudo usermod -aG docker $USER` right after a successful install script run —
+  `sudo usermod -aG docker $USER` right after a successful install script run -
   best-effort (exit codes intentionally ignored; `ebl setup` still explains the
   logout/`newgrp docker` step needed for the new group membership to take effect
   in the *current* shell, since that can't be fixed programmatically).
 - Also hardened the other existing branch: when `docker` is already installed but
   the daemon isn't reachable, `ebl setup` previously just printed "try: sudo
-  systemctl start docker" and exited — it now runs that (plus `enable`) itself and
+  systemctl start docker" and exited - it now runs that (plus `enable`) itself and
   re-checks before giving up.
 - Every remaining failure exit in this flow now explicitly says to re-run `ebl
   setup` once Docker is actually up (the still-unreachable-after-start-attempt
@@ -588,12 +588,12 @@ installer, not by inspection.
 
 **Files modified:** `cli/src/commands/setup.cpp`
 
-## v0.11.1 — Note: v0.11.0's runner-image fix needs a tag push to actually ship
+## v0.11.1 - Note: v0.11.0's runner-image fix needs a tag push to actually ship
 
 **Date:** 2026-07-30
 **Type:** Fix (process/docs)
 
-- No code change in this entry — documenting a gap found while verifying v0.11.0
+- No code change in this entry - documenting a gap found while verifying v0.11.0
   actually reached a real build. `build-entrypoint.sh` is baked into the runner
   image at Docker build time (`docker/runner/Dockerfile`'s `COPY
   build-entrypoint.sh ...`), not bind-mounted at container start. `v0.10.0`'s
@@ -601,17 +601,17 @@ installer, not by inspection.
   `41vi4p/expo-builder-local-runner:latest` before every build. Since
   `docker-publish.yml` only rebuilds/republishes that image on a `v*` tag push,
   and the last tag actually pushed to the remote was `v0.9.1`, every `ebl build`
-  — including ones run after v0.11.0's local fix landed — kept silently
+  - including ones run after v0.11.0's local fix landed - kept silently
   re-pulling the pre-fix image and reproducing the exact hang v0.11.0 was
   supposed to have already fixed.
 - Net effect: a local source fix to `docker/runner/` is inert for any user
   until a version tag is actually pushed (triggers both `release.yml` and
   `docker-publish.yml`). Recorded here so this isn't mistaken for the v0.11.0
-  fix being ineffective — it was never published, not wrong.
+  fix being ineffective - it was never published, not wrong.
 
-**Files modified:** none (diagnosis only — see `docs/RELEASING.md` for the tag-push step still owed)
+**Files modified:** none (diagnosis only - see `docs/RELEASING.md` for the tag-push step still owed)
 
-## v0.11.0 — Bounded timeouts so a stalled step can't hang a build forever
+## v0.11.0 - Bounded timeouts so a stalled step can't hang a build forever
 
 **Date:** 2026-07-29
 **Type:** Feature
@@ -620,14 +620,14 @@ installer, not by inspection.
   install step already had a fallback (`npm ci || npm install
   --legacy-peer-deps`), but it was useless whenever `npm ci` needed to fall
   into live dependency resolution (e.g. `package-lock.json` drifted out of
-  sync with `package.json`, combined with a real peer-dependency conflict) —
+  sync with `package.json`, combined with a real peer-dependency conflict) -
   instead of failing fast the way `npm install` does, `npm ci` hung
   indefinitely on both npm 12.0.1 and 11.15.0, so the `||` fallback never
   got a chance to run. A build could sit at "Installing dependencies" with
   0% CPU and 0 network activity for however long a user was willing to wait.
-- Added `run_with_timeout()` — wraps a command in `timeout --kill-after=10s`
+- Added `run_with_timeout()` - wraps a command in `timeout --kill-after=10s`
   (SIGTERM first, SIGKILL 10s later if that alone doesn't take, matching
-  what we observed hung npm/gradle processes actually need to die) — and
+  what we observed hung npm/gradle processes actually need to die) - and
   applied it to every step that talks to a registry, a daemon, or a native
   toolchain and could plausibly hang: `npm ci`/`npm install`, `expo
   prebuild`, `eas build --local`, and `gradlew assemble/bundleRelease`.
@@ -637,55 +637,55 @@ installer, not by inspection.
   `npm ci` → `npm install` fallback handoff (previously dead code in
   practice), or a clear `@@ERROR:` message identifying which step and
   timeout fired, surfaced through both consumers exactly like any other
-  build failure — no new marker type, so `progress.ts`/`BuildTimeline.tsx`
+  build failure - no new marker type, so `progress.ts`/`BuildTimeline.tsx`
   needed no changes.
 - Added `check_disk_space()`, run before any real work starts, checking both
   the project bind mount and `/cache` (the npm/gradle volumes, which can be
-  on a different filesystem) — hard-fails fast with a clear message below
+  on a different filesystem) - hard-fails fast with a clear message below
   `MIN_FREE_DISK_MB` (2GB default) rather than letting a near-full disk
   degrade into the same kind of silent stall a low-disk condition
   contributed to in practice.
 - Verified the `npm ci`-hangs → fallback → succeeds path, and the
   both-fail → clean `@@ERROR` path, against a fake hanging `npm` in
-  isolation — both complete in bounded time with the correct exit codes.
+  isolation - both complete in bounded time with the correct exit codes.
 
 **Files modified:** `docker/runner/build-entrypoint.sh`
 
-## v0.10.0 — `ebl build`/`ebl start` now check for image updates
+## v0.10.0 - `ebl build`/`ebl start` now check for image updates
 
 **Date:** 2026-07-29
 **Type:** Feature
 
 - `ebl build`'s `ensureRunnerImage()` (`cli/src/commands/build.cpp`) previously
   only pulled the runner image if it was missing locally, then reused whatever
-  was cached forever — a local `:latest` tag never got refreshed even after a
+  was cached forever - a local `:latest` tag never got refreshed even after a
   newer image was published to Docker Hub. It now always attempts a pull
   first, on every build; Docker's pull is idempotent (only transfers changed
   layers, no-ops quickly when already current), so this doubles as the update
   check without materially slowing down an already-current build. Falls back
   exactly as before when offline/unreachable: uses the cached local image if
   the pull fails but one exists, otherwise builds it from the bundled
-  `docker/runner/` context — still fully offline-capable after the first
+  `docker/runner/` context - still fully offline-capable after the first
   successful pull or local build.
 - `ebl start`'s `ensureServiceImage()` (`cli/src/commands/start.cpp`) gets the
   same update check, but interactive rather than silent: unlike a build's
   disposable container, `ebl start` always tears down and recreates the
   orchestrator/web containers on every run (`createServiceContainer` already
   removes any same-named container first), so a freshly pulled image takes
-  effect immediately — worth confirming before spending the time/bandwidth on
+  effect immediately - worth confirming before spending the time/bandwidth on
   every single `ebl start`. Prompts "Check for a newer `<name>` image?"
   (default yes) only when a cached image already exists; a fresh install with
   nothing cached yet still just pulls straight through, no prompt. Declining,
   or a failed check with a cached image to fall back to, both just proceed
   with what's already local.
 - `ebl setup`'s image pulling (`commands/setup.cpp`) already pulled
-  unconditionally on every run, so it needed no change — both of the above
+  unconditionally on every run, so it needed no change - both of the above
   now line up with that existing behavior (`ebl build` fully, `ebl start`
   with a confirmation step given its higher blast radius).
 
 **Files modified:** `cli/src/commands/build.cpp`, `cli/src/commands/start.cpp`
 
-## v0.9.2 — Fix `apt update` i386 warning from the hosted APT repo
+## v0.9.2 - Fix `apt update` i386 warning from the hosted APT repo
 
 **Date:** 2026-07-29
 **Type:** Fix
@@ -695,14 +695,14 @@ installer, not by inspection.
   `docs/APT_REPO_SETUP_GUIDE.md`, and the landing page's docs/download pages)
   had no `arch=` restriction, so apt tried to fetch `i386` `Packages` metadata
   from it on any system with `i386` added as a foreign architecture (e.g. for
-  Steam/Wine) — the repo only publishes `amd64`, so this always failed with a
+  Steam/Wine) - the repo only publishes `amd64`, so this always failed with a
   "Skipping acquire ... doesn't support architecture 'i386'" notice. Now
   scoped to `arch=amd64`.
 
 **Files modified:** `install.sh`, `README.md`, `docs/APT_REPO_SETUP_GUIDE.md`,
 `ebl_landing_page/app/docs/page.tsx`, `ebl_landing_page/app/download/page.tsx`
 
-## v0.9.1 — Fix `eas build` hanging on a phantom "initialize git?" prompt
+## v0.9.1 - Fix `eas build` hanging on a phantom "initialize git?" prompt
 
 **Date:** 2026-07-29
 **Type:** Fix
@@ -710,37 +710,37 @@ installer, not by inspection.
 - `docker/runner/build-entrypoint.sh` now runs `git config --global --add
   safe.directory "${APP_DIR}"` before any build steps. Root cause: Docker
   Desktop's bind-mount for a host path doesn't preserve real host file
-  ownership — every file shows up owned by a UID that essentially never
+  ownership - every file shows up owned by a UID that essentially never
   matches the re-homed `builder` user the build actually runs as (observed on
   Windows/Docker Desktop: bind-mounted files show up owned by root
   regardless of `BUILD_UID`, confirmed by mounting a real repo into a plain
   container as uid 1000 and reproducing `fatal: detected dubious ownership in
   repository`). Git's post-CVE-2022-24765 ownership check then refuses to
   read the project's `.git`, and `eas build --local` doesn't surface that
-  git error at all — it just falls back to an interactive "It looks like you
+  git error at all - it just falls back to an interactive "It looks like you
   haven't initialized the git repository yet... Would you like us to run
   'git init'?" prompt, which then hangs forever since the build container has
   no stdin attached to answer it. This affected any project with its own
-  `.git` when built with the (default) `eas` engine — not Windows-exclusive
+  `.git` when built with the (default) `eas` engine - not Windows-exclusive
   in principle, but guaranteed to reproduce there given Docker Desktop's
   bind-mount ownership behavior.
 
 **Files modified:** `docker/runner/build-entrypoint.sh`
 
-## v0.9.0 — Native Windows `ebl.exe` (no more WSL2)
+## v0.9.0 - Native Windows `ebl.exe` (no more WSL2)
 
 **Date:** 2026-07-28
 **Type:** Feature
 
 - `ebl.exe` on Windows is now the real `cli/` binary compiled natively for
-  Windows — the same source every other platform uses (MSVC + CMake), not a thin
+  Windows - the same source every other platform uses (MSVC + CMake), not a thin
   wrapper that spawned `wsl.exe` into a separately-installed Linux `ebl` inside a
   WSL2 distro. No WSL2 distro, no separate install inside it, no manual "enable
-  Docker Desktop WSL integration" toggle — Docker Desktop installed and running is
+  Docker Desktop WSL integration" toggle - Docker Desktop installed and running is
   the only prerequisite.
 - New `cli/src/http_client_win.cpp`: talks to Docker Desktop's Engine API over its
   `\\.\pipe\docker_engine` named pipe (the same endpoint `docker.exe` itself uses)
-  — hand-rolled HTTP/1.1 request/response framing over `CreateFileW`/`ReadFile`/
+  - hand-rolled HTTP/1.1 request/response framing over `CreateFileW`/`ReadFile`/
   `WriteFile` with overlapped I/O, since libcurl has no Windows-named-pipe
   transport. Supports both `Content-Length` and chunked response bodies (Docker
   streams `/build`/`/containers/{id}/attach` chunked). `http_client.cpp` split into
@@ -748,15 +748,15 @@ installer, not by inspection.
   `http_client_common.cpp` (`httpGetTcp`/`urlEncode`, shared by both platforms).
 - New `cli/src/winpath.*`: translates Windows host paths into the form Docker
   Desktop's Engine API expects as a bind-mount source (`"D:\Projects\App"` →
-  `"//d/Projects/App"` — the same conversion the real `docker` CLI performs
+  `"//d/Projects/App"` - the same conversion the real `docker` CLI performs
   client-side, since the daemon runs inside Docker Desktop's own Linux VM).
   Identity function on every other platform; wired into every bind-mount
   construction site in `docker_client.cpp` and `commands/start.cpp`.
 - Ported the remaining POSIX-only code paths to Win32: `config_store.cpp` (config
   now lives at `%APPDATA%\ebl\` instead of `~/.config/ebl/`; fixed a
   Windows-specific bug where the atomic config-save step would have failed with
-  `EEXIST` on every save after the first, since plain C `rename()` — unlike POSIX
-  `rename(2)` — doesn't replace an existing destination on Windows, now uses
+  `EEXIST` on every save after the first, since plain C `rename()` - unlike POSIX
+  `rename(2)` - doesn't replace an existing destination on Windows, now uses
   `MoveFileExA`/`MOVEFILE_REPLACE_EXISTING`), `runner_context.cpp`
   (`GetModuleFileNameA` instead of `/proc/self/exe`), `prompt.cpp` (console
   `ENABLE_ECHO_INPUT` toggling instead of `termios`), `metrics.cpp` (`git`
@@ -765,7 +765,7 @@ installer, not by inspection.
   (`std::filesystem::status().permissions()` instead of `stat()`), and
   `color.hpp`/`pull_progress.cpp` (`_isatty`/`_fileno`). `commands/start.cpp` and
   `commands/build.cpp`'s `HOST_UID`/`HOST_GID`/build-container UID/GID hardcode
-  `1000`/`1000` on Windows (no POSIX uid/gid to report) — a placeholder pending
+  `1000`/`1000` on Windows (no POSIX uid/gid to report) - a placeholder pending
   verification against a real Docker Desktop install.
 - `windows/launcher/` (the `wsl.exe`-forwarding shim) removed entirely.
   `windows/install.ps1`/`uninstall.ps1` rewritten to drop all WSL2/distro
@@ -789,7 +789,7 @@ installer, not by inspection.
 `.github/workflows/release.yml`, `.github/workflows/ci.yml` (windows/launcher/
 removed)
 
-## v0.8.2 — System requirements on the Download page
+## v0.8.2 - System requirements on the Download page
 
 **Date:** 2026-07-28
 **Type:** Enhancement
@@ -805,21 +805,21 @@ removed)
 
 **Files modified:** `ebl_landing_page/app/download/page.tsx`
 
-## v0.8.1 — README/landing-page overhaul, upfront Docker Desktop check on Windows
+## v0.8.1 - README/landing-page overhaul, upfront Docker Desktop check on Windows
 
 **Date:** 2026-07-28
 **Type:** Enhancement
 
 - `windows/install.ps1` now checks for Docker Desktop *before* touching WSL2 or
   installing anything (via its standard install path plus a registry-uninstall-key
-  scan as a fallback, with a new `-SkipDockerCheck` escape hatch) — it never
+  scan as a fallback, with a new `-SkipDockerCheck` escape hatch) - it never
   installed Docker Desktop itself, but previously only mentioned that as a reminder
   at the very end of a successful run, meaning someone without it would sit through
   the whole WSL2+`ebl` setup only to discover Docker unreachable at `ebl build`
   time. Now it stops immediately with a clear message and a link.
 - `README.md` overhauled to read like a proper OSS repo: a centered logo header
   (light/dark variants via `<picture>`+`prefers-color-scheme`, generated from the
-  same `ebl_logo.png` used on the landing page — see `docs/assets/`), version/CI/
+  same `ebl_logo.png` used on the landing page - see `docs/assets/`), version/CI/
   license/platform/issues badges, and a contents list. Restructured "Quick start"
   into OS-specific Linux/Windows subsections (previously Linux-only), and added a
   new "Uninstall" section covering both OSes (there was no uninstall
@@ -835,19 +835,19 @@ removed)
 - Fixed a real, reproducible SWC/Next.js JSX-compiler quirk found while verifying
   the above: text immediately following a closing inline tag (`</code>`,
   `</strong>`) that wraps across multiple *source* lines before the next tag
-  loses its leading space in the compiled output — confirmed via the raw RSC
+  loses its leading space in the compiled output - confirmed via the raw RSC
   flight-payload (the serialized text child was missing the space), not just a
   screenshot artifact, and reproduced identically after a from-scratch dev-server
   restart in a brand-new tab (ruling out stale Fast Refresh/HMR, which had been
   the cause of a similar-looking issue earlier in this project). A single-line
   case with the same tag-then-text shape rendered correctly, isolating the
   wrapping itself as the trigger. Worked around by inserting an explicit `{" "}`
-  right after any closing inline tag whose following text run wraps — found and
+  right after any closing inline tag whose following text run wraps - found and
   fixed 6 real occurrences across `app/docs/page.tsx` and `app/download/page.tsx`
   this way; verified clean by scripting the browser to click through every
   page/OS-tab/install-uninstall combination and regex-scanning each `p`/`li`/`dd`/
   `h1`–`h3` element's own `textContent` for glued words (careful to scope the
-  check per inline-text element, not the whole page — a first attempt at
+  check per inline-text element, not the whole page - a first attempt at
   `document.body.textContent` produced mostly false positives from legitimate
   block-level element boundaries, e.g. sidebar nav text directly abutting section
   text with no separator).
@@ -858,46 +858,46 @@ removed)
 **Files added:** `docs/assets/ebl_logo.png`, `docs/assets/ebl_logo-dark.png`,
 `ebl_landing_page/components/OSTabs.tsx`
 
-## v0.8.0 — Windows support (WSL2 wrapper)
+## v0.8.0 - Windows support (WSL2 wrapper)
 
 **Date:** 2026-07-28
 **Type:** Feature
 
-- New `windows/` — Windows support, deliberately built as a WSL2 wrapper rather
+- New `windows/` - Windows support, deliberately built as a WSL2 wrapper rather
   than a native Win32 port: Docker Desktop for Windows already runs on a WSL2
   backend by default, so the actual builds are Linux either way, and Docker
   Desktop's WSL integration already exposes a working `/var/run/docker.sock`
   inside an integrated distro. That means the real Linux `ebl` (`cli/`) runs there
-  completely unmodified — no named-pipe transport, no POSIX-path porting, no
+  completely unmodified - no named-pipe transport, no POSIX-path porting, no
   termios-hidden-input porting.
-  - `windows/launcher/` — `ebl.exe`, a small dependency-free Win32 C++ program
+  - `windows/launcher/` - `ebl.exe`, a small dependency-free Win32 C++ program
     (no curl/OpenSSL) that forwards `ebl <args>` into the default WSL distro's
     `ebl`. Sets `--cd <windows-cwd>` (wsl.exe translates this itself, so relative
     paths like `ebl build .` need no translation at all) and best-effort
     translates absolute Windows-path *arguments* (`C:\...` -> `/mnt/c/...`, which
     wsl.exe does not do for opaque args). stdio/exit-code/Ctrl-C all pass through
-    wsl.exe's own normal console handling — nothing special needed on our end.
-  - `windows/install.ps1` — one-line installer (`irm ... | iex`): checks/installs
+    wsl.exe's own normal console handling - nothing special needed on our end.
+  - `windows/install.ps1` - one-line installer (`irm ... | iex`): checks/installs
     WSL2 and a distro if needed (explicitly excludes Docker Desktop's own internal
     `docker-desktop`/`docker-desktop-data` distros from being picked as the
-    target — a real bug caught while testing distro-list parsing, since `wsl -l
+    target - a real bug caught while testing distro-list parsing, since `wsl -l
     -q` doesn't order user distros first), installs the real `ebl` inside that
     distro via the *same* `install.sh`/APT repo every Linux user gets, downloads
     the `ebl.exe` launcher from this repo's latest GitHub Release, and adds it to
     the user's PATH.
-  - `windows/uninstall.ps1` — reverses the launcher install; asks before also
+  - `windows/uninstall.ps1` - reverses the launcher install; asks before also
     removing the `ebl` package from inside WSL, since that distro may be used for
     other things.
-  - `windows/installer/ebl.iss` — an Inno Setup script producing a GUI
+  - `windows/installer/ebl.iss` - an Inno Setup script producing a GUI
     `ebl-setup.exe`. Deliberately thin: it bundles `ebl.exe` plus the same two
     `.ps1` files and just runs them (`[Run]`/`[UninstallRun]`), so install logic
     exists in exactly one place instead of being reimplemented for the GUI path.
   - Both `.ps1` files were rewritten to pure ASCII after `PSScriptAnalyzer`
-    flagged `PSUseBOMForUnicodeEncodedFile` on their em-dashes — a script invoked
+    flagged `PSUseBOMForUnicodeEncodedFile` on their em-dashes - a script invoked
     via `irm | iex` on Windows PowerShell 5.1 without a BOM can mis-decode
     non-ASCII characters, so ASCII-only is safer than adding a BOM.
 - CI (`ci.yml`) gained a `windows-latest` job building the launcher (MSVC) and
-  compiling `ebl.iss` (via Chocolatey's Inno Setup package) on every push/PR —
+  compiling `ebl.iss` (via Chocolatey's Inno Setup package) on every push/PR -
   this environment has neither a Windows runner nor mingw-w64/passwordless sudo
   to cross-compile or install it, so this is the only place these two actually
   get built and verified; reviewed the C++ by hand against documented Win32/CRT
@@ -907,7 +907,7 @@ removed)
   (PATH add/dedupe/remove, distro-list filtering) with mocked inputs.
 - `release.yml` gained a `windows-build-and-publish` job (needs the existing Linux
   job, since it attaches to the same release rather than creating its own) that
-  builds both Windows artifacts and uploads them to the GitHub Release —
+  builds both Windows artifacts and uploads them to the GitHub Release -
   `install.ps1` depends on `ebl.exe` being there at
   `releases/latest/download/ebl.exe`.
 - Version management extended to cover this: `windows/launcher/CMakeLists.txt`
@@ -920,54 +920,54 @@ removed)
 **Files added:** `windows/launcher/CMakeLists.txt`, `windows/launcher/src/main.cpp`,
 `windows/install.ps1`, `windows/uninstall.ps1`, `windows/installer/ebl.iss`
 
-## v0.7.2 — Dependency security patches (GUI)
+## v0.7.2 - Dependency security patches (GUI)
 
 **Date:** 2026-07-28
 **Type:** Security
 
-- `next`/`eslint-config-next` bumped `16.2.10` → `16.2.12` (patch release) —
+- `next`/`eslint-config-next` bumped `16.2.10` → `16.2.12` (patch release) -
   fixes several HIGH-severity `next audit` advisories (App Router middleware
   bypass, Server Action DoS/SSRF, cache confusion, image-optimization DoS).
 - `@typescript-eslint/typescript-estree`'s transitive `minimatch`/`brace-expansion`
   resolved up to `10.2.6`/`5.0.8` (both already within its declared `^10.2.2`
-  range — `npm update`, no version bump needed) — fixes GHSA-mh99-v99m-4gvg
+  range - `npm update`, no version bump needed) - fixes GHSA-mh99-v99m-4gvg
   (brace-expansion DoS) for that path.
 - **Deliberately left unpatched**, with reasoning:
   - `eslint@9.39.5`'s own `minimatch@3.1.5` (and the same via
     `eslint-plugin-import`/`-jsx-a11y`/`-react`, all still declaring
-    `minimatch@^3.1.2`) — no upstream fix exists yet short of `npm audit fix
+    `minimatch@^3.1.2`) - no upstream fix exists yet short of `npm audit fix
     --force`'s suggested `eslint@10.8.0`, a breaking major bump that isn't
     guaranteed to fully clear this anyway (the `eslint-plugin-*` packages would
     still need their own independent minimatch-range bump). This is
     devDependency-only tooling (`npm run lint`), never shipped or run in
-    production — lower priority than the two fixed above.
-  - `sharp <0.35.0` (libvips CVEs), bundled transitively by `next` itself — no
+    production - lower priority than the two fixed above.
+  - `sharp <0.35.0` (libvips CVEs), bundled transitively by `next` itself - no
     `next` 16.x release (including the just-applied 16.2.12, the latest) fixes
     this yet; `npm audit fix --force`'s suggested fix is downgrading to
     `next@14.2.35`, a two-major-version rollback that would almost certainly
     break this app and isn't a reasonable trade-off for a libvips CVE. This app
     doesn't use `next/image` anywhere (checked), so the vulnerable `sharp`
     binary sits in `node_modules` but is never actually invoked at runtime.
-  - Revisit both next time `npm audit` is run — waiting on upstream releases.
+  - Revisit both next time `npm audit` is run - waiting on upstream releases.
 
 **Files modified:** `expo-builder-gui/package.json`, `expo-builder-gui/package-lock.json`
 
-## v0.7.1 — GUI About page
+## v0.7.1 - GUI About page
 
 **Date:** 2026-07-28
 **Type:** Feature
 
-- New `/about` page in the GUI, linked from the header nav next to Builds/History —
+- New `/about` page in the GUI, linked from the header nav next to Builds/History -
   the web-GUI counterpart of `ebl --about` (v0.7.0). Shows version (read from
   `expo-builder-gui/package.json` via `resolveJsonModule`, so it can't drift from
   the actual shipped build), developer, license, and a link to the GitHub repo.
-  Plain server component, no new dependencies — matches the existing
+  Plain server component, no new dependencies - matches the existing
   `rounded-lg border border-border bg-surface` card style used on the history page.
 
 **Files modified:** `expo-builder-gui/app/about/page.tsx` (new),
 `expo-builder-gui/app/layout.tsx`
 
-## v0.7.0 — `ebl --about`
+## v0.7.0 - `ebl --about`
 
 **Date:** 2026-07-28
 **Type:** Feature
@@ -979,7 +979,7 @@ removed)
 
 **Files modified:** `cli/src/main.cpp`
 
-## v0.6.10 — Removed the configurable Docker Hub namespace entirely
+## v0.6.10 - Removed the configurable Docker Hub namespace entirely
 
 **Date:** 2026-07-28
 **Type:** Refactor
@@ -988,14 +988,14 @@ removed)
   `EblConfig::dockerHubNamespace` no longer exists as a field. Now that
   `runnerImage()` was already hardcoded to `41vi4p/...` regardless of this setting
   (v0.6.9), `orchestratorImage()`/`webImage()` were the only things left reading
-  it — there was no real use case for pointing those at a different namespace
+  it - there was no real use case for pointing those at a different namespace
   either, so the whole concept (field, prompt, load/save, summary line) is removed
   rather than leaving an unused setting in the wizard.
-- Old config files that still have a `dockerHubNamespace` key are unaffected —
+- Old config files that still have a `dockerHubNamespace` key are unaffected -
   `loadConfig()` simply doesn't look for it anymore, and an unrecognized JSON key
   is harmless.
 - Note this is unrelated to `docker-compose.yml`'s `DOCKERHUB_NAMESPACE` env var
-  (the docker-compose local-dev path) — that's a separate mechanism and still
+  (the docker-compose local-dev path) - that's a separate mechanism and still
   works as before; only the CLI's `ebl config`/`EblConfig` namespace concept was
   removed.
 
@@ -1003,12 +1003,12 @@ removed)
 `cli/src/commands/config.cpp`, `cli/src/commands/setup.cpp`,
 `cli/src/commands/build.cpp`, `README.md`, `CLAUDE.md`, `docs/DOCKER.md`
 
-## v0.6.9 — Interactive Expo token prompt + project-local token file; Ctrl-C handling; runner image no longer follows the configured Docker Hub namespace
+## v0.6.9 - Interactive Expo token prompt + project-local token file; Ctrl-C handling; runner image no longer follows the configured Docker Hub namespace
 
 **Date:** 2026-07-28
 **Type:** Fix
 
-- `ebl build` previously had no SIGINT/SIGTERM handling at all — a Ctrl-C killed the
+- `ebl build` previously had no SIGINT/SIGTERM handling at all - a Ctrl-C killed the
   CLI process but left the build container running, unnoticed, indefinitely. This is
   almost certainly how the earlier three-container wedge incident actually started:
   interrupting a build and re-running it, not realizing the first container was
@@ -1017,16 +1017,16 @@ removed)
   - A signal handler now sets an async-signal-safe flag; a small watcher thread
     polls it and force-removes the container (`removeContainer`'s existing
     `?force=1` handles a still-running container fine), which is what unblocks the
-    main thread's blocking `waitContainer()` call — there's no other clean
+    main thread's blocking `waitContainer()` call - there's no other clean
     cancellation point on a bare `/containers/{id}/wait` libcurl request.
   - Reports "Build cancelled" and exits with 130 (128+SIGINT, standard shell
     convention) instead of the normal success/failure summary.
   - Prints a one-line "Press Ctrl-C to cancel" hint right after the container id,
     so this is discoverable without reading the source.
 - **Separately**, per explicit user request: `EblConfig::runnerImage()` no longer
-  derives from the configurable `dockerHubNamespace` — it's now hardcoded to
+  derives from the configurable `dockerHubNamespace` - it's now hardcoded to
   `41vi4p/expo-builder-local-runner:latest` always. `orchestratorImage()`/
-  `webImage()` are unaffected (still namespace-based) — the runner is the large,
+  `webImage()` are unaffected (still namespace-based) - the runner is the large,
   generic Android-toolchain image always published from the canonical upstream
   account, so someone forking this project under their own namespace (to publish
   their own orchestrator/web images) has no reason to also need to republish that
@@ -1044,10 +1044,10 @@ removed)
     empty and needed) an interactive prompt.
   - "Needed" mirrors `build-entrypoint.sh`'s own `auto` gating (v0.6.6): `eas`
     always needs one, `auto` needs one only if the project has an `eas.json`,
-    `gradle` never does — so this doesn't prompt for projects that don't use EAS.
+    `gradle` never does - so this doesn't prompt for projects that don't use EAS.
   - After the prompt, offers to save the entered token to `.ebl-token` for future
     builds of this project; if accepted, also appends `.ebl-token` to the
-    project's `.gitignore` (creating it if missing, skipping if already present) —
+    project's `.gitignore` (creating it if missing, skipping if already present) -
     the same "auto-gitignore a tool-generated file in the project" pattern
     `ebl_builds/` already uses, just done from the CLI side instead of
     `build-entrypoint.sh`'s setup phase, since this needs to happen before any
@@ -1060,27 +1060,27 @@ removed)
 `cli/src/prompt.hpp` (new), `cli/src/prompt.cpp` (new),
 `cli/src/commands/config.cpp`, `cli/CMakeLists.txt`
 
-## v0.6.8 — Default build engine changed from `auto` to `eas`
+## v0.6.8 - Default build engine changed from `auto` to `eas`
 
 **Date:** 2026-07-28
 **Type:** Enhancement
 
 - The default `--engine` (CLI) and the GUI's initial engine-selector value are now
-  `eas` instead of `auto` — user preference, since most of their projects are
+  `eas` instead of `auto` - user preference, since most of their projects are
   EAS-managed and typing `--engine eas` on every build was more friction than it
   was worth. `--engine auto`/`--engine gradle` (CLI) or the Gradle/Auto buttons
   (GUI) still work exactly as before if a project doesn't want EAS.
-- Note this is a plain engine selection, not `auto` — it will always attempt EAS
+- Note this is a plain engine selection, not `auto` - it will always attempt EAS
   regardless of whether the project has an `eas.json` or a resolvable token, and
   fail with `build-entrypoint.sh`'s existing `"ENGINE=eas requires an EXPO_TOKEN"`
   error if neither is available. For a project that never uses EAS, pass
   `--engine gradle` (or `--engine auto`, which does check for `eas.json`+token
-  before falling back — see v0.6.6).
+  before falling back - see v0.6.6).
 
 **Files modified:** `cli/src/commands/build.cpp`,
 `expo-builder-gui/components/BuildConfigForm.tsx`
 
-## v0.6.7 — Refuse to start a second concurrent build of the same project
+## v0.6.7 - Refuse to start a second concurrent build of the same project
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -1088,7 +1088,7 @@ removed)
 - Neither `ebl build` nor the orchestrator's `startBuild()` had any guard against
   starting a second build of the same project while one was already running.
   Both containers bind the same shared `expo-builder-*-npm-cache`/`gradle-cache`
-  volumes, so concurrent builds don't fail cleanly — they contend on npm's own
+  volumes, so concurrent builds don't fail cleanly - they contend on npm's own
   cache lock and both effectively wedge at "Installing dependencies" indefinitely,
   visible as near-0% CPU containers that even `docker rm -f`/`kill -9` can
   eventually struggle to reap once wedged that way for long enough.
@@ -1100,29 +1100,29 @@ removed)
   `docker stop` hint if one's already running for that path.
 - **Orchestrator**: `startBuild()` now checks a new `db.activeBuildForAppPath()`
   query (any `queued`/`starting`/`running` build for the same `app_path`) and
-  throws a `ValidationError` if one exists — protects the GUI the same way, and
+  throws a `ValidationError` if one exists - protects the GUI the same way, and
   also covers the case where `MAX_CONCURRENT_BUILDS` is configured above 1 for
   cross-project parallelism (which wouldn't otherwise stop two builds of the
   *same* project from both being admitted).
 - Found while debugging three simultaneously-running, wedged build containers on
-  a real machine — all three were `ebl build .` invocations of the same project,
+  a real machine - all three were `ebl build .` invocations of the same project,
   run back-to-back without realizing the first was still in flight.
 
 **Files modified:** `cli/src/docker_client.hpp`, `cli/src/docker_client.cpp`,
 `cli/src/commands/build.cpp`, `orchestrator/src/store/db.ts`,
 `orchestrator/src/build/manager.ts`
 
-## v0.6.6 — "auto" engine now requires `eas.json` before preferring EAS
+## v0.6.6 - "auto" engine now requires `eas.json` before preferring EAS
 
 **Date:** 2026-07-28
 **Type:** Fix
 
 - `docker/runner/build-entrypoint.sh`'s `auto` engine resolution previously picked
-  EAS whenever an `EXPO_TOKEN` was present, full stop — no check that the project
+  EAS whenever an `EXPO_TOKEN` was present, full stop - no check that the project
   actually has an `eas.json` to pull a build profile from. That was a reasonable
   proxy when a token being set was rare, but now that `ebl config`/the GUI can save
   a default token and per-owner tokens (auto-selected via `app.json`'s `owner`
-  field — see v0.6.0), *some* token resolves for far more projects, including ones
+  field - see v0.6.0), *some* token resolves for far more projects, including ones
   that never touch EAS at all. Without this change, `auto` would wrongly try (and
   fail) `eas build --local` on a plain Gradle-only project just because a token
   happened to be configured for its owner/account.
@@ -1134,37 +1134,37 @@ removed)
 **Files modified:** `docker/runner/build-entrypoint.sh`, `README.md`,
 `expo-builder-gui/components/BuildConfigForm.tsx`
 
-## v0.6.5 — Fix `ebl build` falling back to a non-namespaced runner image tag; atomic config save
+## v0.6.5 - Fix `ebl build` falling back to a non-namespaced runner image tag; atomic config save
 
 **Date:** 2026-07-28
 **Type:** Fix
 
 - `ebl build`'s runner-image resolution fell back to a hardcoded literal
   `"expo-builder-local-runner:latest"` (no Docker Hub namespace) whenever
-  `loadConfig()` returned `nullopt` — e.g. when `~/.config/ebl/config.json` is
+  `loadConfig()` returned `nullopt` - e.g. when `~/.config/ebl/config.json` is
   missing, or empty/corrupt. That tag was never published under the bare name (see
   v0.6.1's namespace-default fix), so it 404'd on pull and fell through to building
-  the ~6.8GB image from scratch — needlessly, since the correctly-namespaced image
+  the ~6.8GB image from scratch - needlessly, since the correctly-namespaced image
   was already present locally. `setup.cpp`/`start.cpp` didn't have this bug (they
   already use `loadConfig().value_or(EblConfig{})`); `build.cpp`'s runner-image line
   now does the same, so the fallback always matches `EblConfig`'s real default
   namespace instead of drifting from it.
 - Root cause of the empty config file: `saveConfig()` truncated `config.json` in
   place before writing the new content, so a disk-full condition (or a kill/crash)
-  partway through a save could leave a 0-byte file — which `loadConfig()` correctly
+  partway through a save could leave a 0-byte file - which `loadConfig()` correctly
   treats as "no config", triggering the bug above. Fixed by writing to a `.tmp`
   sibling file and `rename()`-ing it over the real path (atomic on the same
-  filesystem) — a save can now only ever land the fully-written file or leave the
+  filesystem) - a save can now only ever land the fully-written file or leave the
   previous one untouched, never a truncated one.
 - Found while debugging a real `ebl build .` failure: a disk-full condition
   (99% full root filesystem) had zeroed the user's config.json, which triggered
   the bare-tag fallback, which triggered a from-scratch image build, which then hit
-  `apt-get update` GPG "invalid signature" errors under the same disk pressure —
+  `apt-get update` GPG "invalid signature" errors under the same disk pressure -
   one connected failure chain, not three unrelated ones.
 
 **Files modified:** `cli/src/commands/build.cpp`, `cli/src/config_store.cpp`
 
-## v0.6.4 — Fix duplicate React keys / legend entries in resource charts
+## v0.6.4 - Fix duplicate React keys / legend entries in resource charts
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -1172,20 +1172,20 @@ removed)
 - Console error: `Encountered two children with the same key, "Received"` (and
   similarly for every other series) coming from `ResourceCharts.tsx`'s custom
   tooltip. Each series is intentionally rendered as both an `Area` (glow fill) and
-  a `Line` (crisp stroke) sharing the same `name` — recharts hands the tooltip one
+  a `Line` (crisp stroke) sharing the same `name` - recharts hands the tooltip one
   payload entry per rendered component, so two entries share the same name/key per
   series, and `ChartTooltip` mapped over all of them keyed by `entry.name`.
 - Also explains a smaller cosmetic bug visible in the legends (e.g. "● CPU % ● CPU
-  %", "● Received ● Received") — same root cause, just not previously reported.
+  %", "● Received ● Received") - same root cause, just not previously reported.
 - Fixed both: `ChartTooltip` now dedupes `payload` by `name` before rendering, and
   every `Area` got `legendType="none"` so only the paired `Line` contributes a
-  legend entry — one item per series instead of two identical ones.
+  legend entry - one item per series instead of two identical ones.
 - Verified live: reloaded the build page and hovered the charts with the browser
-  console open — no more duplicate-key warning, legends show one entry per series.
+  console open - no more duplicate-key warning, legends show one entry per series.
 
 **Files modified:** `expo-builder-gui/components/ResourceCharts.tsx`
 
-## v0.6.3 — Fix cleanup deleting a developer's own `credentials.json`
+## v0.6.3 - Fix cleanup deleting a developer's own `credentials.json`
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -1194,26 +1194,26 @@ removed)
   `${APP_DIR}/credentials.json` at the end of *every* build, regardless of engine,
   signing mode, or whether this run ever wrote that file itself. That's fine when
   ebl's own `write-eas-credentials.js` created it (EAS engine + release signing +
-  an ebl-managed keystore) — it's supposed to be ephemeral there. But a developer
+  an ebl-managed keystore) - it's supposed to be ephemeral there. But a developer
   using the EAS engine with debug signing (or one whose `eas.json` already sets
   `credentialsSource: "local"`) may have their own `credentials.json` committed at
-  the project root, which ebl never touches or creates in that path — yet it was
+  the project root, which ebl never touches or creates in that path - yet it was
   being silently deleted from their project folder after every single build.
 - Fixed by only removing `credentials.json` in cleanup when a new
   `CREDENTIALS_JSON_WRITTEN` flag is set, which happens right before
   `write-eas-credentials.js` is invoked (before, not after, so a partial write on
-  script failure is still cleaned up) — i.e. only in the one path that actually
+  script failure is still cleaned up) - i.e. only in the one path that actually
   creates the file. `android/keystore.properties` and `android/app/release.keystore`
   didn't need the same guard: they only ever exist inside the `android/` directory
   this same run just regenerated via `expo prebuild --clean`, so unconditionally
   removing them was already safe.
 - Found while walking through what happens when a project already has its own
-  `credentials.json` and is built with the EAS engine + debug signing — not
+  `credentials.json` and is built with the EAS engine + debug signing - not
   reported as a live failure, caught by code review before it could bite anyone.
 
 **Files modified:** `docker/runner/build-entrypoint.sh`
 
-## v0.6.2 — GUI: fix live phase timers showing 0s, dead space beside the log
+## v0.6.2 - GUI: fix live phase timers showing 0s, dead space beside the log
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -1222,7 +1222,7 @@ removed)
   WebSocket handler (`lib/useBuildSocket.ts`) appended a new phase entry on every
   `"phase"` message but never closed out the *previous* one's `endedAt` in the
   client's local state. `BuildTimeline`'s elapsed-time calc falls back to
-  `record.startedAt` when a phase isn't active and has no `endedAt` — so every
+  `record.startedAt` when a phase isn't active and has no `endedAt` - so every
   completed step showed `startedAt - startedAt = 0` for the rest of that live
   session (a page refresh masked it, since `getBuild()` re-fetches the real,
   already-closed timestamps from the DB). Fixed by closing any still-open phase in
@@ -1233,17 +1233,17 @@ removed)
   grid column (`xl:col-span-2`) was still reserved the whole time, so the log panel
   stopped at 3/5 width with an empty gap next to it for the entire build. Fixed by
   only splitting into the two-column layout once there's actually something to show
-  in that column — the log now fills the full row while a build is in progress, and
+  in that column - the log now fills the full row while a build is in progress, and
   reflows into the 3/5 + 2/5 split once metrics appear.
 - Since the log panel's width now changes at runtime (full-width → 3/5), added a
   `ResizeObserver` in `LiveLogs.tsx` so its xterm instance re-fits on any container
-  resize, not just a browser window resize (the only case it previously handled) —
+  resize, not just a browser window resize (the only case it previously handled) -
   otherwise the terminal would keep the stale wider dimensions after the layout
   shrinks it back down.
 - Also reordered the build page (`app/build/[id]/page.tsx`): "Resource usage" charts
   now sit above the log/metrics row instead of below it.
 - Verified live end-to-end (not just typechecked): ran the orchestrator + GUI dev
-  servers locally and drove a real Gradle build of CanteenApp through the browser —
+  servers locally and drove a real Gradle build of CanteenApp through the browser -
   confirmed non-zero, correctly-frozen phase durations for completed steps, a live-
   ticking timer for the active phase, the log filling full width mid-build, and the
   chart-above-log ordering.
@@ -1251,7 +1251,7 @@ removed)
 **Files modified:** `expo-builder-gui/lib/useBuildSocket.ts`,
 `expo-builder-gui/app/build/[id]/page.tsx`, `expo-builder-gui/components/LiveLogs.tsx`
 
-## v0.6.1 — Fix ENOENT on the artifact after a successful build
+## v0.6.1 - Fix ENOENT on the artifact after a successful build
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -1263,10 +1263,10 @@ removed)
   sitting right there in `<project>/ebl_builds/`.
 - Root cause: `docker/runner/build-entrypoint.sh`'s `@@ARTIFACT:` marker reports the
   artifact's path as the *build container* sees it (rooted at `APP_DIR`, i.e.
-  `/work/app/...` — see `docker-entrypoint.sh`'s `WorkingDir`/bind mount). Both
+  `/work/app/...` - see `docker-entrypoint.sh`'s `WorkingDir`/bind mount). Both
   `orchestrator/src/build/manager.ts` (parsing the marker) and
   `cli/src/commands/build.cpp` (same) used that path as-is against the *host*
-  filesystem — where `/work/app` doesn't exist — instead of translating it back to
+  filesystem - where `/work/app` doesn't exist - instead of translating it back to
   the real host directory the container's `APP_DIR` was bind-mounted from
   (`params.appPath`/`build.appPath`). Metrics extraction (`stat`, SHA-256) and the
   GUI's `/api/builds/:id/artifact` download route were both affected; only metrics
@@ -1280,7 +1280,7 @@ removed)
   (`BuildRecord.artifactPath`, the download route, metrics) now sees a real host
   path.
 - If you hit this on a build that otherwise succeeded, the artifact is already
-  sitting in `ebl_builds/` and is safe to use as-is — only this tool's own
+  sitting in `ebl_builds/` and is safe to use as-is - only this tool's own
   size/SHA-256/version bookkeeping (and the marked status) was wrong, not the APK/AAB
   itself. A fresh build now records success correctly.
 
@@ -1288,7 +1288,7 @@ removed)
 `orchestrator/src/build/manager.ts`, `cli/src/docker_client.hpp`,
 `cli/src/docker_client.cpp`, `cli/src/commands/build.cpp`
 
-## v0.6.0 — Per-account Expo tokens, auto-selected by project owner
+## v0.6.0 - Per-account Expo tokens, auto-selected by project owner
 
 **Date:** 2026-07-28
 **Type:** Feature
@@ -1301,7 +1301,7 @@ removed)
   `orchestrator/src/build/detect.ts`) now also reads `app.json`'s `expo.owner`
   field (the EAS account slug a project is published under) into a new `owner`
   field on `ExpoProjectInfo`.
-- **CLI:** `EblConfig` (`cli/src/config_store.hpp`) gains `expoTokensByOwner` — a
+- **CLI:** `EblConfig` (`cli/src/config_store.hpp`) gains `expoTokensByOwner` - a
   list of `{owner, token}` pairs alongside the existing single `expoToken` (now the
   default/fallback). `ebl config` loops to add/update/remove per-owner entries.
   `ebl build` resolves the token via `EblConfig::expoTokenFor(owner)`: explicit
@@ -1310,13 +1310,13 @@ removed)
 - **Orchestrator:** new `expo_tokens` SQLite table (owner `UNIQUE`, empty string =
   default entry), encrypted at rest the same way keystore passwords are
   (`util/crypto.ts`). New `GET/POST /api/expo-tokens` and
-  `DELETE /api/expo-tokens/:id` routes (`routes/expoTokens.ts`) — list/create/
+  `DELETE /api/expo-tokens/:id` routes (`routes/expoTokens.ts`) - list/create/
   delete, never returning the token itself. `build/manager.ts`'s `startBuild`
   resolves a per-build token the same way as the CLI (per-build override → exact
   owner match → saved default entry), ahead of the existing `config.defaultExpoToken`
   env-var fallback in `docker/runner.ts`, which is unchanged.
 - **GUI:** new `ExpoTokenManager` component (modeled on `KeystoreManager`), wired
-  into `BuildConfigForm`'s EAS-token section — lists saved accounts, highlights
+  into `BuildConfigForm`'s EAS-token section - lists saved accounts, highlights
   which one (if any) matches the currently-selected project's detected owner, and
   lets you add/remove entries without leaving the build form. The manual token
   field becomes an explicit per-build override.
@@ -1334,7 +1334,7 @@ removed)
 `expo-builder-gui/components/ExpoTokenManager.tsx`,
 `expo-builder-gui/components/BuildConfigForm.tsx`, `README.md`
 
-## v0.5.5 — `docker pull`-style in-place progress for image pulls
+## v0.5.5 - `docker pull`-style in-place progress for image pulls
 
 **Date:** 2026-07-28
 **Type:** Enhancement
@@ -1350,7 +1350,7 @@ removed)
   when stdout isn't a TTY (piped/redirected), matching the real CLI's behavior.
 - `DockerClient::pullImage`'s callback now passes `(id, status, progress)`
   separately instead of one pre-flattened string, since the renderer needs the
-  layer id to know which line to update — updated all three call sites
+  layer id to know which line to update - updated all three call sites
   (`setup.cpp`, `start.cpp`, `build.cpp`) accordingly.
 - Verified against a real fresh pull (`docker rmi` + re-pull): terminal output
   contains the expected `ESC[nA`/`ESC[2K`/`ESC[nB` sequences updating each layer's
@@ -1361,7 +1361,7 @@ removed)
 `cli/src/commands/setup.cpp`, `cli/src/commands/start.cpp`,
 `cli/src/commands/build.cpp`, `cli/CMakeLists.txt`
 
-## v0.5.4 — Default Docker Hub namespace: `41vi4p`
+## v0.5.4 - Default Docker Hub namespace: `41vi4p`
 
 **Date:** 2026-07-28
 **Type:** Fix
@@ -1371,37 +1371,37 @@ removed)
   (confirmed live on Docker Hub, e.g. `41vi4p/expo-builder-local-orchestrator`). A
   fresh `ebl setup`/`ebl start` with no saved config would try to pull the wrong,
   nonexistent namespace and fail.
-- Changed the default to `"41vi4p"`. Note this only affects *new* configs — anyone
+- Changed the default to `"41vi4p"`. Note this only affects *new* configs - anyone
   who already ran `ebl config` has `dockerHubNamespace` persisted in
   `~/.config/ebl/config.json` and needs to re-run `ebl config` (or edit the file) to
   pick up the new default.
 - `docker-compose.yml`, `.env.example`, and `scripts/publish-images.sh` still use
-  `ebllocal` as their placeholder default deliberately — those are for local
+  `ebllocal` as their placeholder default deliberately - those are for local
   contributor builds under a namespace the contributor sets themselves, not for
   installed-CLI end users pulling published images.
 
 **Files modified:** `cli/src/config_store.hpp`
 
-## v0.5.2 — README: split APT install into its own copy-pasteable block
+## v0.5.2 - README: split APT install into its own copy-pasteable block
 
 **Date:** 2026-07-28
 **Type:** Refactor
 
 - Quick start's install step used to bury the manual APT-repo commands as
-  commented-out alt lines inside the `install.sh` code fence — not copy-pasteable
+  commented-out alt lines inside the `install.sh` code fence - not copy-pasteable
   as-is. Split into three clearly labeled install paths (APT repo, one-line
   installer, direct `.deb` download), each its own runnable code block.
-- No functional change — documentation only.
+- No functional change - documentation only.
 
 **Files modified:** `README.md`
 
-## v0.5.1 — Patch base-OS packages in all three Docker images
+## v0.5.1 - Patch base-OS packages in all three Docker images
 
 **Date:** 2026-07-23
 **Type:** Security
 
 - Every image now upgrades its base-distro packages at build time, not just the
-  ones we explicitly install — a stock `ubuntu:24.04`/`node:22-alpine` layer can
+  ones we explicitly install - a stock `ubuntu:24.04`/`node:22-alpine` layer can
   already have known CVEs fixed upstream that our targeted `apt-get
   install`/`apk add` calls never touch.
 - `docker/runner/Dockerfile` (Ubuntu 24.04): added `apt-get upgrade -y` right after
@@ -1413,12 +1413,12 @@ removed)
   step in each stage, ahead of any `apk add`/`COPY`. `--no-cache` fetches a
   temporary index instead of persisting `/var/cache/apk`, matching how `apk add
   --no-cache` was already used elsewhere in these files, so image size is unaffected.
-- No functional/API changes — this only affects what's baked into the base OS
+- No functional/API changes - this only affects what's baked into the base OS
   layers of published images going forward.
 - Follow-up fix, found by a real CI run of `docker/runner/Dockerfile`: recent
   `ubuntu:24.04` point releases ship a default non-root `ubuntu` user/group already
   occupying UID/GID 1000, which made the existing `groupadd -g 1000 builder` step
-  fail with `groupadd: GID '1000' already exists` (exit code 4) — unrelated to the
+  fail with `groupadd: GID '1000' already exists` (exit code 4) - unrelated to the
   `apt-get upgrade` change above, just newly exposed by a fresh base-image pull.
   Fixed by removing the base image's `ubuntu` user/group first (`userdel -r ubuntu`,
   `groupdel ubuntu`, both no-ops on older base images that don't have them) before
@@ -1431,7 +1431,7 @@ removed)
 `expo-builder-gui/Dockerfile`, `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt`
 
-## v0.5.0 — Automated Docker Hub publishing + CI build check
+## v0.5.0 - Automated Docker Hub publishing + CI build check
 
 **Date:** 2026-07-23
 **Type:** Feature
@@ -1440,7 +1440,7 @@ removed)
   builds and pushes all three images (runner, orchestrator, web) to Docker Hub on
   every `v*` tag, via a matrix over three different build contexts (adapting a
   single-image reference workflow, since this project has three). `linux/amd64`
-  only, deliberately — no QEMU/multi-arch, since the runner image's full Android
+  only, deliberately - no QEMU/multi-arch, since the runner image's full Android
   SDK/NDK download would be slow and untested under cross-platform emulation.
   Per-image GHA build-cache scoping (`scope=${{ matrix.image }}`) so the three
   parallel matrix legs don't collide over one shared cache namespace. Fails fast if
@@ -1448,9 +1448,9 @@ removed)
   `release.yml`'s existing checks. New `docs/DOCKER.md` for the one-time secret
   setup. `scripts/publish-images.sh` (the manual path) is unchanged and still useful
   for local-only builds.
-- New `.github/workflows/ci.yml`: a deliberately minimal build-verification check —
+- New `.github/workflows/ci.yml`: a deliberately minimal build-verification check -
   `npm run build` in `expo-builder-gui/` on every push/PR. No CLI or orchestrator
-  build check, no test suite, by explicit request — this is meant to catch obvious
+  build check, no test suite, by explicit request - this is meant to catch obvious
   frontend breakage fast, not replace `release.yml`'s more thorough (and much
   slower) release-time verification.
 - Fixed a real, live vulnerability along the way: Dependabot flagged PostCSS's
@@ -1459,7 +1459,7 @@ removed)
   `next@16.2.10` pins postcss to an *exact* `8.4.31`, which npm can't dedupe against
   the already-safe top-level `8.5.x` Tailwind needs, leaving a vulnerable nested
   copy at `next/node_modules/postcss`. Fixed with an npm `overrides` entry
-  (`"postcss": "^8.5.10"`) — forces the nested copy to the safe, already-proven-
+  (`"postcss": "^8.5.10"`) - forces the nested copy to the safe, already-proven-
   working version without touching Next's own version at all, unlike Dependabot's
   auto-suggested fix path (which would have downgraded Next to 9.3.3). Verified: only
   one deduped `postcss` version remains in the tree, `npm audit` no longer flags it,
@@ -1471,7 +1471,7 @@ removed)
 images" section), `CLAUDE.md`; `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
 
-## v0.4.3 — Fix: root-owned build output blocked the next step
+## v0.4.3 - Fix: root-owned build output blocked the next step
 
 **Date:** 2026-07-23
 **Type:** Fix
@@ -1479,8 +1479,8 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
 - The v0.4.2 fix (same-path bind mount) got `cmake --install` reading the right
   paths, but it then failed writing `cli/build/install_manifest.txt`: "Permission
   denied." Root cause: the container runs as root (needed for `apt-get`), so every
-  file it wrote into the bind-mounted `cli/build/` — including via the earlier
-  configure/build/cpack step — was root-owned on the host too; the following step
+  file it wrote into the bind-mounted `cli/build/` - including via the earlier
+  configure/build/cpack step - was root-owned on the host too; the following step
   runs as the unprivileged `runner` user, which can't write into a root-owned
   directory.
 - Fix: capture the host's UID/GID before entering the container
@@ -1493,7 +1493,7 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
 **Files modified:** `.github/workflows/release.yml`; `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
 
-## v0.4.2 — Fix: install-tree staging failed outside the build container
+## v0.4.2 - Fix: install-tree staging failed outside the build container
 
 **Date:** 2026-07-23
 **Type:** Fix
@@ -1502,11 +1502,11 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
   `file INSTALL cannot find "/repo/cli/build/ebl": No such file or directory.` Root
   cause: the previous step configured/built inside a container with the repo
   bind-mounted at `/repo`, and CMake bakes the build directory's *absolute* path into
-  the generated `cmake_install.cmake` (verified directly — `grep`'d a locally-built
+  the generated `cmake_install.cmake` (verified directly - `grep`'d a locally-built
   `cmake_install.cmake` and confirmed it hardcodes `file(INSTALL ... FILES
   "<exact build dir>/ebl")`). The next step then ran `cmake --install` on that same
   `cli/build/` directory *outside* the container, on the bare runner, where it sits at
-  a different absolute path (`$GITHUB_WORKSPACE/...`) — so the baked-in path didn't
+  a different absolute path (`$GITHUB_WORKSPACE/...`) - so the baked-in path didn't
   resolve. The same class of bug this project already documented for Docker bind
   mounts elsewhere (`ALLOWED_ROOTS` / same-path-both-sides), just inside CI this time.
 - Fix: mount the container at the *same* absolute path on both sides
@@ -1517,7 +1517,7 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
 **Files modified:** `.github/workflows/release.yml`; `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
 
-## v0.4.1 — Fix: `.deb` build missing `file` in the pinned container
+## v0.4.1 - Fix: `.deb` build missing `file` in the pinned container
 
 **Date:** 2026-07-23
 **Type:** Fix
@@ -1526,7 +1526,7 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
   is not available. CPACK_DEBIAN_PACKAGE_SHLIBDEPS and
   CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS options are not available.` CPack's DEB
   generator shells out to the `file` command to auto-detect runtime library
-  dependencies (`libcurl4t64`, `libssl3t64`, etc.) — present on this host (where it
+  dependencies (`libcurl4t64`, `libssl3t64`, etc.) - present on this host (where it
   had been validated manually) but not in a minimal `ubuntu:24.04` Docker base image,
   which is what CI actually builds in.
 - Fix: added `file` to the `apt-get install` line in `.github/workflows/release.yml`'s
@@ -1539,7 +1539,7 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
 **Files modified:** `.github/workflows/release.yml`; `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
 
-## v0.4.0 — Signed APT repository via GitHub Pages
+## v0.4.0 - Signed APT repository via GitHub Pages
 
 **Date:** 2026-07-23
 **Type:** Feature
@@ -1548,13 +1548,13 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
   workflows/release.yml` (renamed "Build and publish APT repository") now assembles a
   proper repo tree (`pool/`, `dists/stable/main/binary-amd64/{Packages,Packages.gz}`)
   and GPG-signs the `Release` file (`Release.gpg` + `InRelease`) the way `apt` itself
-  verifies — checked automatically on every install once a user has added the repo,
+  verifies - checked automatically on every install once a user has added the repo,
   not just an optional manual `dpkg-sig --verify`. Published to the `gh-pages` branch
   under `/apt` via `peaceiris/actions-gh-pages`, served at
   `https://41vi4p.github.io/expo-builder-local/apt`. Supersedes the previous
   `dpkg-sig`-signed-single-`.deb` approach from v0.3.0.
 - The `.deb` is still built with our existing CMake+CPack pipeline (not switched to
-  `fpm`/Ruby) — kept `dpkg-shlibdeps` auto-detecting runtime deps — but now runs
+  `fpm`/Ruby) - kept `dpkg-shlibdeps` auto-detecting runtime deps - but now runs
   inside a pinned `ubuntu:24.04` container in CI, matching the host this was
   validated against locally, for reproducibility.
 - The workflow still also creates a GitHub Release with the `.deb` + a plain tarball +
@@ -1564,7 +1564,7 @@ images" section), `CLAUDE.md`; `orchestrator/package.json`,
   first) over downloading a one-off `.deb`, so installs default to the path that also
   gets future releases via a plain `apt upgrade`; falls back to the old direct-
   download behavior if the repo isn't reachable yet or `apt` isn't available.
-- New `docs/APT_REPO_SETUP_GUIDE.md`: the one-time setup this all depends on —
+- New `docs/APT_REPO_SETUP_GUIDE.md`: the one-time setup this all depends on -
   generating a *passphrase-less* signing key (deliberately, to avoid fragile
   non-interactive-passphrase CI plumbing), registering `APT_GPG_PRIVATE_KEY` as a repo
   secret, committing the public half at `docs/apt/pubkey.gpg`, enabling GitHub Pages.
@@ -1581,7 +1581,7 @@ user-supplied `pubkey.gpg`); `docs/RELEASING.md` (slimmed, points to the setup g
 section + troubleshooting entries); `CLAUDE.md`; `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
 
-## v0.3.0 — Docker Hub distribution, CLI subcommands, `ebl_builds/` versioning
+## v0.3.0 - Docker Hub distribution, CLI subcommands, `ebl_builds/` versioning
 
 **Date:** 2026-07-22
 **Type:** Feature
@@ -1596,11 +1596,11 @@ section + troubleshooting entries); `CLAUDE.md`; `orchestrator/package.json`,
   (read with terminal echo disabled), orchestrator/web ports, and Docker Hub
   namespace. Saved to `~/.config/ebl/config.json` (0600); the token and a generated
   orchestrator `MASTER_KEY` are AES-256-GCM-encrypted using a machine-local key at
-  `~/.config/ebl/machine.key` (0600, generated on first use) — new `crypto.*`/
+  `~/.config/ebl/machine.key` (0600, generated on first use) - new `crypto.*`/
   `base64.*`/`config_store.*` modules.
 - **`ebl start`/`ebl stop`**: run the orchestrator + web GUI as Docker containers
   directly via the Engine API (`docker_client.*` gained `pullImage`, `ensureNetwork`,
-  `ServiceContainerSpec`/`createServiceContainer`, name-based lookup) — deliberately
+  `ServiceContainerSpec`/`createServiceContainer`, name-based lookup) - deliberately
   not `docker compose`, so an apt/script-installed user never needs this repo checked
   out. Polls both services' health endpoints (new `httpGetTcp` in `http_client.*`)
   and reports online/not-responding for each.
@@ -1613,22 +1613,22 @@ section + troubleshooting entries); `CLAUDE.md`; `orchestrator/package.json`,
   to match (env var instead of build arg).
 - **`ebl_builds/` versioned build folders**: `build-entrypoint.sh` now writes each
   artifact to `ebl_builds/v<app-version>-build<n>/` inside the project, where `n` is a
-  simple per-project counter (`ebl_builds/.build-counter`) — every build gets a
+  simple per-project counter (`ebl_builds/.build-counter`) - every build gets a
   stable, human-referenceable number regardless of how many times a given app version
   gets rebuilt. `ebl_builds/` is auto-added to the project's `.gitignore` on first
   build. New `@@BUILD_NUMBER:` marker consumed by both the CLI and the orchestrator/
   GUI (`buildNumber` field threaded through `types.ts`, `db.ts`, `manager.ts`,
   `MetricsPanel.tsx`). Previously this was `build-output/` with a timestamp-only name.
 - **Docker Hub images**: all three images (`runner`, `orchestrator`, `web`) now build
-  under a configurable namespace (default placeholder `ebllocal` — set your own via
+  under a configurable namespace (default placeholder `ebllocal` - set your own via
   `ebl config` or `DOCKERHUB_NAMESPACE`), matching between `docker-compose.yml`,
   `cli/src/config_store.hpp`'s defaults, and the new `scripts/publish-images.sh`
   (build + optional `--push`, refuses to push under the placeholder namespace). `ebl
   build`/`ebl setup`/`ebl start` all prefer pulling from the registry, falling back to
   a local build only for the runner image (orchestrator/web have no local-build
-  fallback — they're meant to be pre-published).
+  fallback - they're meant to be pre-published).
 - **Signed `.deb` release pipeline**: `cli/CMakeLists.txt` gained CPack DEB packaging
-  (dependencies auto-detected via `dpkg-shlibdeps`, not hand-pinned — verified this
+  (dependencies auto-detected via `dpkg-shlibdeps`, not hand-pinned - verified this
   correctly picks up `libcurl4t64`/`libssl3t64` on this Ubuntu version rather than the
   older `libcurl4`/`libssl3` names). New `.github/workflows/release.yml`, triggered on
   `v*` tags: builds, packages, GPG-signs via `dpkg-sig` (skips signing gracefully if
@@ -1637,11 +1637,11 @@ section + troubleshooting entries); `CLAUDE.md`; `orchestrator/package.json`,
   `docs/RELEASING.md` documents generating/registering the signing key end to end.
 - **One-line installer** (`install.sh`): prefers `apt install ./ebl_*.deb` (resolves
   `libcurl4`/`libssl3` automatically) when `dpkg` is present, else extracts the plain
-  tarball into `~/.local` (or `/usr/local` as root) — no package manager required
+  tarball into `~/.local` (or `/usr/local` as root) - no package manager required
   either way.
 - **Fixed a real, current build break**: `node:lts-alpine` (used by `orchestrator/
   Dockerfile` and `expo-builder-gui/Dockerfile`) now resolves to Node 24, for which
-  `better-sqlite3` has no prebuilt binary yet — its from-source `node-gyp` rebuild
+  `better-sqlite3` has no prebuilt binary yet - its from-source `node-gyp` rebuild
   failed fetching headers in this environment. Pinned both to `node:22-alpine`
   (a specific, currently well-supported LTS) instead of the rolling tag.
 - Verified end-to-end against the real Docker daemon (not just compiled): built both
@@ -1665,24 +1665,24 @@ src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/ty
 `Makefile` (`deb`, `publish-images`, `publish-images-push` targets); `README.md`
 (full rewrite around the new CLI-first quick start); `CLAUDE.md`.
 
-## v0.2.2 — Fix: bare `ebl` invocation
+## v0.2.2 - Fix: bare `ebl` invocation
 
 **Date:** 2026-07-21
 **Type:** Fix
 
 - Running `ebl` with no arguments at all defaulted `path` to `.` and attempted a real
-  build of the current directory — if that directory wasn't an Expo project (e.g. the
+  build of the current directory - if that directory wasn't an Expo project (e.g. the
   developer just typed `ebl` from inside `expo-builder-local/` itself to see what it
   does), this surfaced as a confusing "doesn't look like an Expo project" error
   instead of anything resembling help.
 - Fix: a bare `ebl` (argc == 1) now prints usage and exits 0, matching how
   git/docker/kubectl behave with zero arguments. `ebl .` (explicit) and `ebl <path>`
-  are unaffected — the default path "." still applies once any argument is given.
+  are unaffected - the default path "." still applies once any argument is given.
 
 **Files modified:** `cli/src/main.cpp`; `orchestrator/package.json`,
 `expo-builder-gui/package.json`, `cli/CMakeLists.txt` (version bump).
 
-## v0.2.1 — Fix: CLI build directory
+## v0.2.1 - Fix: CLI build directory
 
 **Date:** 2026-07-21
 **Type:** Fix
@@ -1690,14 +1690,14 @@ src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/ty
 - `make install-cli` built CMake's output directly in `cli/build/`. On a checkout
   living on a slow or contended filesystem (observed: an `ntfs3`-mounted drive with
   concurrent filesystem operations against overlapping paths), this could make
-  configure/build appear to hang indefinitely rather than just being slow — CMake's
+  configure/build appear to hang indefinitely rather than just being slow - CMake's
   own many-small-file writes (object files, compiler feature-detection tests) hit the
   same contention as `npm install`/`rm -rf` do on such mounts.
-- Root cause: no relationship to the CLI's own code — purely a "where do build
+- Root cause: no relationship to the CLI's own code - purely a "where do build
   artifacts land" problem for any out-of-tree CMake build.
 - Fix: `make install-cli` now builds in `~/.cache/expo-builder-local/cli-build`
   (overridable via `CLI_BUILD_DIR`) instead of inside the repo, so the build always
-  lands on whatever filesystem the developer's home directory is on — sidestepping
+  lands on whatever filesystem the developer's home directory is on - sidestepping
   the problem entirely rather than trying to fix the underlying filesystem behavior.
   Verified end-to-end after the fix: configure+build+install completed in seconds.
 
@@ -1705,13 +1705,13 @@ src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/ty
 `orchestrator/package.json`, `expo-builder-gui/package.json`, `cli/CMakeLists.txt`
 (version bump).
 
-## v0.2.0 — Standalone CLI (C++)
+## v0.2.0 - Standalone CLI (C++)
 
 **Date:** 2026-07-21
 **Type:** Feature
 
 - Added `cli/`: a standalone command, `ebl` (short for "expo-local-builder"; `ebl .`)
-  that talks to the Docker Engine API directly over `/var/run/docker.sock` — no
+  that talks to the Docker Engine API directly over `/var/run/docker.sock` - no
   orchestrator/GUI process, and (deliberately) no Node.js runtime at all. Built in
   C++17 with CMake, depending only on libcurl (HTTP-over-unix-socket) and OpenSSL
   (SHA-256); JSON parsing/serialization and the build-context tar writer are small
@@ -1725,9 +1725,9 @@ src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/ty
   markers out of the same stream for a build summary (size, duration, version,
   SHA-256) on exit. Attaching to the container's output is a blocking libcurl call
   that only returns once the container exits, so it runs on its own thread while the
-  main thread starts/waits on the container — collapsing that onto one thread would
+  main thread starts/waits on the container - collapsing that onto one thread would
   deadlock (attach would never return control to start the container).
-- Auto-builds the runner image on first use if it isn't already present — CMake
+- Auto-builds the runner image on first use if it isn't already present - CMake
   copies `docker/runner/` into the build directory at configure time, and the
   compiled binary locates it at runtime via `/proc/self/exe` (falling back to the
   `cmake --install` layout, or an `EXPO_BUILDER_RUNNER_DIR` override), so it works
@@ -1737,11 +1737,11 @@ src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/ty
   host UID/GID front the CLI is simpler than the orchestrator: running natively (not
   inside a container), `getuid()/getgid()` already are the real host IDs, so there's
   no `HOST_UID`/`HOST_GID` configuration needed for this path.
-- CLI builds are intentionally not recorded in the GUI's SQLite build history — the
+- CLI builds are intentionally not recorded in the GUI's SQLite build history - the
   two are independent by design (see `README.md`).
 - Bumped `orchestrator`, `expo-builder-gui`, and `cli` (via `CMakeLists.txt`'s
   `project(... VERSION ...)`) to v0.2.0 together (all three share one version per
-  this project's convention — see `../CLAUDE.md`).
+  this project's convention - see `../CLAUDE.md`).
 
 **Files modified:** initial creation of `cli/` (`CMakeLists.txt`, `src/*.{hpp,cpp}`);
 `orchestrator/package.json`, `expo-builder-gui/package.json` (version bump);
@@ -1749,7 +1749,7 @@ src/{types,store/db,build/manager}.ts` (`buildNumber`), `expo-builder-gui/lib/ty
 build-prerequisites section); `CLAUDE.md` (version management now covers three
 packages, not two).
 
-## v0.1.0 — Initial build system
+## v0.1.0 - Initial build system
 
 **Date:** 2026-07-21
 **Type:** Feature
@@ -1758,8 +1758,8 @@ packages, not two).
   build a signed Android APK/AAB in a disposable Docker container, and watch it happen
   live.
 - `docker/runner`: Ubuntu 24.04 + Node LTS + JDK 17 + Android SDK/NDK + `eas-cli` image.
-  `build-entrypoint.sh` supports two engines — `expo prebuild` + Gradle (fully local, no
-  Expo account) and `eas build --local` (uses the project's own `eas.json` profiles) —
+  `build-entrypoint.sh` supports two engines - `expo prebuild` + Gradle (fully local, no
+  Expo account) and `eas build --local` (uses the project's own `eas.json` profiles) -
   with an `auto` mode that prefers EAS only when an `EXPO_TOKEN` is supplied.
 - Release signing via an uploaded keystore: `patch-android-signing.js` wires a
   `release` signing config into the generated `android/app/build.gradle` for the
@@ -1771,7 +1771,7 @@ packages, not two).
   blended progress/ETA, persists history to SQLite, and redacts every value it can find
   in an app's own `.env`/`eas.json` (plus `EXPO_TOKEN` and keystore passwords) from all
   logs before they're stored or streamed.
-- `expo-builder-gui`: Next.js 16 dashboard — directory browser with Expo-project
+- `expo-builder-gui`: Next.js 16 dashboard - directory browser with Expo-project
   detection, build config form, a phase-timeline progress view, an xterm.js live log
   panel (so Gradle's carriage-return progress bar renders correctly), CPU/memory/
   network/disk charts (Recharts, validated categorical palette per the dataviz skill),

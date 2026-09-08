@@ -7,7 +7,7 @@
 # Arch-based distros (pacman present), builds packaging/arch/PKGBUILD from source
 # with makepkg instead, for a real pacman-tracked package. Otherwise falls back to
 # installing the latest release's .deb directly, then to a plain tarball extracted
-# into ~/.local (or /usr/local as root) — no package manager required either way.
+# into ~/.local (or /usr/local as root) - no package manager required either way.
 set -eu
 
 REPO="41vi4p/expo-builder-local"
@@ -52,22 +52,22 @@ if command -v apt >/dev/null 2>&1 && curl -fsSL -o /dev/null "${APT_REPO_URL}/pu
 fi
 
 if command -v apt >/dev/null 2>&1; then
-  log "Hosted APT repo not reachable — falling back to a direct download."
+  log "Hosted APT repo not reachable - falling back to a direct download."
 fi
 
 # --- Preferred path (Arch-based distros): build + install a native pacman package ---
 # Not hosted as a signed repo the way APT is (that would mean maintaining a whole
-# second signed-repo pipeline) — instead this builds packaging/arch/PKGBUILD with
+# second signed-repo pipeline) - instead this builds packaging/arch/PKGBUILD with
 # makepkg, straight from source against the distro's own curl/openssl, giving a real
 # pacman-tracked package (`pacman -Qi ebl`, `pacman -R ebl`) without needing an AUR
 # submission first. See packaging/arch/PKGBUILD's header for details.
 if command -v pacman >/dev/null 2>&1; then
   if ! command -v makepkg >/dev/null 2>&1; then
-    log "pacman found but makepkg is missing (install the 'base-devel' group for a native package: sudo pacman -S --needed base-devel) — falling back to a direct tarball install."
+    log "pacman found but makepkg is missing (install the 'base-devel' group for a native package: sudo pacman -S --needed base-devel) - falling back to a direct tarball install."
   elif [ "$(id -u)" = "0" ]; then
-    log "makepkg refuses to run as root — re-run this installer as a regular (non-root) user for a native pacman package. Falling back to a direct tarball install for now."
+    log "makepkg refuses to run as root - re-run this installer as a regular (non-root) user for a native pacman package. Falling back to a direct tarball install for now."
   else
-    log "Arch-based distro detected — building the ebl PKGBUILD with makepkg..."
+    log "Arch-based distro detected - building the ebl PKGBUILD with makepkg..."
     PKGBUILD_URL="https://raw.githubusercontent.com/${REPO}/main/packaging/arch/PKGBUILD"
     ARCH_TMPDIR="$(mktemp -d)"
     if curl -fsSL -o "${ARCH_TMPDIR}/PKGBUILD" "${PKGBUILD_URL}"; then
@@ -77,9 +77,9 @@ if command -v pacman >/dev/null 2>&1; then
         log "Future releases: re-run this installer to rebuild and upgrade."
         exit 0
       fi
-      log "makepkg failed — falling back to a direct tarball install."
+      log "makepkg failed - falling back to a direct tarball install."
     else
-      log "Could not fetch the PKGBUILD — falling back to a direct tarball install."
+      log "Could not fetch the PKGBUILD - falling back to a direct tarball install."
     fi
     rm -rf "${ARCH_TMPDIR}"
   fi
@@ -91,7 +91,7 @@ RELEASE_JSON="$(curl -fsSL "${API_URL}")" || die "could not reach ${API_URL}"
 
 extract_url() {
   # Pulls the first browser_download_url ending in the given suffix out of the
-  # release JSON — sed/grep only, so this doesn't need jq installed.
+  # release JSON - sed/grep only, so this doesn't need jq installed.
   printf '%s' "${RELEASE_JSON}" \
     | grep -o "\"browser_download_url\": *\"[^\"]*${1}\"" \
     | head -n1 \
@@ -108,7 +108,7 @@ if command -v dpkg >/dev/null 2>&1 && [ -n "${DEB_URL}" ]; then
   log "Downloading ${DEB_URL}"
   curl -fsSL -o "${TMPDIR}/ebl.deb" "${DEB_URL}"
 
-  [ -n "${SUDO}" ] || [ "$(id -u)" = "0" ] || die "installing the .deb requires root — re-run as root, install sudo, or use the tarball path below"
+  [ -n "${SUDO}" ] || [ "$(id -u)" = "0" ] || die "installing the .deb requires root - re-run as root, install sudo, or use the tarball path below"
 
   log "Installing via apt (resolves libcurl4/libssl3 automatically)..."
   if command -v apt >/dev/null 2>&1; then
@@ -123,7 +123,7 @@ fi
 
 [ -n "${TARBALL_URL}" ] || die "could not find a release asset to install"
 
-log "dpkg not found (or no .deb asset) — installing the plain tarball instead."
+log "dpkg not found (or no .deb asset) - installing the plain tarball instead."
 log "Downloading ${TARBALL_URL}"
 curl -fsSL -o "${TMPDIR}/ebl.tar.gz" "${TARBALL_URL}"
 
@@ -138,6 +138,6 @@ tar -xzf "${TMPDIR}/ebl.tar.gz" -C "${PREFIX}"
 log "Installed to ${PREFIX}/bin/ebl"
 case ":${PATH}:" in
   *":${PREFIX}/bin:"*) ;;
-  *) log "Note: ${PREFIX}/bin isn't on your PATH — add it in your shell profile." ;;
+  *) log "Note: ${PREFIX}/bin isn't on your PATH - add it in your shell profile." ;;
 esac
 log "Try: ${PREFIX}/bin/ebl --help"

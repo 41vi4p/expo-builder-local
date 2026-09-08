@@ -5,7 +5,7 @@ import path from 'node:path';
  * Every one of these apps' repos ships real credentials committed to `.env` and
  * `eas.json` (Firebase API keys, a PhonePe client secret under an EXPO_PUBLIC_ prefix,
  * etc). None of that is this tool's to fix, but a build log is not the place for it to
- * leak either — build container stdout, the persisted log file, and the WS stream can
+ * leak either - build container stdout, the persisted log file, and the WS stream can
  * all end up shared (screenshots, copy-pasted into a chat, etc).
  *
  * `Redactor` masks any known secret value wherever it appears in a line of output.
@@ -54,7 +54,7 @@ export function collectAppSecrets(appPath: string, profile: string): string[] {
         if (value) secrets.push(value);
       }
     } catch {
-      // best-effort — a malformed .env just means fewer redactions, not a build failure
+      // best-effort - a malformed .env just means fewer redactions, not a build failure
     }
   }
 
@@ -69,7 +69,7 @@ export function collectAppSecrets(appPath: string, profile: string): string[] {
         }
       }
     } catch {
-      // ignore malformed eas.json — same rationale as above
+      // ignore malformed eas.json - same rationale as above
     }
   }
 

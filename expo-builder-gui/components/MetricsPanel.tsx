@@ -27,7 +27,7 @@ export default function MetricsPanel({ build }: { build: BuildRecord }) {
       <div className="rounded-lg border border-danger/30 bg-danger-soft p-5">
         <h3 className="font-display text-sm font-semibold text-danger">Build failed</h3>
         <p className="mt-2 whitespace-pre-wrap font-mono text-xs text-text">
-          {build.error ?? "No error detail was captured — check the log above."}
+          {build.error ?? "No error detail was captured - check the log above."}
         </p>
       </div>
     );
@@ -59,7 +59,7 @@ export default function MetricsPanel({ build }: { build: BuildRecord }) {
           label="Artifact size"
           value={
             <span>
-              {build.artifactSizeBytes != null ? formatBytes(build.artifactSizeBytes) : "—"}
+              {build.artifactSizeBytes != null ? formatBytes(build.artifactSizeBytes) : "-"}
               {delta != null && (
                 <span className={delta > 0 ? "text-danger" : delta < 0 ? "text-success" : "text-text-dim"}>
                   {" "}
@@ -70,14 +70,14 @@ export default function MetricsPanel({ build }: { build: BuildRecord }) {
             </span>
           }
         />
-        <Row label="Build time" value={build.durationSeconds != null ? formatDuration(build.durationSeconds) : "—"} />
+        <Row label="Build time" value={build.durationSeconds != null ? formatDuration(build.durationSeconds) : "-"} />
         <Row label="Version" value={`${build.versionName ?? "?"}${build.versionCode ? ` (${build.versionCode})` : ""}`} />
-        <Row label="Application ID" value={build.applicationId ?? "—"} />
+        <Row label="Application ID" value={build.applicationId ?? "-"} />
         <Row label="Profile / engine" value={`${build.profile} · ${build.engineResolved ?? "?"}`} />
         <Row label="Signing" value={build.signingMode === "release" ? "Release (custom keystore)" : "Debug"} />
         {build.gitCommit && <Row label="Git" value={`${build.gitBranch ?? ""}@${build.gitCommit}`} />}
-        <Row label="SHA-256" value={<span className="break-all text-xs">{build.artifactSha256 ?? "—"}</span>} />
-        <Row label="Saved to" value={<span className="break-all text-xs">{build.artifactPath ?? "—"}</span>} />
+        <Row label="SHA-256" value={<span className="break-all text-xs">{build.artifactSha256 ?? "-"}</span>} />
+        <Row label="Saved to" value={<span className="break-all text-xs">{build.artifactPath ?? "-"}</span>} />
       </div>
     </div>
   );

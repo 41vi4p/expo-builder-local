@@ -5,20 +5,20 @@
 
 .DESCRIPTION
     Always removes the ebl install directory (%LOCALAPPDATA%\Programs\ebl) and its
-    PATH entry — same as before native mode existed. Additionally, if this was a
+    PATH entry - same as before native mode existed. Additionally, if this was a
     Native-mode install (see ../CLAUDE.md's native-engine section), interactively
     offers to also remove the Android SDK/JDK/Node toolchain ebl downloaded for it
-    (%LOCALAPPDATA%\ebl\toolchain\...) — reading %APPDATA%\ebl\config.json first to
+    (%LOCALAPPDATA%\ebl\toolchain\...) - reading %APPDATA%\ebl\config.json first to
     find out which of those components ebl actually installed itself (vs. detected
     and reused an existing one on this machine, which is never touched). Separately
     offers to remove saved ebl settings (Expo tokens, config) at %APPDATA%\ebl.
 
     Never touches Docker Desktop, WSL2, or %UserProfile%\.wslconfig's memory/swap
-    tuning — those are either the system's own components, or shared machine-wide
+    tuning - those are either the system's own components, or shared machine-wide
     state other software may depend on by now.
 
 .PARAMETER Quiet
-    Skip every interactive prompt — removes only the install dir and PATH entry
+    Skip every interactive prompt - removes only the install dir and PATH entry
     (the always-safe, always-happened part), same as this script's behavior before
     native mode existed. Used by the Inno Setup GUI uninstaller's [UninstallRun]
     step, which runs hidden with no console to prompt on; run this script directly
@@ -39,7 +39,7 @@ $ConfigDir = Join-Path $env:APPDATA "ebl"
 $ConfigPath = Join-Path $ConfigDir "config.json"
 
 # --- Read config first (before anything is deleted) --------------------------------
-# Plain JSON via PowerShell's own ConvertFrom-Json — no dependency on the CLI's own
+# Plain JSON via PowerShell's own ConvertFrom-Json - no dependency on the CLI's own
 # C++ JSON parser, and no separate installer-side manifest file needed: config.json
 # is already the single source of truth ebl setup --runtime native itself writes.
 $config = $null

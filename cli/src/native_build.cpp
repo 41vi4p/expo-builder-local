@@ -93,21 +93,21 @@ long long freeDiskMb(const std::string& path) {
 void checkDiskSpace(const std::string& path, const std::string& label) {
   long long free = freeDiskMb(path);
   // A negative result means the check itself failed (e.g. a UNC path
-  // GetDiskFreeSpaceExA doesn't like) — not treated as a hard failure, since it's a
+  // GetDiskFreeSpaceExA doesn't like) - not treated as a hard failure, since it's a
   // defensive pre-flight check, not something the build itself depends on.
   if (free >= 0 && free < kMinFreeDiskMb) {
     fail("Less than " + std::to_string(kMinFreeDiskMb) + "MB free on " + label + " (" + std::to_string(free) +
-         "MB available) — free up space and try again.");
+         "MB available) - free up space and try again.");
   }
 }
 
-/** Mirrors build-entrypoint.sh's `trap cleanup EXIT` — always removes the Gradle
+/** Mirrors build-entrypoint.sh's `trap cleanup EXIT` - always removes the Gradle
  * path's temp signing files (safe: `expo prebuild --clean` regenerates android/
  * from scratch on every gradle-engine run, so anything found there afterward is
  * always this engine's own output, never hand-maintained user content), removes
  * credentials.json only if this run wrote it, and restores eas.json from its
  * pre-signing backup if one was taken. lockFilePath is only set once this run has
- * actually created it (see runNativeBuild) — never removes another run's lock. */
+ * actually created it (see runNativeBuild) - never removes another run's lock. */
 struct Cleanup {
   fs::path androidDir;
   fs::path credentialsJsonPath;
@@ -151,7 +151,7 @@ std::vector<std::string> baseEnv(const NativeToolchainConfig& t) {
   };
 }
 
-// CreateProcess takes one command-line string, not argv — same Windows argv
+// CreateProcess takes one command-line string, not argv - same Windows argv
 // quoting rules as metrics.cpp's quoteWindowsArg (duplicated locally rather than
 // exported from that file for one shared 15-line helper).
 std::string quoteArg(const std::string& a) {
@@ -193,7 +193,7 @@ int runNativeBuild(const BuildParams& params, const NativeToolchainConfig& toolc
   fs::path appPath(params.appPath);
 
   if (toolchain.jdkHome.empty() || toolchain.androidSdkRoot.empty() || toolchain.nodeHome.empty()) {
-    emit(onChunk, "@@ERROR:Native toolchain isn't provisioned yet — run `ebl setup --runtime native` first.");
+    emit(onChunk, "@@ERROR:Native toolchain isn't provisioned yet - run `ebl setup --runtime native` first.");
     return 1;
   }
 
@@ -207,7 +207,7 @@ int runNativeBuild(const BuildParams& params, const NativeToolchainConfig& toolc
   try {
     if (!fs::exists(appPath)) fail("Project directory " + params.appPath + " not found");
 
-    // Concurrency dedup — the direct analog of Docker's com.expo-builder-local.app-path
+    // Concurrency dedup - the direct analog of Docker's com.expo-builder-local.app-path
     // label + findRunningBuildContainerByAppPath, since there's no container/label
     // mechanism to reuse here. Only marked for cleanup *after* this run actually
     // creates it, so a "someone else is already building" failure never deletes
@@ -252,7 +252,7 @@ int runNativeBuild(const BuildParams& params, const NativeToolchainConfig& toolc
                                             params.appPath, env, kInstallTimeoutSeconds, onChunk);
       if (exitCode != 0) {
         if (exitCode == kProcessTimeoutExitCode) {
-          emit(onChunk, "npm ci stalled/timed out — falling back to npm install (lockfile may have drifted)");
+          emit(onChunk, "npm ci stalled/timed out - falling back to npm install (lockfile may have drifted)");
         }
         runStep({npmCmd(toolchain), "install", "--no-audit", "--no-fund", "--legacy-peer-deps"},
                  kInstallFallbackTimeoutSeconds, "npm install stalled or exceeded its timeout", "npm install failed");
@@ -298,8 +298,8 @@ int runNativeBuild(const BuildParams& params, const NativeToolchainConfig& toolc
       runStepIdle({easCmd(toolchain), "build", "--local", "--non-interactive", "--platform", "android", "--profile",
                    params.profile, "--output", artifactPath},
                   kEasBuildIdleTimeoutSeconds, kEasBuildTimeoutSeconds,
-                  "eas build --local stalled — no CPU activity for a while (or exceeded the hard time ceiling)",
-                  "eas build --local failed — see the eas-cli output above for the actual error");
+                  "eas build --local stalled - no CPU activity for a while (or exceeded the hard time ceiling)",
+                  "eas build --local failed - see the eas-cli output above for the actual error");
     } else {
       phase(onChunk, "prebuild", "Generating native Android project");
       runStep({npxCmd(toolchain), "expo", "prebuild", "--platform", "android", "--clean", "--non-interactive"},
@@ -313,7 +313,7 @@ int runNativeBuild(const BuildParams& params, const NativeToolchainConfig& toolc
                  params.keystore.storePassword, "--keyAlias", params.keystore.keyAlias, "--keyPassword",
                  keyPassword},
                 60, "patch-android-signing.js stalled",
-                "Failed to configure release signing — check android/app/build.gradle manually");
+                "Failed to configure release signing - check android/app/build.gradle manually");
       }
 
       phase(onChunk, "gradle", "Compiling (Gradle)");
@@ -322,7 +322,7 @@ int runNativeBuild(const BuildParams& params, const NativeToolchainConfig& toolc
                          (params.artifactType == "aab" ? "bundle" : "apk") / "release";
       runStepIdle({(cleanup.androidDir / "gradlew.bat").string(), gradleTask, "--console=plain", "--no-daemon"},
                   kGradleIdleTimeoutSeconds, kGradleTimeoutSeconds,
-                  "gradlew stalled — no CPU activity for a while (or exceeded the hard time ceiling)",
+                  "gradlew stalled - no CPU activity for a while (or exceeded the hard time ceiling)",
                   "gradlew failed");
 
       std::string found;

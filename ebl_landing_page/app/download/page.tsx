@@ -3,7 +3,7 @@ import CodeBlock from "@/components/CodeBlock";
 import OSTabs from "@/components/OSTabs";
 
 export const metadata: Metadata = {
-  title: "Download — expo-builder-local",
+  title: "Download - expo-builder-local",
   description: "Install or uninstall the ebl CLI on Linux (Debian/Ubuntu or Arch-based) or Windows.",
 };
 
@@ -13,22 +13,22 @@ const REQUIREMENTS = [
   {
     label: "RAM",
     value: "16 GB+ recommended",
-    detail: "A cold build compiles native code for 4 CPU architectures plus the Kotlin/JS toolchain — genuinely heavy. Less can still work, but on Windows specifically, Docker Desktop's WSL2 VM running out of memory crashes its own Engine API outright rather than just slowing down; the installer sizes its memory/swap limits automatically from your actual RAM to reduce that.",
+    detail: "A cold build compiles native code for 4 CPU architectures plus the Kotlin/JS toolchain - genuinely heavy. Less can still work, but on Windows specifically, Docker Desktop's WSL2 VM running out of memory crashes its own Engine API outright rather than just slowing down; the installer sizes its memory/swap limits automatically from your actual RAM to reduce that.",
   },
   {
     label: "CPU",
     value: "4+ cores recommended",
-    detail: "Gradle and Kotlin annotation processing both parallelize across cores — more cores means a noticeably faster compile phase.",
+    detail: "Gradle and Kotlin annotation processing both parallelize across cores - more cores means a noticeably faster compile phase.",
   },
   {
     label: "Disk space",
     value: "~40 GB free",
-    detail: "Covers the runner image (~6.8 GB), Gradle/npm caches that grow over a few builds, and — on Windows — WSL2's swap file headroom. Reclaim all of it any time with ebl clean --all.",
+    detail: "Covers the runner image (~6.8 GB), Gradle/npm caches that grow over a few builds, and - on Windows - WSL2's swap file headroom. Reclaim all of it any time with ebl clean --all.",
   },
   {
     label: "OS & Docker",
     value: "Linux, or Windows 10/11",
-    detail: "Docker Engine on Linux, or Docker Desktop on Windows — either way, it needs to be installed and running before you start. On Windows, ebl.exe itself talks to Docker Desktop directly and needs no WSL2 distro of its own, but Docker Desktop's own default backend is a WSL2 VM, which is what actually runs your builds.",
+    detail: "Docker Engine on Linux, or Docker Desktop on Windows - either way, it needs to be installed and running before you start. On Windows, ebl.exe itself talks to Docker Desktop directly and needs no WSL2 distro of its own, but Docker Desktop's own default backend is a WSL2 VM, which is what actually runs your builds.",
   },
 ] as const;
 
@@ -69,7 +69,7 @@ function LinuxInstall() {
   return (
     <div className="space-y-10">
       <section>
-        <StepHeading n={1} title="APT repository (recommended — Debian/Ubuntu)" />
+        <StepHeading n={1} title="APT repository (recommended - Debian/Ubuntu)" />
         <p className="mt-3 text-sm text-text-dim">
           A real, GPG-signed APT repo &mdash; once added, <code className="font-mono text-accent">sudo apt upgrade</code>{" "}
           picks up new releases automatically.

@@ -48,7 +48,7 @@ AesKey loadOrCreateMachineKey() {
       std::copy(decoded.begin(), decoded.end(), key.begin());
       return key;
     }
-    // Fall through and regenerate if the file is corrupt/wrong size — better than
+    // Fall through and regenerate if the file is corrupt/wrong size - better than
     // hard-failing every command forever because of one bad write.
   }
 
@@ -75,7 +75,7 @@ std::string readFile(const std::string& path) {
 
 // std::rename() (POSIX rename(2) on Unix) atomically replaces an existing
 // destination; the plain C rename() on Windows instead fails with EEXIST if
-// `path` already exists — which it always will here from the second save
+// `path` already exists - which it always will here from the second save
 // onward. MoveFileExA with MOVEFILE_REPLACE_EXISTING is the Windows equivalent
 // of "write tmp, then atomically swap it in".
 void atomicReplace(const std::string& tmpPath, const std::string& path) {
@@ -114,7 +114,7 @@ std::optional<EblConfig> loadConfig() {
 
   Json root = Json::parse(text);
   EblConfig cfg;
-  // dockerHubNamespace is no longer read (see config_store.hpp) — older config
+  // dockerHubNamespace is no longer read (see config_store.hpp) - older config
   // files may still have the key; Json::get() on an unrecognized key is harmless.
   cfg.projectsRoot = root.get("projectsRoot").asString();
   cfg.orchestratorPort = static_cast<int>(root.get("orchestratorPort").asInt(cfg.orchestratorPort));
@@ -201,7 +201,7 @@ void saveConfig(EblConfig& config) {
   root.set("expoTokensByOwner", tokensByOwner);
 
   // Write to a sibling temp file and rename() over the real path (atomic on the
-  // same filesystem), rather than truncating the real file in place — a crash,
+  // same filesystem), rather than truncating the real file in place - a crash,
   // kill, or ENOSPC partway through an in-place write leaves a corrupt/empty
   // config.json (as happened here from a disk-full condition mid-save); a rename
   // can only ever land the old file or the fully-written new one, never a partial.

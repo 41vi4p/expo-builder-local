@@ -1,4 +1,4 @@
-// HttpClient over Docker Desktop's named pipe (\\.\pipe\docker_engine) — the same
+// HttpClient over Docker Desktop's named pipe (\\.\pipe\docker_engine) - the same
 // endpoint the real `docker.exe` CLI talks to. libcurl has no Windows-named-pipe
 // transport, so this hand-rolls plain HTTP/1.1 request/response framing over
 // CreateFileW/ReadFile/WriteFile using overlapped I/O (so reads can honor the
@@ -6,7 +6,7 @@
 // interface; httpGetTcp/urlEncode live in http_client_common.cpp.
 //
 // One pipe handle per request ("Connection: close"), matching how the unix-socket
-// implementation opens a fresh curl handle per call — simpler than juggling
+// implementation opens a fresh curl handle per call - simpler than juggling
 // keep-alive/pipelining for a client that only ever talks to one, local daemon.
 #include "http_client.hpp"
 
@@ -60,7 +60,7 @@ HANDLE connectDockerPipe() {
     DWORD now = ::GetTickCount();
     DWORD remaining = deadline > now ? deadline - now : 0;
     if (remaining == 0 || !::WaitNamedPipeW(kDockerPipeName, remaining)) {
-      throw std::runtime_error("Timed out waiting for the Docker Engine API pipe — is Docker Desktop starting up?");
+      throw std::runtime_error("Timed out waiting for the Docker Engine API pipe - is Docker Desktop starting up?");
     }
   }
 }
@@ -274,10 +274,10 @@ long deliverBody(HANDLE pipe, DWORD timeoutMs, const ResponseHead& head,
       if (take > 0) onChunk(chunk.data(), take);
       remaining -= take;
       // Any bytes beyond `take` would belong to a pipelined response, which never
-      // happens here (Connection: close, one request per pipe handle) — ignored.
+      // happens here (Connection: close, one request per pipe handle) - ignored.
     }
   } else {
-    // No framing given at all — read until the daemon closes the connection.
+    // No framing given at all - read until the daemon closes the connection.
     if (!pending.empty()) onChunk(pending.data(), pending.size());
     std::string chunk;
     while (readSome(pipe, timeoutMs, chunk)) {
@@ -302,7 +302,7 @@ long performRequest(const std::string& method, const std::string& path, const st
 }  // namespace
 
 // `unixSocketPath` is accepted for interface parity with the unix build but
-// unused — the Docker Desktop pipe path is fixed, not configurable per-instance.
+// unused - the Docker Desktop pipe path is fixed, not configurable per-instance.
 HttpClient::HttpClient(std::string unixSocketPath) : socketPath_(std::move(unixSocketPath)) {}
 
 HttpResponse HttpClient::request(const std::string& method, const std::string& path, const std::string& body,
@@ -323,7 +323,7 @@ long HttpClient::streamRequest(const std::string& method, const std::string& pat
                                 const std::vector<std::string>& headers,
                                 const std::function<void(const char*, size_t)>& onChunk) {
   try {
-    // Builds and running containers can legitimately take many minutes — no
+    // Builds and running containers can legitimately take many minutes - no
     // timeout; the user can Ctrl-C if something is genuinely stuck.
     return performRequest(method, path, body, headers, 0, onChunk);
   } catch (const std::exception& e) {

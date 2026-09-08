@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About — expo-builder-local",
+  title: "About - expo-builder-local",
   description: "Why expo-builder-local exists, how it's built, and who maintains it.",
 };
 
@@ -44,14 +44,14 @@ export default function AboutPage() {
       <div className="mt-8 space-y-4 text-text-dim">
         <p>
           Expo&apos;s managed workflow normally means either <code className="font-mono text-accent">eas build</code>{" "}
-          — cloud, costs money or quota, needs an Expo account — or manually running{" "}
+          - cloud, costs money or quota, needs an Expo account - or manually running{" "}
           <code className="font-mono text-accent">expo prebuild</code> plus Gradle yourself, every time.
           expo-builder-local wraps the second path in a disposable container, driven by a CLI, a GUI, or both, so any
           developer can produce a signed build without setting up an Android SDK locally or learning Gradle.
         </p>
         <p>
-          It&apos;s three pieces that ship together — a standalone C++ CLI (<code className="font-mono text-accent">ebl</code>),
-          a Fastify orchestrator, and a Next.js web GUI — plus a disposable Android toolchain image spun up fresh for
+          It&apos;s three pieces that ship together - a standalone C++ CLI (<code className="font-mono text-accent">ebl</code>),
+          a Fastify orchestrator, and a Next.js web GUI - plus a disposable Android toolchain image spun up fresh for
           every single build and torn down after. Not affiliated with Expo or Google.
         </p>
       </div>

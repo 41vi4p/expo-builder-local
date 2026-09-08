@@ -1,7 +1,7 @@
 // Platform-independent pieces of http_client.hpp: httpGetTcp (plain TCP HTTP,
 // libcurl handles this fine on every platform) and urlEncode. Compiled on both
 // Windows and non-Windows; the Docker-socket-specific HttpClient methods live in
-// http_client_unix.cpp / http_client_win.cpp instead — see http_client.hpp.
+// http_client_unix.cpp / http_client_win.cpp instead - see http_client.hpp.
 #include "http_client.hpp"
 
 #include <curl/curl.h>
@@ -37,7 +37,7 @@ HttpResponse httpGetTcp(const std::string& url, long timeoutSeconds) {
     long status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     response.status = status;
-  }  // else: leave status at 0 — connection refused/timed out, treated as "not up yet"
+  }  // else: leave status at 0 - connection refused/timed out, treated as "not up yet"
   curl_easy_cleanup(curl);
   return response;
 }

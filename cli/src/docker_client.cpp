@@ -12,7 +12,7 @@ namespace ebl {
 namespace {
 
 // Docker CLI-style human size: 1000-based with ~4 significant digits (e.g.
-// "892.7kB", "5.545MB") — mirrors docker/pkg/units.CustomSize so sizes read the
+// "892.7kB", "5.545MB") - mirrors docker/pkg/units.CustomSize so sizes read the
 // way `docker pull` shows them, not binary (1024-based) units.
 std::string humanSize(double bytes) {
   static const char* kUnits[] = {"B", "kB", "MB", "GB", "TB", "PB"};
@@ -28,7 +28,7 @@ std::string humanSize(double bytes) {
 }
 
 // Renders a `docker pull`-style ASCII bar: "[===>      ]". Fixed width rather than
-// measured against the real terminal width (as the actual `docker` CLI does) —
+// measured against the real terminal width (as the actual `docker` CLI does) -
 // simpler, and every caller already truncates/redraws the surrounding line itself
 // (see PullProgressRenderer).
 std::string renderBar(long long current, long long total, int width = 30) {
@@ -95,7 +95,7 @@ std::vector<DockerClient::BuildContainerInfo> DockerClient::listBuildContainers(
   filters.set("label", labelValues);
 
   // `all=1`: unlike findRunningBuildContainerByAppPath, this deliberately includes
-  // stopped containers too — those are exactly what `ebl clean` is looking for.
+  // stopped containers too - those are exactly what `ebl clean` is looking for.
   std::string path = "/containers/json?all=1&filters=" + urlEncode(filters.dump());
   HttpResponse res = http_.request("GET", path);
   if (res.status != 200) {
@@ -147,7 +147,7 @@ void DockerClient::buildImage(const std::string& contextDir, const std::string& 
       try {
         event = Json::parse(line);
       } catch (const JsonError&) {
-        onLog(line);  // not a JSON line (shouldn't normally happen) — show it verbatim
+        onLog(line);  // not a JSON line (shouldn't normally happen) - show it verbatim
         continue;
       }
       if (event.contains("stream")) {
@@ -176,7 +176,7 @@ void DockerClient::pullImage(const std::string& tag,
                               const std::function<void(const std::string& id, const std::string& status,
                                                         const std::string& progress)>& onEvent) {
   // Docker's pull endpoint takes the repo and tag as separate query params. Split on
-  // the last ':' — but only if nothing after it looks like a "/" (a bare
+  // the last ':' - but only if nothing after it looks like a "/" (a bare
   // "registry:port/name" host has no tag, and defaults to "latest").
   std::string repo = tag;
   std::string imageTag = "latest";
@@ -211,7 +211,7 @@ void DockerClient::pullImage(const std::string& tag,
         std::string id = event.contains("id") ? event.at("id").asString() : "";
         // The daemon's own /images/create stream never actually includes a
         // pre-rendered "progress" bar string (that's the real `docker` CLI's own
-        // client-side rendering) — only "progressDetail": {current, total} byte
+        // client-side rendering) - only "progressDetail": {current, total} byte
         // counts, present on "Downloading"/"Extracting" events. Build the bar
         // ourselves from those; keep the "progress" key too in case some future
         // engine version does send one.
@@ -260,7 +260,7 @@ std::string DockerClient::createContainer(const BuildParams& params, const std::
   env.push_back(Json("BUILD_GID=" + std::to_string(buildGid)));
   if (!params.expoToken.empty()) env.push_back(Json("EXPO_TOKEN=" + params.expoToken));
 
-  // toDockerBindPath() is the identity function on non-Windows — this only changes
+  // toDockerBindPath() is the identity function on non-Windows - this only changes
   // behavior when talking to Docker Desktop's daemon from a native Windows ebl.exe,
   // where a raw "D:\..." path means nothing to the daemon's own Linux VM.
   Json binds = Json::array();

@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 /*
-  Design system — "build console"
+  Design system - "build console"
 
   A developer tool for watching a compile happen, not a marketing surface, so the
-  palette stays disciplined: a graphite-navy console (never pure black — that plus a
+  palette stays disciplined: a graphite-navy console (never pure black - that plus a
   neon accent is the reflexive "AI dashboard" look) with one warm signal color (a
   copper/amber, evoking a solder joint / circuit trace) for anything active or
   attention-worthy, and a cool cyan reserved for data/charts so telemetry reads as

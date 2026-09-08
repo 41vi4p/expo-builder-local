@@ -1,11 +1,11 @@
-// ebl (expo-local-builder) — standalone CLI for expo-builder-local
+// ebl (expo-local-builder) - standalone CLI for expo-builder-local
 //
 // Subcommands:
 //   ebl setup    one-time: install/verify Docker, pull images
 //   ebl config   interactive wizard: projects folder, Expo token, ports
 //   ebl start    run the orchestrator + web GUI as Docker containers
 //   ebl stop     stop them
-//   ebl build    build a project into a signed APK/AAB (works standalone — no
+//   ebl build    build a project into a signed APK/AAB (works standalone - no
 //                setup/config/start required at all)
 //   ebl update   force-refresh the runner/orchestrator/web images right now,
 //                rebuilding the runner from scratch (no cache) if it can't pull
@@ -31,7 +31,7 @@ namespace {
 
 #ifdef _WIN32
 // color.hpp's escape codes only render as colors if the console opts into VT100
-// processing — Windows Terminal already has this on by default, but the legacy
+// processing - Windows Terminal already has this on by default, but the legacy
 // conhost.exe some users still launch from doesn't. Best-effort: failure here just
 // means output falls back to plain text via color.hpp's own isatty() check, not a
 // hard error.
@@ -47,7 +47,7 @@ void enableAnsiOnWindowsConsole() {
 // Every source file in this CLI is UTF-8 (em dashes, checkmarks, etc. show up
 // throughout printed strings, not just comments), but the Windows console defaults
 // to the legacy OEM/ANSI codepage for both directions - without this, a literal
-// "—" written as its 3 raw UTF-8 bytes gets decoded one byte at a time against
+// "-" written as its 3 raw UTF-8 bytes gets decoded one byte at a time against
 // that codepage instead, producing exactly the kind of "ГÇö" mojibake garbage a
 // real install first surfaced. SetConsoleCP is for completeness (keyboard input,
 // e.g. promptString's Cyrillic/CJK argument echoing); SetConsoleOutputCP is what
@@ -68,7 +68,7 @@ constexpr const char* kVersion = EXPO_BUILDER_CLI_VERSION;
 void printTopLevelUsage() {
   std::cout << R"(ebl <command> [options]
 
-expo-local-builder — build managed Expo projects into signed Android APK/AABs in a
+expo-local-builder - build managed Expo projects into signed Android APK/AABs in a
 disposable Docker container, with an optional web GUI.
 
 Commands:
@@ -76,7 +76,7 @@ Commands:
   config    Interactive wizard: projects folder, Expo token, ports
   start     Run the orchestrator + web GUI (as Docker containers)
   stop      Stop the orchestrator + web GUI
-  build     Build a project — works standalone, no setup/config/start required
+  build     Build a project - works standalone, no setup/config/start required
   update    Force-refresh the runner/orchestrator/web images right now
   clean     Remove stopped build containers (--all: also cache volumes/images)
 
@@ -93,7 +93,7 @@ void printAbout() {
   std::cout << R"(ebl (expo-local-builder) v)"
             << kVersion << R"(
 
-expo-builder-local — build managed Expo (SDK 56+) projects into signed Android
+expo-builder-local - build managed Expo (SDK 56+) projects into signed Android
 APK/AABs entirely on your own machine, via a disposable Docker container, with
 an optional web GUI. Not affiliated with Expo/Google.
 

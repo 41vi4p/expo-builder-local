@@ -12,7 +12,7 @@ std::string promptString(const std::string& question, const std::string& default
 
 int promptInt(const std::string& question, int defaultValue);
 
-/** Like promptString but with terminal echo disabled — used for anything
+/** Like promptString but with terminal echo disabled - used for anything
  * token/password-shaped. Falls back to a normal (echoed) read if stdin isn't
  * actually a terminal (e.g. piped input in a script). */
 std::string promptHidden(const std::string& question);

@@ -37,7 +37,7 @@ void PullProgressRenderer::onEvent(const std::string& id, const std::string& sta
   order_[idx] = text;
   size_t linesUp = order_.size() - idx;
   // Move up to the tracked line, clear it, redraw, then move back down to the
-  // blank line below the last tracked one — the same spot every redraw starts from.
+  // blank line below the last tracked one - the same spot every redraw starts from.
   std::cout << "\x1b[" << linesUp << "A\r\x1b[2K" << text << "\x1b[" << linesUp << "B\r" << std::flush;
 }
 

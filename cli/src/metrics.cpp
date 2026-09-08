@@ -66,7 +66,7 @@ std::string readFileToString(const std::string& path) {
 }
 
 #ifdef _WIN32
-// CreateProcess takes one command-line string, not argv — quote each argument per
+// CreateProcess takes one command-line string, not argv - quote each argument per
 // the documented Windows argv-quoting rules (only `git` args ever pass through
 // here, but this handles the general case regardless).
 std::string quoteWindowsArg(const std::string& a) {
@@ -94,7 +94,7 @@ std::string quoteWindowsArg(const std::string& a) {
 
 /** Runs a command with argv directly (no shell involved) and returns its trimmed
  * stdout, or an empty string if it exits non-zero or can't be spawned. Used only for
- * `git`, which is optional metadata — never fatal to the build if unavailable. */
+ * `git`, which is optional metadata - never fatal to the build if unavailable. */
 std::string runCommandCapture(const std::vector<std::string>& args) {
 #ifdef _WIN32
   if (args.empty()) return "";

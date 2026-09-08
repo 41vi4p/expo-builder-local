@@ -6,13 +6,13 @@ import type { ArtifactType, Engine, SigningMode } from '../types';
 export const docker = new Docker({ socketPath: config.dockerSocket });
 
 /** Where a build container sees the bind-mounted project root (matches
- * docker/runner/build-entrypoint.sh's default APP_DIR) — paths the container
+ * docker/runner/build-entrypoint.sh's default APP_DIR) - paths the container
  * reports back (e.g. the `@@ARTIFACT:` marker) are rooted here, not at the real
  * host path, so callers must translate before touching the host filesystem. */
 export const CONTAINER_APP_DIR = '/work/app';
 
 let volumesReady: Promise<void> | null = null;
-/** Creates the shared npm/Gradle cache volumes once, if they don't already exist —
+/** Creates the shared npm/Gradle cache volumes once, if they don't already exist -
  * reused across every build so dependency/Gradle downloads aren't repeated per run. */
 export function ensureCacheVolumes(): Promise<void> {
   if (!volumesReady) {
@@ -99,7 +99,7 @@ export async function createRunnerContainer(params: RunnerParams): Promise<Docke
 
 /** Attaches to a started container's combined stdout/stderr stream. Because the
  * container has Tty:true, Docker does NOT multiplex stdout/stderr with the 8-byte
- * frame header — this is a plain byte stream, safe to read directly. */
+ * frame header - this is a plain byte stream, safe to read directly. */
 export async function attachContainerOutput(container: Docker.Container): Promise<NodeJS.ReadableStream> {
   const stream = await container.attach({ stream: true, stdout: true, stderr: true });
   return stream as unknown as NodeJS.ReadableStream;

@@ -20,8 +20,8 @@ function bool(name: string, fallback: boolean): boolean {
 //
 // IMPORTANT: these must be the *host's real paths*, and docker-compose.yml must bind-mount
 // each one into this container at that exact same path (not renamed to /host/... or
-// similar). This container talks to the Docker daemon over the mounted host socket —
-// it's a sibling container, not a nested one — so every path this process hands to
+// similar). This container talks to the Docker daemon over the mounted host socket -
+// it's a sibling container, not a nested one - so every path this process hands to
 // dockerode's Binds is resolved by the daemon against the real host filesystem. If the
 // path inside this container didn't match the host path, the runner container's bind
 // mount would silently point at the wrong (or a nonexistent) host directory.
@@ -55,7 +55,7 @@ export const config = {
 
   // UID/GID the runner container writes build output as, so artifacts land in the host
   // project folder owned by the developer rather than root. Defaults to 1000:1000
-  // (the runner image's built-in "builder" user) — override via .env to match your host user.
+  // (the runner image's built-in "builder" user) - override via .env to match your host user.
   buildUid: Number(process.env.HOST_UID ?? 1000),
   buildGid: Number(process.env.HOST_GID ?? 1000),
 

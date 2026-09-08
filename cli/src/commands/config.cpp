@@ -21,7 +21,7 @@ void printUsage() {
                "Interactive wizard that saves your projects folder, Expo token, and port "
                "settings to\n"
             << ebl::configFilePath()
-            << " (secrets encrypted at rest — see README). Re-run any time\n"
+            << " (secrets encrypted at rest - see README). Re-run any time\n"
                "to change a setting; existing values are shown as defaults.\n\n"
                "Options:\n"
                "  -h, --help   Show this help\n";
@@ -48,14 +48,14 @@ int runConfig(int argc, char** argv) {
 
   ebl::EblConfig cfg = ebl::loadConfig().value_or(ebl::EblConfig{});
 
-  std::cout << ebl::color::bold("ebl config") << " — press Enter to keep the value shown in [brackets].\n\n";
+  std::cout << ebl::color::bold("ebl config") << " - press Enter to keep the value shown in [brackets].\n\n";
 
   while (true) {
     std::string root = promptString("Projects folder (parent directory of the Expo apps you'll build/browse)",
                                      cfg.projectsRoot);
     fs::path resolved = fs::absolute(root).lexically_normal();
     if (!fs::exists(resolved) || !fs::is_directory(resolved)) {
-      std::cout << ebl::color::red("Not a directory: " + resolved.string()) << " — try again.\n";
+      std::cout << ebl::color::red("Not a directory: " + resolved.string()) << " - try again.\n";
       continue;
     }
     cfg.projectsRoot = resolved.string();
@@ -63,7 +63,7 @@ int runConfig(int argc, char** argv) {
   }
 
   std::cout << "\n" << ebl::color::dim(
-                            "Default Expo access token — only needed for the \"eas\" build engine, used when a "
+                            "Default Expo access token - only needed for the \"eas\" build engine, used when a "
                             "project's app.json has no owner-specific token below (or no \"owner\" field at "
                             "all). Create one at https://expo.dev/accounts/[account]/settings/access-tokens "
                             "(leave blank to skip).")
@@ -77,7 +77,7 @@ int runConfig(int argc, char** argv) {
   }
 
   std::cout << "\n" << ebl::color::dim(
-                            "Per-account Expo tokens — if you build apps under more than one EAS account "
+                            "Per-account Expo tokens - if you build apps under more than one EAS account "
                             "(e.g. a personal account and an organization), save one token per account here. "
                             "`ebl build` auto-selects by matching the project's app.json \"owner\" field, no "
                             "need to pass --expo-token by hand.")

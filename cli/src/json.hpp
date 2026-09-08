@@ -1,7 +1,7 @@
 #pragma once
 // A small, dependency-free JSON value type: just enough parsing and serialization to
 // talk to the Docker Engine API and read package.json/eas.json/build.gradle-adjacent
-// data. Not a general-purpose JSON library — no streaming parser, no comments/trailing
+// data. Not a general-purpose JSON library - no streaming parser, no comments/trailing
 // commas, strict RFC 8259 grammar only. Objects preserve insertion order (Docker's API
 // doesn't care, but it makes debugging output readable).
 #include <cstdint>

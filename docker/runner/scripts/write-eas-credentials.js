@@ -11,7 +11,7 @@
  *
  * Both files are written into the bind-mounted host project directory, so
  * build-entrypoint.sh backs up the original eas.json (restored in its EXIT trap) and
- * deletes credentials.json once the build finishes, success or fail — neither the
+ * deletes credentials.json once the build finishes, success or fail - neither the
  * keystore password nor the override should persist on the developer's disk.
  */
 'use strict';

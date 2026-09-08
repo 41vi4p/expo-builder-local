@@ -19,7 +19,7 @@ void printUsage() {
 Force-refreshes the runner/orchestrator/web images right now, unconditionally.
 
 `ebl build`/`ebl start` already pull on every run, but a plain pull only ever
-transfers layers that actually changed upstream — it can't fix an image whose
+transfers layers that actually changed upstream - it can't fix an image whose
 published tag itself was built from a stale Docker layer cache (e.g. eas-cli
 inside the runner image resolving "latest" once, then every later build/publish
 of that same layer silently reusing that old resolution). `ebl update` is for
@@ -29,7 +29,7 @@ a custom --runner-image that was never published), it rebuilds it from the
 bundled context with Docker's build cache fully disabled (nocache + a forced
 re-pull of the base image), not a normal cached build.
 
-This doesn't remove the images it's replacing — Docker leaves the old, now-
+This doesn't remove the images it's replacing - Docker leaves the old, now-
 untagged layers on disk as reclaimable space; run `ebl clean --all` (or `docker
 image prune`) afterward if you want that space back.
 
@@ -94,7 +94,7 @@ int runUpdate(int argc, char** argv) {
 
   ebl::DockerClient docker(dockerSocket);
   if (!docker.ping()) {
-    std::cerr << ebl::color::red("Docker isn't reachable — is it running?") << "\n";
+    std::cerr << ebl::color::red("Docker isn't reachable - is it running?") << "\n";
     return 1;
   }
 
@@ -118,7 +118,7 @@ int runUpdate(int argc, char** argv) {
   std::cout << "\n" << ebl::color::bold("Updating the orchestrator image...") << "\n";
   if (!pullFresh(docker, orchestratorImage, "orchestrator")) {
     std::cout << ebl::color::dim(
-                      "No local-build fallback for this one — it's meant to be pre-published. Build it "
+                      "No local-build fallback for this one - it's meant to be pre-published. Build it "
                       "from this repo checkout (`docker compose build orchestrator`) if you need it locally.")
               << "\n";
     anyFailed = true;
@@ -127,7 +127,7 @@ int runUpdate(int argc, char** argv) {
   std::cout << "\n" << ebl::color::bold("Updating the web image...") << "\n";
   if (!pullFresh(docker, webImage, "web")) {
     std::cout << ebl::color::dim(
-                      "No local-build fallback for this one either — build it from this repo checkout "
+                      "No local-build fallback for this one either - build it from this repo checkout "
                       "(`docker compose build web`) if you need it locally.")
               << "\n";
     anyFailed = true;

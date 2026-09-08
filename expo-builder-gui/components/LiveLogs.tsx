@@ -6,7 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 /**
  * Renders the build's raw stdout/stderr as a real terminal rather than a plain
  * scrolling <pre>. This matters specifically because Gradle's `--console=rich` output
- * uses carriage returns to overwrite its own progress line in place — a plain text
+ * uses carriage returns to overwrite its own progress line in place - a plain text
  * view would show every intermediate percentage stacked on its own line; a terminal
  * emulator renders it the way a developer would see it running gradlew locally.
  *
@@ -58,7 +58,7 @@ export default function LiveLogs({ text }: { text: string }) {
       window.addEventListener("resize", onResize);
       // Window resize alone misses layout-driven size changes (e.g. this panel
       // going full-width while a build is running, then shrinking back to a
-      // narrower column once MetricsPanel appears next to it on completion) — a
+      // narrower column once MetricsPanel appears next to it on completion) - a
       // ResizeObserver catches those too.
       const resizeObserver = new ResizeObserver(() => fit.fit());
       resizeObserver.observe(containerRef.current);
@@ -84,7 +84,7 @@ export default function LiveLogs({ text }: { text: string }) {
       termRef.current.write(text.slice(writtenLengthRef.current));
       writtenLengthRef.current = text.length;
     } else if (text.length < writtenLengthRef.current) {
-      // Log was reset (e.g. viewing a different build) — nothing incremental to write;
+      // Log was reset (e.g. viewing a different build) - nothing incremental to write;
       // the container remounts via `key` in the parent so this path is defensive only.
       writtenLengthRef.current = text.length;
     }

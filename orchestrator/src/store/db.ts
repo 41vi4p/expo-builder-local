@@ -237,7 +237,7 @@ export function listBuilds(limit = 100): BuildRecord[] {
   return rows.map(rowToBuild);
 }
 
-/** A build for `appPath` that's queued/starting/running, if any — used to refuse
+/** A build for `appPath` that's queued/starting/running, if any - used to refuse
  * starting a second concurrent build of the same project. Two builds of the same
  * project share the same npm/Gradle cache volumes and just contend on npm's own
  * cache lock rather than failing cleanly (neither makes real progress); this is
@@ -253,7 +253,7 @@ export function activeBuildForAppPath(appPath: string): BuildRecord | null {
   return row ? rowToBuild(row) : null;
 }
 
-/** Most recent successful build for the same app+profile+artifactType, excluding `excludeId` —
+/** Most recent successful build for the same app+profile+artifactType, excluding `excludeId` -
  * used to compute the size delta shown in the metrics panel and to seed ETA estimates. */
 export function previousSuccessfulBuild(
   appPath: string,
@@ -271,7 +271,7 @@ export function previousSuccessfulBuild(
   return row ? rowToBuild(row) : null;
 }
 
-/** Median duration of past successful builds for the same app+profile — used to blend
+/** Median duration of past successful builds for the same app+profile - used to blend
  * a stable ETA rather than relying solely on percent-complete extrapolation. */
 export function medianDurationSeconds(appPath: string, profile: string): number | null {
   const rows = db
@@ -354,7 +354,7 @@ export function deleteKeystore(id: string): void {
 
 // --- Expo tokens ---------------------------------------------------------------
 
-/** Upserts by owner — saving a token for an owner that already has one replaces it,
+/** Upserts by owner - saving a token for an owner that already has one replaces it,
  * rather than requiring the caller to delete-then-recreate (owner is UNIQUE). */
 export function upsertExpoToken(record: ExpoTokenSecret): void {
   db.prepare(

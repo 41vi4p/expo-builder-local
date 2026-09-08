@@ -1,5 +1,5 @@
 // HttpClient over a Unix domain socket (/var/run/docker.sock), via libcurl's
-// built-in CURLOPT_UNIX_SOCKET_PATH support — see http_client.hpp. httpGetTcp/
+// built-in CURLOPT_UNIX_SOCKET_PATH support - see http_client.hpp. httpGetTcp/
 // urlEncode live in http_client_common.cpp, shared with the Windows build.
 #include "http_client.hpp"
 
@@ -99,7 +99,7 @@ long HttpClient::streamRequest(const std::string& method, const std::string& pat
 
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, streamWriteCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &onChunk);
-  // Builds and running containers can legitimately take many minutes — no timeout;
+  // Builds and running containers can legitimately take many minutes - no timeout;
   // the user can Ctrl-C if something is genuinely stuck.
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
 

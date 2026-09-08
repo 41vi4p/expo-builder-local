@@ -1,5 +1,5 @@
 #pragma once
-// Minimal ANSI color helpers — no-op (plain text) when stdout isn't a terminal, e.g.
+// Minimal ANSI color helpers - no-op (plain text) when stdout isn't a terminal, e.g.
 // when output is piped or redirected to a file.
 #include <cstdio>
 #include <string>

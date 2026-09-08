@@ -58,7 +58,7 @@ ExpoProjectInfo detectExpoProject(const std::string& dirPath) {
       Json appJson = Json::parse(appJsonText);
       info.owner = appJson.get("expo").get("owner").asString();
     } catch (const JsonError&) {
-      // malformed app.json just means no owner detected — not fatal for detection
+      // malformed app.json just means no owner detected - not fatal for detection
     }
   }
 
@@ -72,7 +72,7 @@ ExpoProjectInfo detectExpoProject(const std::string& dirPath) {
         for (const auto& [profileName, _] : build.members()) info.easProfiles.push_back(profileName);
       }
     } catch (const JsonError&) {
-      // malformed eas.json just means no profile list — not fatal for detection
+      // malformed eas.json just means no profile list - not fatal for detection
     }
   }
 

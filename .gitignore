@@ -7,17 +7,17 @@ orchestrator/node_modules/
 orchestrator/dist/
 orchestrator/*.tsbuildinfo
 
-# CLI (C++/CMake) — build/ holds CMake's cache/objects plus its copy of docker/runner/
+# CLI (C++/CMake) - build/ holds CMake's cache/objects plus its copy of docker/runner/
 cli/build/
 .vscode
 
-# Persisted build data (SQLite db, logs, uploaded keystores) — never commit these
+# Persisted build data (SQLite db, logs, uploaded keystores) - never commit these
 data/
 *.db
 *.db-journal
 *.db-wal
 
-# Claude Code local settings (personal, machine-specific — settings.json, if
+# Claude Code local settings (personal, machine-specific - settings.json, if
 # ever added, is the shared/tracked one)
 .claude/settings.local.json
 

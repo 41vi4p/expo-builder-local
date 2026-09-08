@@ -53,6 +53,6 @@ export function parseDockerStats(raw: any): StatSample | null {
       blkWriteBytes: blkWrite,
     };
   } catch {
-    return null; // malformed/partial stats frame — skip it, next tick will recover
+    return null; // malformed/partial stats frame - skip it, next tick will recover
   }
 }

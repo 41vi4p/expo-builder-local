@@ -96,7 +96,7 @@ std::string aesDecrypt(const std::string& encoded, const AesKey& key) {
   EVP_CIPHER_CTX_free(ctx);
 
   if (!authOk) {
-    throw std::runtime_error("Failed to decrypt config value — the machine key may not match, or the value is corrupt");
+    throw std::runtime_error("Failed to decrypt config value - the machine key may not match, or the value is corrupt");
   }
   plaintext.resize(totalLen + finalLen);
   return plaintext;

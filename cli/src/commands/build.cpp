@@ -50,7 +50,7 @@ volatile std::sig_atomic_t g_interruptRequested = 0;
 
 void handleInterruptSignal(int /* signum */) { g_interruptRequested = 1; }
 
-// A project-local, gitignored fallback for the Expo token — for a team where
+// A project-local, gitignored fallback for the Expo token - for a team where
 // different developers/CI machines build the same checkout but don't share
 // `ebl config`'s global ~/.config/ebl state (or don't want a token that broad).
 constexpr const char* kProjectTokenFilename = ".ebl-token";
@@ -67,7 +67,7 @@ std::optional<std::string> readProjectTokenFile(const fs::path& appPath) {
 }
 
 /** Appends `entry` as its own line in <appPath>/.gitignore, unless already present
- * (exact-line match) — creates the file if it doesn't exist yet. */
+ * (exact-line match) - creates the file if it doesn't exist yet. */
 void ensureGitignored(const fs::path& appPath, const std::string& entry) {
   fs::path gitignorePath = appPath / ".gitignore";
   std::string existing;
@@ -123,7 +123,7 @@ Options:
                                   defaults to the store password)
       --expo-token <token>       Expo access token, for the eas engine. Resolved in order:
                                   this flag, EXPO_TOKEN, a .ebl-token file in the project
-                                  (gitignored automatically — see below), the per-owner/
+                                  (gitignored automatically - see below), the per-owner/
                                   default token saved by `ebl config` (auto-selected by the
                                   project's app.json "owner" field). If none of these and
                                   the engine needs one, you'll be prompted interactively,
@@ -221,7 +221,7 @@ std::optional<std::string> envOrNullopt(const char* name) {
 
 /** The `@@ARTIFACT:` marker build-entrypoint.sh emits is a path inside the build
  * container (rooted at ebl::kContainerAppDir, e.g. "/work/app/ebl_builds/..."), but
- * the CLI runs natively on the host — translate it back to the real host path
+ * the CLI runs natively on the host - translate it back to the real host path
  * (params.appPath, the directory bind-mounted to kContainerAppDir) before touching
  * the filesystem (metrics extraction, printing the artifact path, etc). */
 std::string toHostArtifactPath(const std::string& appPath, const std::string& containerPath) {
@@ -252,7 +252,7 @@ std::string formatDuration(long seconds) {
   return buf;
 }
 
-/** Always tries to pull first, whether or not the image already exists locally —
+/** Always tries to pull first, whether or not the image already exists locally -
  * Docker's pull is idempotent (only transfers changed layers, no-ops quickly when
  * already current), so this doubles as the update check on every build. Falls back,
  * in order: the cached local image if the pull fails but one is present (offline or
@@ -268,11 +268,11 @@ void ensureRunnerImage(DockerClient& docker, const std::string& tag) {
     return;
   } catch (const std::exception& e) {
     if (docker.imageExists(tag)) {
-      std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") — using the cached local image.")
+      std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") - using the cached local image.")
                 << "\n";
       return;
     }
-    std::cout << ebl::color::dim(std::string("Pull failed (") + e.what() + ") — building it locally instead...")
+    std::cout << ebl::color::dim(std::string("Pull failed (") + e.what() + ") - building it locally instead...")
               << "\n";
   }
 
@@ -325,7 +325,7 @@ int runBuild(int argc, char** argv) {
   }
 #ifndef _WIN32
   if (opts.runtime && *opts.runtime == "native") {
-    std::cerr << ebl::color::red("Native mode is Windows-only — this platform only supports --runtime docker.")
+    std::cerr << ebl::color::red("Native mode is Windows-only - this platform only supports --runtime docker.")
               << "\n";
     return 2;
   }
@@ -349,7 +349,7 @@ int runBuild(int argc, char** argv) {
     profile = hasPreview || project.easProfiles.empty() ? "preview" : project.easProfiles.front();
   }
 
-  // `ebl config` may have saved a default/per-owner Expo token — use it as a
+  // `ebl config` may have saved a default/per-owner Expo token - use it as a
   // default, but any explicit flag/env var still wins. Falling back to a fresh
   // EblConfig{} (not a hardcoded literal) when no config was ever saved keeps this
   // in sync with the real default runner image defined in config_store.hpp.
@@ -382,7 +382,7 @@ int runBuild(int argc, char** argv) {
 
   // Only the "eas" engine actually needs a token; "auto" needs one exactly when it
   // would resolve to eas (same eas.json check as build-entrypoint.sh's own auto
-  // resolution — see v0.6.6), and "gradle" never does. Prompting here (rather than
+  // resolution - see v0.6.6), and "gradle" never does. Prompting here (rather than
   // just letting the container fail later with "ENGINE=eas requires an
   // EXPO_TOKEN") means a missing token doesn't cost you the time spent pulling the
   // runner image and starting the container first.
@@ -392,7 +392,7 @@ int runBuild(int argc, char** argv) {
     std::string entered =
         ebl::promptHidden("Expo access token (from https://expo.dev/accounts/[account]/settings/access-tokens)");
     if (entered.empty()) {
-      std::cerr << ebl::color::red("No token entered — aborting.") << "\n";
+      std::cerr << ebl::color::red("No token entered - aborting.") << "\n";
       return 2;
     }
     params.expoToken = entered;
@@ -422,7 +422,7 @@ int runBuild(int argc, char** argv) {
 
 #ifdef _WIN32
   // Resolution order: explicit --runtime > previously saved choice > default
-  // ("native" — see ../CLAUDE.md's native-engine section). This whole branch is a
+  // ("native" - see ../CLAUDE.md's native-engine section). This whole branch is a
   // self-contained early return specifically so the Docker path below it (the
   // curl_global_init(...) block and everything after) stays byte-for-byte
   // unchanged for anyone who picks --runtime docker or is on Linux/macOS, where
@@ -439,14 +439,14 @@ int runBuild(int argc, char** argv) {
     ebl::NativeToolchainConfig toolchain =
         savedConfig ? savedConfig->nativeToolchain : ebl::NativeToolchainConfig{};
     if (toolchain.jdkHome.empty() || toolchain.androidSdkRoot.empty() || toolchain.nodeHome.empty()) {
-      std::cerr << ebl::color::red("Native toolchain isn't set up yet — run `ebl setup --runtime native` first.")
+      std::cerr << ebl::color::red("Native toolchain isn't set up yet - run `ebl setup --runtime native` first.")
                 << "\n";
       return 1;
     }
 
     std::cout << "\n"
               << ebl::color::bold("Building " + ebl::color::cyan(appPath.string())) << " "
-              << ebl::color::dim("(native — UNVERIFIED ON REAL WINDOWS HARDWARE)") << "\n";
+              << ebl::color::dim("(native - UNVERIFIED ON REAL WINDOWS HARDWARE)") << "\n";
     std::cout << ebl::color::dim("  profile=" + profile + " artifact=" + artifact + " engine=" + opts.engine +
                                   " signing=" + params.signingMode)
               << "\n\n";
@@ -507,7 +507,7 @@ int runBuild(int argc, char** argv) {
     DockerClient docker(opts.dockerSocket);
 
     // Two `ebl build`s of the same project at once share the same npm/Gradle cache
-    // volumes and end up contending on npm's own cache lock — neither one makes any
+    // volumes and end up contending on npm's own cache lock - neither one makes any
     // real progress rather than failing cleanly. Fail fast instead of launching a
     // second container that would just wedge alongside the first. Thrown (not a
     // direct return) so this still goes through curl_global_cleanup() below.
@@ -527,7 +527,7 @@ int runBuild(int argc, char** argv) {
               << "\n\n";
 
 #ifdef _WIN32
-    // See commands/start.cpp's HOST_UID/HOST_GID comment — same placeholder-pending-
+    // See commands/start.cpp's HOST_UID/HOST_GID comment - same placeholder-pending-
     // verification reasoning applies to the build container's UID/GID re-homing.
     unsigned int buildUid = 1000;
     unsigned int buildGid = 1000;
@@ -538,13 +538,13 @@ int runBuild(int argc, char** argv) {
     std::string containerId = docker.createContainer(params, runnerImage, opts.gradleCacheVolume,
                                                        opts.npmCacheVolume, buildUid, buildGid);
     std::cout << ebl::color::dim("Container: " + containerId) << "\n";
-    std::cout << ebl::color::dim("Press Ctrl-C to cancel — the container will be stopped and removed.") << "\n";
+    std::cout << ebl::color::dim("Press Ctrl-C to cancel - the container will be stopped and removed.") << "\n";
 
     // Ctrl-C (SIGINT) or a `kill` (SIGTERM) sets g_interruptRequested; this watcher
     // thread notices it and force-removes the container, which is what unblocks the
     // main thread's waitContainer() below (it's a plain blocking libcurl call with no
     // other cancellation point). Without this, interrupting `ebl build` would kill
-    // this process but leave the container running indefinitely — which is exactly
+    // this process but leave the container running indefinitely - which is exactly
     // how three orphaned, mutually-wedging build containers piled up in practice.
     std::signal(SIGINT, handleInterruptSignal);
     std::signal(SIGTERM, handleInterruptSignal);
@@ -554,7 +554,7 @@ int runBuild(int argc, char** argv) {
       while (!buildFinished.load()) {
         if (g_interruptRequested) {
           wasCancelled = true;
-          std::cerr << "\n" << ebl::color::yellow("Cancelling — stopping and removing the build container...") << "\n";
+          std::cerr << "\n" << ebl::color::yellow("Cancelling - stopping and removing the build container...") << "\n";
           try {
             docker.removeContainer(containerId);
           } catch (const std::exception& e) {
@@ -590,7 +590,7 @@ int runBuild(int argc, char** argv) {
     };
 
     // attachAndStream blocks (via libcurl) until the container's output stream
-    // closes, which only happens once the container exits — so it has to run on its
+    // closes, which only happens once the container exits - so it has to run on its
     // own thread. The main thread then starts the container and waits for it, and
     // joins the attach thread afterward to make sure every last buffered chunk of
     // output has been flushed before we print the summary.

@@ -15,7 +15,7 @@ import {
 import type { StatSample } from "@/lib/types";
 import { useIsDarkMode } from "@/lib/useIsDarkMode";
 
-// Validated categorical pair (blue/orange, first two slots of the reference palette —
+// Validated categorical pair (blue/orange, first two slots of the reference palette -
 // see dataviz skill, references/palette.md). Passed through validate_palette.js for
 // both light and dark against this app's chart surfaces; do not reorder or swap hues
 // without re-validating. Color follows the *entity* (primary vs secondary resource)
@@ -101,7 +101,7 @@ function ChartTooltip({
   if (!active || !payload || payload.length === 0) return null;
   // Each series is rendered as both an Area (glow fill) and a Line (crisp stroke)
   // sharing the same `name`, so recharts hands the tooltip one payload entry per
-  // component — two per series, both carrying the same value. Dedupe by name so
+  // component - two per series, both carrying the same value. Dedupe by name so
   // each series shows once instead of twice.
   const seen = new Set<string>();
   const uniquePayload = payload.filter((entry) => {

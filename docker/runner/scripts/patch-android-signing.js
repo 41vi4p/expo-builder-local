@@ -72,7 +72,7 @@ function main() {
 
   const buildGradlePath = path.join(androidDir, 'app', 'build.gradle');
   if (!fs.existsSync(buildGradlePath)) {
-    console.error(`build.gradle not found at ${buildGradlePath} — did expo prebuild run?`);
+    console.error(`build.gradle not found at ${buildGradlePath} - did expo prebuild run?`);
     process.exit(2);
   }
 

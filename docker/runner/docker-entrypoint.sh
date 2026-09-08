@@ -21,7 +21,7 @@ if [ "${TARGET_UID}" != "${CURRENT_UID}" ]; then
   UID_CHANGED=1
 fi
 
-# Only re-chown persistent cache/work dirs when the UID/GID actually moved — these
+# Only re-chown persistent cache/work dirs when the UID/GID actually moved - these
 # volumes grow large across builds (node_modules, gradle cache) and a full recursive
 # chown on every container start would otherwise waste minutes per build.
 if [ "${UID_CHANGED}" = "1" ]; then

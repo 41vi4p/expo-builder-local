@@ -5,7 +5,7 @@ import type { BuildWsMessage } from '../types';
  * Tiny per-build pub/sub registry. `routes/builds.ts` upgrades `/ws/builds/:id`
  * connections into this hub; `build/manager.ts` publishes log/phase/progress/stats
  * events as they happen. A build can have zero, one, or several viewers (e.g. two
- * browser tabs) — all get the same live stream.
+ * browser tabs) - all get the same live stream.
  */
 class BuildHub {
   private subscribers = new Map<string, Set<WebSocket>>();

@@ -1,7 +1,7 @@
 # Docker Hub publishing (one-time setup)
 
 `.github/workflows/docker-publish.yml` builds and pushes all three images (runner,
-orchestrator, web) to Docker Hub on every `v*` tag — the automated counterpart to
+orchestrator, web) to Docker Hub on every `v*` tag - the automated counterpart to
 [`scripts/publish-images.sh`](../scripts/publish-images.sh) (still useful for a local
 build/push, or for building the images before they're published so `ebl start` has
 something to pull in the meantime).
@@ -13,7 +13,7 @@ Docker Hub → **Account Settings → Security → New Access Token**.
 - Description: something identifying this repo (e.g. `expo-builder-local-ci`).
 - Access permissions: **Read & Write**.
 
-Copy the token immediately — Docker Hub only shows it once.
+Copy the token immediately - Docker Hub only shows it once.
 
 ## 2. Add the two repository secrets
 
@@ -21,7 +21,7 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 | Secret | Value |
 |---|---|
-| `DOCKERHUB_USERNAME` | Your Docker Hub username or organization name — this is also the image namespace, e.g. `yourusername/expo-builder-local-runner` |
+| `DOCKERHUB_USERNAME` | Your Docker Hub username or organization name - this is also the image namespace, e.g. `yourusername/expo-builder-local-runner` |
 | `DOCKERHUB_TOKEN` | The access token from step 1 |
 
 If either is missing, the workflow fails fast with a clear `::error::` rather than
@@ -35,11 +35,11 @@ Three images, tagged per the pushed git tag (`v0.5.0` → `0.5.0`, `0.5`, and `l
 - `<namespace>/expo-builder-local-orchestrator`
 - `<namespace>/expo-builder-local-web`
 
-All `linux/amd64` only (no cross-platform emulation — the runner image's Android
+All `linux/amd64` only (no cross-platform emulation - the runner image's Android
 SDK/NDK download would be slow and untested under QEMU arm64; a reasonable follow-up
 if arm64 support is ever needed, not part of this setup).
 
 Once published, set `DOCKERHUB_NAMESPACE` in `.env` (the docker-compose local-dev
-path only — `ebl setup`/`ebl start` always pull from the canonical `41vi4p`
+path only - `ebl setup`/`ebl start` always pull from the canonical `41vi4p`
 namespace, that's no longer configurable) and `docker-compose.yml` will pull these
 instead of needing a local build.

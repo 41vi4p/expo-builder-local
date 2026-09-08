@@ -41,7 +41,7 @@ function formatDuration(seconds: number): string {
 
 /**
  * The dashboard's signature element: a build genuinely *is* a fixed sequence of
- * phases (unlike most numbered-step UI, the ordering here carries real information —
+ * phases (unlike most numbered-step UI, the ordering here carries real information -
  * what's about to run, what already ran, and how long each step took) so a connected
  * phase rail doubles as both a progress bar and a diagnostic history, rather than a
  * generic percentage bar.

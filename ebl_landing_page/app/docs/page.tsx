@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import CodeBlock from "@/components/CodeBlock";
 
 export const metadata: Metadata = {
-  title: "Docs — expo-builder-local",
+  title: "Docs - expo-builder-local",
   description: "Quick start, commands, build engines, signing, security, and troubleshooting for expo-builder-local.",
 };
 
@@ -17,18 +17,18 @@ const NAV = [
 ];
 
 const COMMANDS = [
-  { cmd: "ebl setup", body: "One-time: checks Docker is installed and running (offers to install it if not), then pulls the runner/orchestrator/web images. On Windows, --runtime native (the default there) instead provisions a JDK/Android SDK/Node toolchain directly on the host — no Docker/WSL2 needed; unverified on real hardware." },
+  { cmd: "ebl setup", body: "One-time: checks Docker is installed and running (offers to install it if not), then pulls the runner/orchestrator/web images. On Windows, --runtime native (the default there) instead provisions a JDK/Android SDK/Node toolchain directly on the host - no Docker/WSL2 needed; unverified on real hardware." },
   { cmd: "ebl config", body: "Interactive wizard: projects folder, a default Expo token plus optional per-account tokens, orchestrator/web ports." },
   { cmd: "ebl start", body: "Runs the orchestrator + web GUI as Docker containers, waits for both to report healthy, prints the GUI URL." },
   { cmd: "ebl stop", body: "Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved." },
-  { cmd: "ebl build [path]", body: "Builds an Expo project. Works completely standalone — no setup/config/start required." },
-  { cmd: "ebl update", body: "Force-refreshes the runner/orchestrator/web images right now — build/start already pull on every run, but this rebuilds the runner from scratch (no cache) if it can't pull one at all." },
+  { cmd: "ebl build [path]", body: "Builds an Expo project. Works completely standalone - no setup/config/start required." },
+  { cmd: "ebl update", body: "Force-refreshes the runner/orchestrator/web images right now - build/start already pull on every run, but this rebuilds the runner from scratch (no cache) if it can't pull one at all." },
   { cmd: "ebl clean [--all]", body: "Removes stopped build containers. With --all, also clears the shared cache volumes and the runner/orchestrator/web images." },
 ];
 
 const ENGINES = [
-  { name: "Gradle (local)", how: "expo prebuild generates the native android/ project, then Gradle compiles it directly in the container.", account: "No — fully offline once dependencies are cached." },
-  { name: "EAS (local)", how: "eas build --local — the same command EAS's own cloud workers run, just on your machine.", account: "Yes — needs an Expo access token." },
+  { name: "Gradle (local)", how: "expo prebuild generates the native android/ project, then Gradle compiles it directly in the container.", account: "No - fully offline once dependencies are cached." },
+  { name: "EAS (local)", how: "eas build --local - the same command EAS's own cloud workers run, just on your machine.", account: "Yes - needs an Expo access token." },
   { name: "Auto (default)", how: "Uses EAS if the project has an eas.json and a token is available, otherwise falls back to Gradle.", account: "Optional." },
 ];
 
@@ -84,7 +84,7 @@ export default function DocsPage() {
 
         <div className="min-w-0">
           <Section id="quick-start" title="Quick start">
-            <p>On Debian/Ubuntu, install via the hosted APT repo (recommended — picks up new releases automatically):</p>
+            <p>On Debian/Ubuntu, install via the hosted APT repo (recommended - picks up new releases automatically):</p>
             <CodeBlock
               label="bash"
               code={`curl -fsSL https://41vi4p.github.io/expo-builder-local/apt/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/ebl-archive-keyring.gpg
@@ -92,7 +92,7 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ebl-archive-keyring.gpg] htt
 sudo apt update && sudo apt install ebl`}
             />
             <p>
-              Or the one-line installer, on any distro — it also builds a native pacman package from source on
+              Or the one-line installer, on any distro - it also builds a native pacman package from source on
               Arch-based distros. See the <a href="/download" className="text-accent hover:underline">Download page</a>{" "}
               for every option, Arch included.
             </p>
@@ -108,7 +108,7 @@ ebl build .              # signed APK, auto engine
 ebl build . --prod       # shortcut for --artifact aab --profile production`}
             />
             <p>
-              <code>ebl build</code> never needs <code>setup</code>/<code>config</code>/<code>start</code> — it works
+              <code>ebl build</code> never needs <code>setup</code>/<code>config</code>/<code>start</code> - it works
               standalone, from anywhere, against any Expo project, talking to Docker directly. Those three commands are
               only for the optional web GUI (live dashboard, build history, keystore manager).
             </p>
@@ -158,7 +158,7 @@ ebl build . --prod       # shortcut for --artifact aab --profile production`}
           <Section id="accounts" title="Multiple Expo accounts">
             <p>
               If your apps aren&apos;t all under the same EAS account, save one token per account instead of juggling{" "}
-              <code>--expo-token</code>/<code>EXPO_TOKEN</code> by hand — <code>ebl build</code>{" "}
+              <code>--expo-token</code>/<code>EXPO_TOKEN</code> by hand - <code>ebl build</code>{" "}
               auto-selects the right one by matching the project&apos;s <code>app.json</code>{" "}
               <code>expo.owner</code> field.
             </p>
@@ -172,14 +172,14 @@ ebl build . --prod       # shortcut for --artifact aab --profile production`}
 
           <Section id="signing" title="Signing">
             <p>
-              <strong>Debug</strong> — every build is signed with Expo&apos;s default debug keystore. Good for a test
+              <strong>Debug</strong> - every build is signed with Expo&apos;s default debug keystore. Good for a test
               device, not accepted by the Play Store.
             </p>
             <p>
-              <strong>Release</strong> — provide a real keystore (<code>.jks</code>/<code>.keystore</code>) via{" "}
+              <strong>Release</strong> - provide a real keystore (<code>.jks</code>/<code>.keystore</code>) via{" "}
               <code>--keystore</code>{" "}
               on the CLI, or upload once in the GUI&apos;s keystore manager. The password/alias
-              are AES-256-GCM encrypted at rest and only decrypted in memory for the one build that uses them — nothing
+              are AES-256-GCM encrypted at rest and only decrypted in memory for the one build that uses them - nothing
               persists in your project folder after the build finishes.
             </p>
           </Section>

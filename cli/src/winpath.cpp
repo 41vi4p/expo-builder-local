@@ -4,7 +4,7 @@ namespace ebl {
 
 std::string toDockerBindPath(const std::string& hostPath) {
 #ifdef _WIN32
-  // Only a plain drive-letter path ("C:\..." or "C:/...") needs translating — a
+  // Only a plain drive-letter path ("C:\..." or "C:/...") needs translating - a
   // path that's already forward-slashed and driveless (unlikely here, since every
   // caller derives from std::filesystem::absolute() on Windows, but harmless to
   // leave alone) is passed through as-is.

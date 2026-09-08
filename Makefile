@@ -4,7 +4,7 @@ help:
 	@echo "expo-builder-local"
 	@echo ""
 	@echo "  make env          Copy .env.example to .env (only if .env doesn't exist yet)"
-	@echo "  make build-image  Build the Android runner image (docker/runner) — large, one-time"
+	@echo "  make build-image  Build the Android runner image (docker/runner) - large, one-time"
 	@echo "  make up           Build the GUI + orchestrator and start them (detached)"
 	@echo "  make down         Stop the GUI + orchestrator"
 	@echo "  make logs         Follow orchestrator + web logs"
@@ -14,10 +14,10 @@ help:
 	@echo "  make install-cli  Build (CMake/C++) and install the 'ebl' CLI to ~/.local/bin"
 	@echo "  make deb          Build a signed-locally-if-configured .deb package for the CLI"
 	@echo "  make publish-images       Build the 3 Docker Hub images locally (no push)"
-	@echo "  make publish-images-push  Build AND push them — needs DOCKERHUB_NAMESPACE + docker login"
+	@echo "  make publish-images-push  Build AND push them - needs DOCKERHUB_NAMESPACE + docker login"
 
 env:
-	@test -f .env || (cp .env.example .env && echo "Created .env — edit it before running 'make up'")
+	@test -f .env || (cp .env.example .env && echo "Created .env - edit it before running 'make up'")
 
 build-image:
 	docker compose --profile build-only build runner
@@ -45,7 +45,7 @@ clean:
 
 # Built out-of-tree in ~/.cache rather than cli/build: if this checkout sits on a
 # slow or network-backed filesystem, CMake's own configure/build (many small file
-# writes — object files, compiler feature checks) can be dramatically slower there
+# writes - object files, compiler feature checks) can be dramatically slower there
 # than on your actual root filesystem. Building elsewhere sidesteps that entirely;
 # CLI_BUILD_DIR is overridable if you'd rather build in-tree.
 CLI_BUILD_DIR ?= $(HOME)/.cache/expo-builder-local/cli-build

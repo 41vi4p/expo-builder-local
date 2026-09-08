@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds and (optionally) pushes the three expo-builder-local images to Docker Hub —
-# runner, orchestrator, web — all under the same namespace/tag scheme the CLI
+# Builds and (optionally) pushes the three expo-builder-local images to Docker Hub -
+# runner, orchestrator, web - all under the same namespace/tag scheme the CLI
 # (cli/src/config_store.hpp) and docker-compose.yml expect.
 #
 # Usage:
@@ -9,7 +9,7 @@
 #
 # Before --push: `docker login` with an account that has push access to
 # DOCKERHUB_NAMESPACE. This script never logs in for you and never pushes without
-# --push being passed explicitly — publishing to a shared registry is a real,
+# --push being passed explicitly - publishing to a shared registry is a real,
 # externally-visible action.
 set -euo pipefail
 
@@ -32,7 +32,7 @@ RUNNER_TAG="${DOCKERHUB_NAMESPACE}/expo-builder-local-runner:latest"
 ORCHESTRATOR_TAG="${DOCKERHUB_NAMESPACE}/expo-builder-local-orchestrator:latest"
 WEB_TAG="${DOCKERHUB_NAMESPACE}/expo-builder-local-web:latest"
 
-echo "==> Building ${RUNNER_TAG} (this one's large — Android SDK — expect ~10-20 min)"
+echo "==> Building ${RUNNER_TAG} (this one's large - Android SDK - expect ~10-20 min)"
 # EAS_CLI_CACHE_BUST forces docker/runner/Dockerfile's "npm install -g eas-cli@latest"
 # layer to actually re-resolve, rather than silently reusing a cached npm/eas-cli
 # version from an earlier local build of this same image (see that Dockerfile's

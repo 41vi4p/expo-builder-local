@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-/** Tracks whether the chart surface is currently dark — combining the OS
+/** Tracks whether the chart surface is currently dark - combining the OS
  * `prefers-color-scheme` media query with this app's own `data-theme` toggle on
  * <html> (see globals.css), so a manual light/dark override always wins over the OS
  * setting, in both directions. Chart series colors are picked per-mode (see

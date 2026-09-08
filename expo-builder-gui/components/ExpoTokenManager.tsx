@@ -67,7 +67,7 @@ export default function ExpoTokenManager({ detectedOwner }: { detectedOwner?: st
 
       {detectedOwner !== undefined && (
         <p className="font-mono text-[11px] text-text-dim">
-          This project&apos;s owner: <span className="text-text">{detectedOwner || "(none in app.json)"}</span> —{" "}
+          This project&apos;s owner: <span className="text-text">{detectedOwner || "(none in app.json)"}</span> -{" "}
           {matched ? (
             <span className="text-accent">
               will use the saved &quot;{matched.owner || "default"}&quot; token automatically
@@ -98,7 +98,7 @@ export default function ExpoTokenManager({ detectedOwner }: { detectedOwner?: st
         <form onSubmit={handleSave} className="space-y-2 rounded-md border border-border p-3">
           <input
             name="owner"
-            placeholder="Owner (app.json's expo.owner, e.g. project-cell — blank = default)"
+            placeholder="Owner (app.json's expo.owner, e.g. project-cell - blank = default)"
             className="w-full rounded-md border border-border bg-surface-2 px-2 py-1.5 text-xs"
           />
           <input

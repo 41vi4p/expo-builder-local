@@ -17,11 +17,11 @@
 </p>
 
 Build a managed Expo (SDK 56+) project into an Android APK/AAB entirely on your own
-machine — from the command line or a web GUI — in a disposable Docker container, and
+machine - from the command line or a web GUI - in a disposable Docker container, and
 get a properly-signed artifact exported straight into that project's `ebl_builds/`
 folder, versioned per build.
 
-No Expo account is required for the default path — everything runs in a disposable
+No Expo account is required for the default path - everything runs in a disposable
 Docker container with its own Android SDK, Node and Gradle. If you'd rather use EAS's
 remote-managed credentials, that's supported too (see [Build engines](#build-engines)).
 
@@ -47,18 +47,18 @@ remote-managed credentials, that's supported too (see [Build engines](#build-eng
 ## Quick start (CLI)
 
 > **Recommended: 16GB+ RAM, ~40GB free disk.** A cold build compiles native code for
-> 4 CPU architectures (arm64-v8a/armeabi-v7a/x86/x86_64) plus the Kotlin/JS toolchain —
+> 4 CPU architectures (arm64-v8a/armeabi-v7a/x86/x86_64) plus the Kotlin/JS toolchain -
 > genuinely resource-heavy. Less RAM can still work, but is more likely to fail under
 > load; on Windows specifically, Docker Desktop's WSL2 VM running out of memory
 > crashes its own Engine API rather than just slowing the build down (see the Windows
 > section below for how `ebl` handles that automatically). The ~40GB of disk covers
-> the runner image, Gradle/npm build caches, and (on Windows) WSL2 swap headroom —
+> the runner image, Gradle/npm build caches, and (on Windows) WSL2 swap headroom -
 > reclaim all of it any time with `ebl clean --all` (see
 > [Command reference](#command-reference)).
 
 ### Linux (Ubuntu/Debian)
 
-**Via the APT repository (recommended)** — `sudo apt upgrade` picks up new releases automatically:
+**Via the APT repository (recommended)** - `sudo apt upgrade` picks up new releases automatically:
 
 ```bash
 curl -fsSL https://41vi4p.github.io/expo-builder-local/apt/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/ebl-archive-keyring.gpg
@@ -72,7 +72,7 @@ sudo apt update && sudo apt install ebl
 curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh
 ```
 
-**Or the `.deb` directly** — grab `ebl_*_amd64.deb` from [Releases](https://github.com/41vi4p/expo-builder-local/releases), then:
+**Or the `.deb` directly** - grab `ebl_*_amd64.deb` from [Releases](https://github.com/41vi4p/expo-builder-local/releases), then:
 
 ```bash
 sudo apt install ./ebl_*_amd64.deb
@@ -80,7 +80,7 @@ sudo apt install ./ebl_*_amd64.deb
 
 ### Linux (Arch-based)
 
-**Via the one-line installer** — detects pacman and builds
+**Via the one-line installer** - detects pacman and builds
 [`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD) from source with `makepkg`,
 against your own system's `curl`/`openssl` (no prebuilt-binary ABI risk), giving a
 real pacman-tracked package (`pacman -Qi ebl`, `pacman -R ebl` both work normally):
@@ -90,7 +90,7 @@ curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/inst
 ```
 
 Needs the `base-devel` group for `makepkg` (`sudo pacman -S --needed base-devel`) and
-must run as a regular user, not root — `makepkg` refuses to run as root. If either
+must run as a regular user, not root - `makepkg` refuses to run as root. If either
 isn't the case, the installer automatically falls back to the plain tarball below.
 
 **Or build the PKGBUILD yourself**:
@@ -100,37 +100,37 @@ curl -fsSLO https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/pac
 makepkg -si
 ```
 
-Not published on the AUR yet — see [`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD)'s
+Not published on the AUR yet - see [`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD)'s
 header for why, and [`docs/RELEASING.md`](./docs/RELEASING.md) for release notes.
 
 ### Windows
 
 `ebl.exe` is a native Windows build of the same CLI every other platform uses, with
-**two build engines to choose from** — Docker Desktop/WSL2 was, until now, the only
+**two build engines to choose from** - Docker Desktop/WSL2 was, until now, the only
 option on Windows, and it's the single biggest source of Windows friction (VM
 overhead, WSL2 memory tuning, Docker Desktop's own licensing/install). **Native
 mode is the default**: it installs the Android SDK, JDK 17, and Node.js directly on
 this machine (isolated under `%LOCALAPPDATA%\ebl`, never touching an existing
-install) and runs builds as real processes on your system — no Docker Desktop or
+install) and runs builds as real processes on your system - no Docker Desktop or
 WSL2 at all.
 
 > **⚠️ Native mode is unverified on real Windows hardware.** It was built with no
-> Windows machine available to test it on — written to mirror the Docker engine's
+> Windows machine available to test it on - written to mirror the Docker engine's
 > exact behavior and carefully checked wherever possible (compiles cleanly,
 > PowerShell scripts parse correctly), but it hasn't actually run a real build yet.
 > Docker mode is the original, actually-used-in-production engine if you'd rather
-> not be the first to find native mode's rough edges — pass `-Mode Docker` /
+> not be the first to find native mode's rough edges - pass `-Mode Docker` /
 > `--runtime docker`. Please [report](https://github.com/41vi4p/expo-builder-local/issues)
 > anything that doesn't work.
 
 | | Native (default) | Docker |
 |---|---|---|
-| Requires | Nothing extra — installs its own JDK/SDK/Node | Docker Desktop (+ usually WSL2) |
+| Requires | Nothing extra - installs its own JDK/SDK/Node | Docker Desktop (+ usually WSL2) |
 | Isolation | Runs directly on your system | Disposable, fully isolated Linux container |
 | Disk/memory overhead | Just the toolchain itself | Container runtime + VM on top |
-| Status | New, **unverified on real hardware** | The original engine — what Linux/macOS also use |
+| Status | New, **unverified on real hardware** | The original engine - what Linux/macOS also use |
 
-**One-line installer** (PowerShell) — installs in Native mode by default:
+**One-line installer** (PowerShell) - installs in Native mode by default:
 
 ```powershell
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
@@ -144,23 +144,23 @@ routinely too little for a real Android build):
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 -OutFile install.ps1; .\install.ps1 -Mode Docker
 ```
 
-Either way, the installer finishes by running `ebl setup --runtime <mode>` for you —
+Either way, the installer finishes by running `ebl setup --runtime <mode>` for you -
 in Native mode that's where the JDK/Android SDK/Node downloads actually happen
 (noticeably longer than Docker mode's image-pull step), so don't be surprised if a
 fresh Native install takes a while.
 
-**Or the GUI installer** — grab `ebl-setup-*.exe` from
+**Or the GUI installer** - grab `ebl-setup-*.exe` from
 [Releases](https://github.com/41vi4p/expo-builder-local/releases) and run it; a
 wizard page lets you pick Native or Docker (Native pre-selected), then it runs the
 same `install.ps1` under the hood with a familiar Windows installer UI and an entry
 in *Add or Remove Programs*.
 
-Switch modes later any time with `ebl setup --runtime <docker|native>` — `ebl
+Switch modes later any time with `ebl setup --runtime <docker|native>` - `ebl
 build`/`ebl start` use whichever was set up last, overridable per-run with
 `ebl build --runtime <docker|native>`.
 
 If disk space gets tight afterward (build caches, the runner image, WSL2's swap
-file), reclaim it any time with `ebl clean --all` — see
+file), reclaim it any time with `ebl clean --all` - see
 [Command reference](#command-reference).
 
 ### Then
@@ -175,13 +175,13 @@ ebl build .              # debug-signed APK, auto engine
 ebl build . --prod       # shortcut for --artifact aab --profile production
 ```
 
-`ebl build` never needs `setup`/`config`/`start` — it works standalone, from anywhere,
+`ebl build` never needs `setup`/`config`/`start` - it works standalone, from anywhere,
 against any Expo project, talking to Docker directly. `setup`/`config`/`start` are
 only for the optional web GUI (live dashboard, build history, keystore manager).
 
 ## Uninstall
 
-> **Run `ebl clean --all` first.** None of the steps below touch Docker — the
+> **Run `ebl clean --all` first.** None of the steps below touch Docker - the
 > runner/orchestrator/web images, the Gradle/npm cache volumes, and any leftover
 > build containers all stay on disk after `ebl` itself is gone. `ebl clean --all`
 > (needs Docker Desktop/Docker still running) removes all of that safely in one
@@ -197,7 +197,7 @@ sudo apt remove ebl
 # and, if you added it: sudo rm /etc/apt/sources.list.d/ebl.list
 ```
 
-This removes the `ebl` binary only — your projects, `ebl_builds/` artifacts, and
+This removes the `ebl` binary only - your projects, `ebl_builds/` artifacts, and
 `~/.config/ebl/` (saved tokens/settings) are untouched. Remove that config directory
 yourself if you want a completely clean slate:
 
@@ -208,7 +208,7 @@ rm -rf ~/.config/ebl
 ### Windows
 
 If you used the **one-line/PowerShell install**, run the uninstaller script it left
-behind directly from a terminal — this always removes `ebl.exe` and its PATH entry,
+behind directly from a terminal - this always removes `ebl.exe` and its PATH entry,
 and (interactively, native-mode installs only) also offers to remove the Android
 SDK/JDK/Node toolchain it downloaded and/or your saved settings:
 
@@ -217,28 +217,28 @@ SDK/JDK/Node toolchain it downloaded and/or your saved settings:
 ```
 
 It only ever offers to remove a toolchain component ebl actually downloaded itself
-— anything it detected and reused instead (an existing JDK/Android SDK/Node you
+- anything it detected and reused instead (an existing JDK/Android SDK/Node you
 already had) is never touched. Pass `-Quiet` to skip those prompts and just do the
 always-safe part (same as before this existed).
 
 If you used the **`ebl-setup-*.exe` GUI installer**, uninstall it the normal Windows
-way instead — *Settings → Apps → ebl (expo-local-builder) → Uninstall*, or from *Add
+way instead - *Settings → Apps → ebl (expo-local-builder) → Uninstall*, or from *Add
 or Remove Programs*. The GUI uninstaller always runs non-interactively (no console
-to prompt on), so it only does the always-safe removal — run `uninstall.ps1`
+to prompt on), so it only does the always-safe removal - run `uninstall.ps1`
 directly from a terminal instead if you want the native-toolchain/config cleanup
 prompts.
 
-Either way, Docker Desktop itself is left alone (Docker-mode installs) — it's your
+Either way, Docker Desktop itself is left alone (Docker-mode installs) - it's your
 system's own component, not ebl's, in case anything else on your machine depends on
-it. `.wslconfig`'s WSL2 memory/swap tuning is also left as-is — it's shared,
+it. `.wslconfig`'s WSL2 memory/swap tuning is also left as-is - it's shared,
 machine-wide state other software may depend on by now.
 
 ## Why this exists
 
 Expo's managed workflow normally means either `eas build` (cloud, costs money/quota,
 needs an Expo account) or manually running `expo prebuild` + Gradle yourself every
-time. This tool wraps the second path in a disposable container — driven by a CLI, a
-GUI, or both — so any developer can produce a build without setting up an Android SDK
+time. This tool wraps the second path in a disposable container - driven by a CLI, a
+GUI, or both - so any developer can produce a build without setting up an Android SDK
 locally or learning Gradle.
 
 ## Architecture
@@ -249,37 +249,37 @@ locally or learning Gradle.
 Browser ──HTTP/WS──▶ web (Next.js) ──HTTP/WS──▶ orchestrator (Fastify) ──┴─▶ runner container
    ▲                started by `ebl start`      │ /var/run/docker.sock      (Node + JDK 17 +
    └── ebl setup/config/start drive Docker      ▼                           Android SDK)
-       directly — no docker-compose.yml    bind-mounts your project,
+       directly - no docker-compose.yml    bind-mounts your project,
        or git checkout required            writes the APK/AAB into
                                             <project>/ebl_builds/
 ```
 
-- **`cli/`** — the `ebl` command (C++17, CMake): talks to the Docker Engine API
+- **`cli/`** - the `ebl` command (C++17, CMake): talks to the Docker Engine API
   directly over its unix socket. `ebl build` needs nothing else running; `ebl start`
   launches the orchestrator + web images itself.
-- **`expo-builder-gui/`** — the web UI (Next.js): directory browser, build config
+- **`expo-builder-gui/`** - the web UI (Next.js): directory browser, build config
   form, live dashboard (progress, logs, CPU/mem/net/disk charts), metrics, history.
-- **`orchestrator/`** — a small backend service that spawns and supervises build
+- **`orchestrator/`** - a small backend service that spawns and supervises build
   containers via the Docker API, streams their output/stats over WebSocket, and
   persists build history to SQLite.
-- **`docker/runner/`** — the Android toolchain image. Not a long-running service: a
+- **`docker/runner/`** - the Android toolchain image. Not a long-running service: a
   fresh, disposable container is started from it for every single build.
 
 The orchestrator talks to the **host's** Docker daemon over the mounted socket (it is
-a sibling container, not a nested one) — see [Path handling](#path-handling-important)
+a sibling container, not a nested one) - see [Path handling](#path-handling-important)
 for why that matters.
 
 ## Command reference
 
 | Command | What it does |
 |---|---|
-| `ebl setup [--runtime docker\|native]` | One-time. Docker mode: checks Docker is installed and running (offers to install it via the official convenience script if not — asks first, needs sudo), then pulls the runner/orchestrator/web images. Native mode (Windows only, the default there): detects/provisions the JDK/Android SDK/Node toolchain instead — see [Windows](#windows) above. Whichever you pick is remembered for `ebl build` to use by default afterward. |
+| `ebl setup [--runtime docker\|native]` | One-time. Docker mode: checks Docker is installed and running (offers to install it via the official convenience script if not - asks first, needs sudo), then pulls the runner/orchestrator/web images. Native mode (Windows only, the default there): detects/provisions the JDK/Android SDK/Node toolchain instead - see [Windows](#windows) above. Whichever you pick is remembered for `ebl build` to use by default afterward. |
 | `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), a default Expo access token plus optional per-account tokens (see [Multiple Expo accounts](#multiple-expo-accounts) below), orchestrator/web ports. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
-| `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. Docker-only — see [Windows](#windows) above for native mode's current CLI-only scope. |
+| `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. Docker-only - see [Windows](#windows) above for native mode's current CLI-only scope. |
 | `ebl stop` | Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved. |
-| `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. `--runtime docker\|native` overrides which engine to use for just this run (Windows only; default is whatever `ebl setup` last configured). |
-| `ebl update` | Force-refreshes the runner/orchestrator/web images right now, unconditionally. `ebl build`/`ebl start` already pull on every run, but that only ever transfers layers that changed upstream — it can't fix an image whose published tag was itself built from a stale layer cache. `ebl update` always re-pulls all three, and for the runner image specifically, rebuilds it from scratch (Docker's build cache fully disabled) if pulling isn't possible at all. |
-| `ebl clean [--all]` | Removes ebl's own stopped build containers (leftovers from an interrupted/crashed build). With `--all`, also removes the shared Gradle/npm cache volumes and the runner/orchestrator/web images — the next `ebl build`/`ebl setup` just re-pulls/re-creates whatever it needs, so this is safe, just slower on the next run. Refuses `--all` while a build is currently running. |
+| `ebl build [path] [options]` | Builds an Expo project. Works completely standalone - see below. `--runtime docker\|native` overrides which engine to use for just this run (Windows only; default is whatever `ebl setup` last configured). |
+| `ebl update` | Force-refreshes the runner/orchestrator/web images right now, unconditionally. `ebl build`/`ebl start` already pull on every run, but that only ever transfers layers that changed upstream - it can't fix an image whose published tag was itself built from a stale layer cache. `ebl update` always re-pulls all three, and for the runner image specifically, rebuilds it from scratch (Docker's build cache fully disabled) if pulling isn't possible at all. |
+| `ebl clean [--all]` | Removes ebl's own stopped build containers (leftovers from an interrupted/crashed build). With `--all`, also removes the shared Gradle/npm cache volumes and the runner/orchestrator/web images - the next `ebl build`/`ebl setup` just re-pulls/re-creates whatever it needs, so this is safe, just slower on the next run. Refuses `--all` while a build is currently running. |
 
 Run `ebl <command> --help` for the full option list of any command.
 
@@ -294,12 +294,12 @@ ebl build . --release --keystore ./release.jks --key-alias upload \
 ```
 
 Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
-environment variables over the `--store-password` etc. flags where you can — flag
+environment variables over the `--store-password` etc. flags where you can - flag
 values are more likely to end up in your shell history. If `ebl config` has already
 saved an Expo token, `ebl build` picks it up as a default too (any explicit flag/env
 var/`.ebl-token` file still wins).
 
-Every successful build lands in `<project>/ebl_builds/v<app-version>-build<n>/` — `n`
+Every successful build lands in `<project>/ebl_builds/v<app-version>-build<n>/` - `n`
 is a simple counter local to that project (see `ebl_builds/.build-counter`), so
 "build 4" always means the same thing regardless of how many times a given app
 version gets rebuilt. `ebl_builds/` is added to the project's `.gitignore`
@@ -307,12 +307,12 @@ automatically on first build.
 
 ## Using the GUI
 
-Once `ebl start` is running (or after `make up` — see
+Once `ebl start` is running (or after `make up` - see
 [Local development](#local-development-contributing-to-this-repo)):
 
 1. **Pick a project.** The directory browser starts at the projects folder you set
    in `ebl config`; navigate into your Expo app's folder. A green "Expo project
-   detected" badge means it found a `package.json` with an `expo` dependency — click
+   detected" badge means it found a `package.json` with an `expo` dependency - click
    **Use this folder**.
 2. **Configure the build.**
    - **Artifact**: APK (installs directly on a device) or AAB (Play Store bundle).
@@ -320,16 +320,16 @@ Once `ebl start` is running (or after `make up` — see
      (typically `preview`/`production`), otherwise free text.
    - **Engine**: see [Build engines](#build-engines) below.
    - **Signing**: Debug (fast, installable, not for the Play Store) or Release (upload
-     a keystore — see [Signing](#signing)).
+     a keystore - see [Signing](#signing)).
 3. **Watch it build.** The phase rail shows setup → install → prebuild/EAS → signing →
    compile → collect, each with elapsed time, a live percentage + ETA, streamed logs,
    and CPU/memory/network/disk charts for the build container.
 4. **Get your artifact.** On success, the metrics panel shows the build number, size
    (with the delta vs your last build of this app+profile), build time, version,
-   application ID, a SHA-256, and the exact path under `ebl_builds/` — plus a download
+   application ID, a SHA-256, and the exact path under `ebl_builds/` - plus a download
    button.
 
-Note: builds started from the CLI and from the GUI are intentionally independent —
+Note: builds started from the CLI and from the GUI are intentionally independent -
 CLI builds aren't recorded in the GUI's history. Use the GUI when you want the live
 dashboard and a persistent history; use the CLI for quick one-offs or CI.
 
@@ -337,8 +337,8 @@ dashboard and a persistent history; use the CLI for quick one-offs or CI.
 
 | Engine | How | Needs an Expo account? |
 |---|---|---|
-| **Gradle (local)** | `expo prebuild` generates the native `android/` project, then Gradle compiles it directly in the container. | No — fully offline once dependencies are cached. |
-| **EAS (local)** | `eas build --local` — same command EAS's own cloud workers run, just on your machine. Uses your project's `eas.json` profile as-is. | Yes — needs an [Expo access token](https://expo.dev/accounts/[account]/settings/access-tokens) (set via `ebl config`, `EXPO_TOKEN`, or per-build). |
+| **Gradle (local)** | `expo prebuild` generates the native `android/` project, then Gradle compiles it directly in the container. | No - fully offline once dependencies are cached. |
+| **EAS (local)** | `eas build --local` - same command EAS's own cloud workers run, just on your machine. Uses your project's `eas.json` profile as-is. | Yes - needs an [Expo access token](https://expo.dev/accounts/[account]/settings/access-tokens) (set via `ebl config`, `EXPO_TOKEN`, or per-build). |
 | **Auto** | Uses EAS if the project has an `eas.json` *and* a token is available, otherwise falls back to Gradle. | Optional. |
 
 ## Multiple Expo accounts
@@ -356,7 +356,7 @@ ebl config
 ```
 
 `ebl build` then auto-selects the right token by matching the project's `app.json`
-`expo.owner` field against your saved accounts — no per-build flag needed:
+`expo.owner` field against your saved accounts - no per-build flag needed:
 
 ```bash
 cd /path/to/app-owned-by-project-cell
@@ -373,23 +373,23 @@ If none of these resolve and the build engine actually needs a token (`eas`, or
 `auto` when the project has an `eas.json`), `ebl build` prompts for one
 interactively (hidden input, like a password) instead of failing partway through
 the build. You'll then be asked whether to save it to a `.ebl-token` file in the
-project root for next time — useful for a project-specific token you don't want in
+project root for next time - useful for a project-specific token you don't want in
 your global `ebl config`, or on a shared/CI machine. That file is added to the
 project's `.gitignore` automatically the first time it's saved, the same way
 `ebl_builds/` is.
 
 ## Signing
 
-- **Debug** — every build is signed with Expo's default debug keystore. Good for
+- **Debug** - every build is signed with Expo's default debug keystore. Good for
   installing on a test device, not accepted by the Play Store.
-- **Release** — provide a real keystore (`.jks`/`.keystore`) — via `--keystore` on the
+- **Release** - provide a real keystore (`.jks`/`.keystore`) - via `--keystore` on the
   CLI, or uploaded once in the GUI's keystore manager and selected per build. The
   password/alias/key-password are AES-256-GCM encrypted at rest (GUI: server-side;
   CLI: n/a, passed directly per invocation) and only decrypted in memory for the one
   build that uses them.
   - Gradle engine: the keystore is wired into a generated `keystore.properties` and a
     patched `android/app/build.gradle` `release` signing config, both removed again
-    the moment the build finishes (success or failure) — they never persist in your
+    the moment the build finishes (success or failure) - they never persist in your
     project folder.
   - EAS engine: written to a temporary local `credentials.json` (EAS's own local-build
     format) and an `eas.json` `credentialsSource: "local"` override for that profile,
@@ -397,16 +397,16 @@ project's `.gitignore` automatically the first time it's saved, the same way
 
 ## Docker Hub images
 
-Three images, all under the `41vi4p` namespace — `ebl build`/`ebl setup`/`ebl start`
+Three images, all under the `41vi4p` namespace - `ebl build`/`ebl setup`/`ebl start`
 always pull from there, this isn't user-configurable (see
 [Version management](./CLAUDE.md#-version-management) if you're maintaining a fork
 under your own account):
 
-- `41vi4p/expo-builder-local-runner` — the Android toolchain.
-- `41vi4p/expo-builder-local-orchestrator` — the backend.
-- `41vi4p/expo-builder-local-web` — the GUI (runtime-configurable: the
+- `41vi4p/expo-builder-local-runner` - the Android toolchain.
+- `41vi4p/expo-builder-local-orchestrator` - the backend.
+- `41vi4p/expo-builder-local-web` - the GUI (runtime-configurable: the
   orchestrator URL is substituted into the compiled bundle at container *start*, from
-  the `ORCHESTRATOR_URL` env var — not baked in at build time, so one published image
+  the `ORCHESTRATOR_URL` env var - not baked in at build time, so one published image
   works regardless of what port a given user picks).
 
 If you're maintaining your own fork and need to publish under a different namespace,
@@ -419,12 +419,12 @@ DOCKERHUB_NAMESPACE=yourusername ./scripts/publish-images.sh --push   # build + 
 
 ...or automatically: `.github/workflows/docker-publish.yml` builds and pushes all
 three (`linux/amd64`) on every `v*` tag once `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`
-repo secrets are set — see [`docs/DOCKER.md`](./docs/DOCKER.md) for the one-time
+repo secrets are set - see [`docs/DOCKER.md`](./docs/DOCKER.md) for the one-time
 setup. Note this only affects the docker-compose local-dev path (`DOCKERHUB_NAMESPACE`
-in `.env`) — the `ebl` CLI itself always targets `41vi4p` regardless.
+in `.env`) - the `ebl` CLI itself always targets `41vi4p` regardless.
 
 `ebl build` falls back to a local build if the runner image isn't pulled yet (the
-only one of the three with a local-build fallback — orchestrator/web are meant to be
+only one of the three with a local-build fallback - orchestrator/web are meant to be
 pre-published).
 
 ## APT repository
@@ -432,7 +432,7 @@ pre-published).
 Every `v*` tag publishes a real, GPG-signed APT repository to GitHub Pages at
 `https://41vi4p.github.io/expo-builder-local/apt` (see [Quick start](#quick-start-cli)
 for the add-the-repo commands, or just use `install.sh`, which does it for you). Once
-added, `sudo apt upgrade` picks up new `ebl` releases automatically — this is the
+added, `sudo apt upgrade` picks up new `ebl` releases automatically - this is the
 recommended install path over downloading a `.deb` by hand.
 
 See [`docs/APT_REPO_SETUP_GUIDE.md`](./docs/APT_REPO_SETUP_GUIDE.md) for the one-time
@@ -442,10 +442,10 @@ the release process itself (GitHub Actions, tag-triggered).
 ## Arch package
 
 [`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD) builds the CLI from source
-against the distro's own `curl`/`openssl` — unlike the APT repo above, there's no
+against the distro's own `curl`/`openssl` - unlike the APT repo above, there's no
 prebuilt binary to publish, so there's no separate CI job for it either; `install.sh`
 runs `makepkg` directly when it detects `pacman` (see
-[Quick start](#linux-arch-based)). Not yet published to the AUR — see
+[Quick start](#linux-arch-based)). Not yet published to the AUR - see
 [`docs/RELEASING.md`](./docs/RELEASING.md#arch-linux-packaging) for why and what a
 future submission would need.
 
@@ -458,7 +458,7 @@ the CLI or images each time):
 ```bash
 cd expo-builder-local
 cp .env.example .env   # set HOST_PROJECTS_ROOT, MASTER_KEY (openssl rand -base64 32), HOST_UID/HOST_GID
-make build-image        # builds the Android toolchain image — large, one-time (~10-20 min)
+make build-image        # builds the Android toolchain image - large, one-time (~10-20 min)
 make up                 # builds + starts the GUI and orchestrator
 ```
 
@@ -474,17 +474,17 @@ cd expo-builder-gui && npm install && npm run dev  # Next.js dev server, port 30
 Building the CLI for local iteration:
 
 ```bash
-make install-cli   # builds (CMake/C++) and installs to ~/.local/bin — see Makefile for CLI_BUILD_DIR
-make deb           # builds an unsigned .deb locally — real signing happens in CI, see docs/RELEASING.md
+make install-cli   # builds (CMake/C++) and installs to ~/.local/bin - see Makefile for CLI_BUILD_DIR
+make deb           # builds an unsigned .deb locally - real signing happens in CI, see docs/RELEASING.md
 ```
 
 ## Path handling (important)
 
-The orchestrator container does **not** have its own copy of your projects — it talks
+The orchestrator container does **not** have its own copy of your projects - it talks
 to the **host** Docker daemon over `/var/run/docker.sock` and tells it to bind-mount
 your project folder into a *new sibling container*. Because the daemon resolves those
 paths against the real host filesystem, your projects folder must be bind-mounted into
-the orchestrator at the **exact same path** it has on the host — both `ebl start` and
+the orchestrator at the **exact same path** it has on the host - both `ebl start` and
 `docker-compose.yml` already do this for you. If you ever see "file not found" errors
 referencing a path that looks right, double-check the configured projects folder is
 an absolute, real host path.
@@ -492,10 +492,10 @@ an absolute, real host path.
 ## Security notes
 
 - Both services bind to `127.0.0.1` by default. The orchestrator's access to the
-  Docker socket is root-equivalent on your host — don't expose its port beyond
+  Docker socket is root-equivalent on your host - don't expose its port beyond
   localhost without understanding that.
 - The apps this tool was built against (and likely yours too) commit real secrets to
-  `.env`/`eas.json`/`google-services.json` — the orchestrator redacts every value it
+  `.env`/`eas.json`/`google-services.json` - the orchestrator redacts every value it
   can find in those files from streamed and persisted build logs, but that's a safety
   net, not a fix. Rotate any secret that was already public.
 - `ebl config`'s saved settings live at `~/.config/ebl/config.json` (0600) with the
@@ -506,47 +506,49 @@ an absolute, real host path.
   is stored as plain bytes (Gradle/EAS both need a real file path) under the
   `expo-builder-data` Docker volume.
 - Every uploaded keystore, and this tool's own generated signing config, stays inside
-  Docker-managed storage or is deleted at the end of a build — nothing sensitive is
+  Docker-managed storage or is deleted at the end of a build - nothing sensitive is
   left sitting in your project folder afterward.
 
 ## Troubleshooting
 
-- **`ebl setup` says Docker isn't reachable after installing it** — you likely need to
+- **`ebl setup` says Docker isn't reachable after installing it** - you likely need to
   log out and back in (or run `newgrp docker`) so your user session picks up
   docker-group membership, then re-run `ebl setup`.
-- **`ebl start` fails to pull the orchestrator/web image** — they're not published to
+- **`ebl start` fails to pull the orchestrator/web image** - they're not published to
   the configured namespace yet. Build them locally first:
   `./scripts/publish-images.sh` (no `--push` needed for local-only use).
-- **`install.sh` falls back to a direct download instead of using apt** — the hosted
-  APT repo isn't live yet (no tag has been pushed, or GitHub Pages isn't enabled — see
+- **`install.sh` falls back to a direct download instead of using apt** - the hosted
+  APT repo isn't live yet (no tag has been pushed, or GitHub Pages isn't enabled - see
   `docs/APT_REPO_SETUP_GUIDE.md`), or you're not on a Debian/Ubuntu-family system.
-- **`apt install ebl` fails with a signature/NO_PUBKEY error** — the keyring at
+- **`apt install ebl` fails with a signature/NO_PUBKEY error** - the keyring at
   `/usr/share/keyrings/ebl-archive-keyring.gpg` is missing or stale; re-run the three
   `curl`/`gpg`/`tee` commands from [Quick start](#quick-start-cli), or just re-run
   `install.sh`.
-- **`install.sh` falls back to a tarball on an Arch-based distro** — either it was run
-  as root (`makepkg` refuses that outright — re-run as a regular user), or the
+- **`install.sh` falls back to a tarball on an Arch-based distro** - either it was run
+  as root (`makepkg` refuses that outright - re-run as a regular user), or the
   `base-devel` group isn't installed (`sudo pacman -S --needed base-devel`).
-- **"Path is outside the configured allowed roots"** (GUI) — the projects folder set
+- **"Path is outside the configured allowed roots"** (GUI) - the projects folder set
   via `ebl config`/`HOST_PROJECTS_ROOT` doesn't cover the folder you picked, or (for
   docker-compose) the bind mount wasn't rebuilt after changing it.
-- **Build hangs at "Install"** — first build for a project downloads its full
+- **Build hangs at "Install"** - first build for a project downloads its full
   `node_modules`; subsequent builds reuse the shared `npm-cache`/`gradle-cache`
   volumes and are much faster.
-- **"eas build --local failed" / credential errors** — the EAS engine needs a real
+- **"eas build --local failed" / credential errors** - the EAS engine needs a real
   Expo access token (via `ebl config`, `EXPO_TOKEN`, or `--expo-token`); it also
   expects the project's `eas.json` profile to be otherwise valid.
-- **AAB isn't accepted by the Play Store** — make sure you built with **Release**
+- **AAB isn't accepted by the Play Store** - make sure you built with **Release**
   signing (`--release`/GUI Release) and a real upload keystore, not the debug default.
-- **`ebl build` on Windows says the native toolchain isn't set up yet** — run
+- **`ebl build` on Windows says the native toolchain isn't set up yet** - run
   `ebl setup --runtime native` first (or `ebl setup --runtime docker` to switch to
   Docker mode instead).
-- **Native mode (Windows) is misbehaving** — it's unverified on real hardware (see
+- **Native mode (Windows) is misbehaving** - it's unverified on real hardware (see
   [Windows](#windows) above); `ebl setup --runtime docker` switches back to the
   original, battle-tested engine while you [report](https://github.com/41vi4p/expo-builder-local/issues)
-  what went wrong.
+  what went wrong. `ebl setup --runtime native` writes a full log of everything it
+  did to `%APPDATA%\ebl\native-setup.log` (overwritten fresh each run) - include it
+  when reporting; the GUI installer's own failure dialog points at the same file.
 - **Docker Desktop crashes/becomes unreachable mid-build on Windows (Docker mode)**
-  — almost always WSL2 running out of memory during a cold, multi-ABI native
+  - almost always WSL2 running out of memory during a cold, multi-ABI native
   compile; `install.ps1 -Mode Docker`/`ebl setup --runtime docker` size
   `.wslconfig`'s memory/swap from your actual RAM automatically, but if you skipped
   that (`-SkipWslConfig`) or it's an old install, re-run the installer or tune

@@ -19,7 +19,7 @@ export default function HomePage() {
             </h1>
             <p className="mt-5 max-w-md text-base text-text-dim sm:text-lg">
               Turn a managed Expo project into a signed APK or AAB entirely on your own
-              machine — one disposable Docker container, no Expo account required.
+              machine - one disposable Docker container, no Expo account required.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link

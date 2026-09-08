@@ -4,11 +4,11 @@ import * as db from '../store/db';
 import { encrypt } from '../util/crypto';
 
 /**
- * Saved Expo access tokens, one per EAS account ("owner" — app.json's `expo.owner`
+ * Saved Expo access tokens, one per EAS account ("owner" - app.json's `expo.owner`
  * slug), so `ebl build`/the GUI can auto-select the right token for a project
  * instead of the operator pasting one in per build. `owner: ""` is the default/
  * fallback entry (see build/manager.ts's resolveExpoToken). Tokens are AES-256-GCM-
- * encrypted at rest (see util/crypto.ts) — decrypted only in memory, immediately
+ * encrypted at rest (see util/crypto.ts) - decrypted only in memory, immediately
  * before being injected into a runner container's environment. The list endpoint
  * never returns the token itself.
  */

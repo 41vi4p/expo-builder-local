@@ -9,7 +9,7 @@ import { encrypt } from '../util/crypto';
 /**
  * Keystore uploads. The .jks/.keystore file itself is stored as-is on disk (Gradle/EAS
  * both need a real file path); the store/key passwords are the only sensitive fields
- * and are AES-256-GCM-encrypted at rest (see util/crypto.ts) — decrypted only in
+ * and are AES-256-GCM-encrypted at rest (see util/crypto.ts) - decrypted only in
  * memory, immediately before being injected into a runner container's environment for
  * that one build. The list endpoint never returns password fields, encrypted or not.
  */

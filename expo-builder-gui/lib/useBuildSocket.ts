@@ -57,7 +57,7 @@ export function useBuildSocket(buildId: string): BuildSocketState {
               // Mirrors the backend's endOpenPhases + insertPhase pair: close out
               // whatever phase was still open before appending the new one, or its
               // elapsed time reads as 0 for the rest of this live session (it never
-              // gets an endedAt otherwise — only a fresh snapshot/REST fetch would
+              // gets an endedAt otherwise - only a fresh snapshot/REST fetch would
               // pick up the real one from the DB).
               const now = Date.now();
               return {

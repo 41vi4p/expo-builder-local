@@ -54,7 +54,7 @@ ArchitecturesAllowed=x64compatible
 OutputDir=dist
 ; Versioned like the .deb (ebl_<version>_amd64.deb) so a user grabbing this by hand
 ; from the Releases page (README.md/ebl_landing_page point at the Releases page, not
-; a fixed "latest/download/" URL, so nothing depends on this staying unversioned —
+; a fixed "latest/download/" URL, so nothing depends on this staying unversioned -
 ; see release.yml's upload step, which resolves the actual built filename rather than
 ; hardcoding it) can tell which version they're getting without opening it first.
 OutputBaseFilename=ebl-setup-{#MyAppVersion}
@@ -62,7 +62,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\bin\{#MyAppExeName}
-; The installer .exe's own Win32 version resource (Explorer → Properties → Details) —
+; The installer .exe's own Win32 version resource (Explorer → Properties → Details) -
 ; distinct from AppVersion above, which only sets the *installed application's*
 ; registered version in Add/Remove Programs.
 VersionInfoVersion={#MyAppVersion}
@@ -140,13 +140,22 @@ begin
     if (not ranOk) or (ResultCode <> 0) then
     begin
       modeLower := Lowercase(SelectedModeName());
-      SuppressibleMsgBox(
-        'ebl''s files are installed, but the setup step (ebl setup --runtime ' + modeLower + ') did not finish ' +
-          'successfully.' + #13#10 +
-          'This can happen if the window was closed before it finished, a download failed, or (Native mode) a ' +
-          'license prompt wasn''t answered in time.' + #13#10#13#10 +
-          'Finish it yourself later by running: ebl setup --runtime ' + modeLower,
-        mbInformation, MB_OK, IDOK);
+      if SelectedModeName() = 'Native' then
+        SuppressibleMsgBox(
+          'ebl''s files are installed, but the setup step (ebl setup --runtime native) did not finish ' +
+            'successfully.' + #13#10 +
+            'This can happen if the window was closed before it finished, a download failed, or a license ' +
+            'prompt wasn''t answered in time.' + #13#10#13#10 +
+            'What actually happened is logged to: %APPDATA%\ebl\native-setup.log' + #13#10#13#10 +
+            'Finish it yourself later by running: ebl setup --runtime native',
+          mbInformation, MB_OK, IDOK)
+      else
+        SuppressibleMsgBox(
+          'ebl''s files are installed, but the setup step (ebl setup --runtime ' + modeLower + ') did not finish ' +
+            'successfully.' + #13#10 +
+            'This can happen if the window was closed before it finished, or a download failed.' + #13#10#13#10 +
+            'Finish it yourself later by running: ebl setup --runtime ' + modeLower,
+          mbInformation, MB_OK, IDOK);
     end;
   end;
 end;

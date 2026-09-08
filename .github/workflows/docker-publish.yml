@@ -1,9 +1,9 @@
 name: Build and publish Docker images
 
-# Builds the three expo-builder-local images (runner, orchestrator, web — see
+# Builds the three expo-builder-local images (runner, orchestrator, web - see
 # scripts/publish-images.sh for the manual equivalent) and pushes them to Docker Hub
 # on every v* tag push, so `docker pull <dockerhub-user>/expo-builder-local-*` just
-# works. linux/amd64 only — no cross-platform emulation, since the runner image's
+# works. linux/amd64 only - no cross-platform emulation, since the runner image's
 # full Android SDK/NDK download would be very slow (and untested) under QEMU.
 #
 # Requires (set up once via docs/DOCKER.md, not by this workflow):
@@ -83,7 +83,7 @@ jobs:
           # runner-only: forces its Dockerfile's "npm install -g eas-cli@latest" layer
           # (and everything after it) to actually rebuild on every publish, instead of
           # the GHA cache above silently reusing whatever "latest" resolved to on a
-          # previous run — see that Dockerfile's own comment on EAS_CLI_CACHE_BUST.
+          # previous run - see that Dockerfile's own comment on EAS_CLI_CACHE_BUST.
           # Harmless no-op for orchestrator/web, which don't declare this ARG.
           build-args: |
             EAS_CLI_CACHE_BUST=${{ github.run_id }}-${{ github.run_attempt }}

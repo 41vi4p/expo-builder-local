@@ -9,7 +9,7 @@ import type {
   StatSample,
 } from "./types";
 
-// The browser talks to the orchestrator directly (not proxied through Next.js) — set
+// The browser talks to the orchestrator directly (not proxied through Next.js) - set
 // this at build/deploy time to wherever the orchestrator service is reachable from the
 // developer's machine, e.g. http://localhost:4001 for the default docker-compose setup.
 export const ORCHESTRATOR_URL =
@@ -36,7 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const body = await res.json();
       message = body.error ?? message;
     } catch {
-      // non-JSON error body — fall back to statusText
+      // non-JSON error body - fall back to statusText
     }
     throw new ApiError(message, res.status);
   }

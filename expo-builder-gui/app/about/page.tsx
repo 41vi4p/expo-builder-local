@@ -21,7 +21,7 @@ export default function AboutPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">About</h1>
-        <p className="mt-1 text-sm text-text-dim">expo-builder-local — the GUI, orchestrator, and CLI ship together.</p>
+        <p className="mt-1 text-sm text-text-dim">expo-builder-local - the GUI, orchestrator, and CLI ship together.</p>
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-6">
@@ -33,7 +33,7 @@ export default function AboutPage() {
         </div>
         <p className="mt-3 max-w-prose text-sm text-text-dim">
           Build managed Expo (SDK 56+) projects into signed Android APK/AABs entirely on your own machine, via a
-          disposable Docker container — from the command line (<code className="font-mono text-text">ebl build</code>)
+          disposable Docker container - from the command line (<code className="font-mono text-text">ebl build</code>)
           or this web GUI. Not affiliated with Expo/Google.
         </p>
 

@@ -6,16 +6,16 @@
 .DESCRIPTION
     ebl.exe is a native Windows build of the same CLI every other platform uses
     (cli/). Two build engines are available on Windows, chosen via -Mode (default
-    Native — see ../CLAUDE.md's native-engine section, UNVERIFIED ON REAL WINDOWS
+    Native - see ../CLAUDE.md's native-engine section, UNVERIFIED ON REAL WINDOWS
     HARDWARE):
 
       Native (default): installs the Android SDK, JDK 17, and Node.js directly on
-        this machine, isolated under %LOCALAPPDATA%\ebl — no Docker Desktop or
+        this machine, isolated under %LOCALAPPDATA%\ebl - no Docker Desktop or
         WSL2 required. Detects and reuses an existing JDK/SDK/Node install first
         rather than downloading its own copy where possible.
       Docker: talks directly to Docker Desktop's named pipe (\\.\pipe\docker_engine,
         the same endpoint docker.exe itself uses) and runs builds in a disposable
-        Linux container — the same engine Linux/macOS use. Requires Docker Desktop
+        Linux container - the same engine Linux/macOS use. Requires Docker Desktop
         (and usually WSL2) installed separately.
 
     This script:
@@ -38,7 +38,7 @@
          build context/native-build signing scripts it needs) from this repo's
          GitHub Releases, and installs it under %LOCALAPPDATA%\Programs\ebl.
       3. Adds %LOCALAPPDATA%\Programs\ebl\bin to your Windows PATH.
-      4. Runs `ebl setup --runtime <Mode>` — in Native mode this is where the actual
+      4. Runs `ebl setup --runtime <Mode>` - in Native mode this is where the actual
          JDK/Android SDK/Node downloads happen (noticeably longer than a Docker-mode
          install, which is just a Docker Desktop reachability check + image pulls).
 

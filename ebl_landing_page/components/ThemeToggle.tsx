@@ -7,7 +7,7 @@ export default function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  // Avoid rendering theme-dependent UI until after hydration — the server has no
+  // Avoid rendering theme-dependent UI until after hydration - the server has no
   // way to know the user's system preference, so the icon would flash/mismatch.
   // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time post-hydration flag, not derivable during SSR
   useEffect(() => setMounted(true), []);
