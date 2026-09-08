@@ -3,14 +3,21 @@
 ; ebl.exe here is the real, native CLI (built from ../../cli, same source every
 ; other platform uses) - not a WSL2 forwarder. This installer bundles the
 ; `cmake --install`ed bin\/share\ tree (see ../../cli/CMakeLists.txt) plus
-; install.ps1/uninstall.ps1, and just runs install.ps1 -LocalInstallDir
-; -Mode <Native|Docker> to do the actual work (Docker Desktop check + WSL2 tuning in
+; install.ps1/uninstall.ps1, and runs install.ps1 -LocalInstallDir -Mode
+; <Native|Docker> to do the actual work (Docker Desktop check + WSL2 tuning in
 ; Docker mode, or the JDK/Android SDK/Node toolchain setup in Native mode, then the
 ; PATH update either way) - all the real logic for that lives in exactly one place
 ; (install.ps1), so the one-line `irm | iex` install and this GUI installer can
-; never drift apart. The [Code] section below only adds a wizard page asking which
-; mode to pass through - see GetInstallModeArg. UNVERIFIED ON REAL WINDOWS HARDWARE
-; (see ../../CLAUDE.md's native-engine section) - this wizard page in particular has
+; never drift apart. The [Code] section below adds a wizard page asking which mode
+; to pass through (GetInstallModeArg/SelectedModeName), and - deliberately NOT a
+; declarative [Run] entry, see CurStepChanged below for why - runs install.ps1 via
+; Exec() so its real exit code can actually be checked, rather than Inno's default
+; [Run] behavior of launching a program and reporting the wizard "successful"
+; regardless of whether it exited 0, failed, or was killed outright (e.g. by
+; closing the console window mid-run) - which a real install first surfaced: a
+; download that never finished still ended in the wizard's "Installed
+; successfully" page. UNVERIFIED ON REAL WINDOWS HARDWARE (see
+; ../../CLAUDE.md's native-engine section) - this wizard page in particular has
 ; never actually been rendered/clicked through on a real Windows machine.
 ;
 ; Build with: iscc ebl.iss  (from a Windows machine/CI runner with Inno Setup 6
@@ -72,17 +79,6 @@ Source: "..\..\cli\build\install\share\*"; DestDir: "{app}\share"; Flags: ignore
 Source: "..\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
-[Run]
-; -LocalInstallDir: the files above are already in place, so this skips the
-; network download install.ps1 would otherwise do for the binary itself - Native
-; mode's JDK/Android SDK/Node downloads (or Docker mode's image pulls) still happen
-; here regardless, via install.ps1's own `ebl setup --runtime <Mode>` step. -Mode
-; comes from the wizard page added below (GetInstallModeArg).
-Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install.ps1"" -LocalInstallDir ""{app}"" {code:GetInstallModeArg}"; \
-    Flags: waituntilterminated; \
-    StatusMsg: "Finishing setup..."
-
 [UninstallRun]
 ; -Quiet: this runs hidden (runhidden) with no console attached to prompt on, so it
 ; only ever does the always-safe part (remove the install dir + PATH entry) - the
@@ -108,10 +104,49 @@ begin
   ModePage.SelectedValueIndex := 0; // Native pre-selected, per ../CLAUDE.md's "defaults to native on Windows"
 end;
 
-function GetInstallModeArg(Param: String): String;
+function SelectedModeName(): String;
 begin
   if ModePage.SelectedValueIndex = 0 then
-    Result := '-Mode Native'
+    Result := 'Native'
   else
-    Result := '-Mode Docker';
+    Result := 'Docker';
+end;
+
+// Kept as a {code:...} callback for reuse/consistency even though [Run] no longer
+// calls it directly - CurStepChanged below builds the same argument by hand for
+// its own Exec() call.
+function GetInstallModeArg(Param: String): String;
+begin
+  Result := '-Mode ' + SelectedModeName();
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  ranOk: Boolean;
+  modeLower: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // Exec (not a declarative [Run] entry) specifically so ResultCode can actually
+    // be checked - see this file's header comment for why that matters. SW_SHOW
+    // keeps the same visible PowerShell console window [Run] used to show (no
+    // "runhidden" here), so Native mode's JDK/Android SDK/Node download progress
+    // is visible the same way it always was.
+    ranOk := Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\install.ps1" -LocalInstallDir "' +
+        ExpandConstant('{app}') + '" ' + GetInstallModeArg(''),
+      '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    if (not ranOk) or (ResultCode <> 0) then
+    begin
+      modeLower := Lowercase(SelectedModeName());
+      SuppressibleMsgBox(
+        'ebl''s files are installed, but the setup step (ebl setup --runtime ' + modeLower + ') did not finish ' +
+          'successfully.' + #13#10 +
+          'This can happen if the window was closed before it finished, a download failed, or (Native mode) a ' +
+          'license prompt wasn''t answered in time.' + #13#10#13#10 +
+          'Finish it yourself later by running: ebl setup --runtime ' + modeLower,
+        mbInformation, MB_OK, IDOK);
+    end;
+  end;
 end;

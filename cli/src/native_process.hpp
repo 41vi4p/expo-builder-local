@@ -31,12 +31,25 @@ constexpr int kProcessTimeoutExitCode = 124;
  * DockerClient::attachAndStream's shape/contract exactly, since native_build.cpp
  * reuses build.cpp's existing marker-line parser against this same callback shape.
  *
+ * `stdinData`, if non-empty, is written to the child's stdin and the pipe is then
+ * closed (EOF) — the child gets a genuinely separate stdin pipe instead of
+ * inheriting this process's own console input. That's not just about feeding
+ * canned answers: some interactive Java CLIs (sdkmanager's `--licenses` prompt
+ * among them) call `System.console()`, which only returns non-null when *both*
+ * stdin and stdout are a real, unredirected console — bypassing any piped input
+ * entirely and prompting directly on the console instead, unanswerably, since
+ * nothing is listening there. Forcing stdin to a real pipe (even an empty one)
+ * guarantees `System.console()` returns null, so the tool falls back to reading
+ * `System.in` normally. Left empty (the default), stdin is inherited exactly as
+ * before — every other caller's behavior is unchanged.
+ *
  * If the process is still running after `timeoutSeconds`, the whole process tree
  * is killed (Job Object + TerminateJobObject) and kProcessTimeoutExitCode is
  * returned. Throws std::runtime_error if the process can't even be spawned. */
 int runProcessWithTimeout(const std::string& cmdLine, const std::string& workingDir,
                            const std::vector<std::string>& envBlock, int timeoutSeconds,
-                           const std::function<void(const char*, size_t)>& onChunk);
+                           const std::function<void(const char*, size_t)>& onChunk,
+                           const std::string& stdinData = "");
 
 /** Same contract as runProcessWithTimeout, but idle-CPU-time based instead of a
  * flat wall-clock timeout — the direct analog of build-entrypoint.sh's

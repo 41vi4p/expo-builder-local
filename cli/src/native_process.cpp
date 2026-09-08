@@ -102,7 +102,8 @@ long long totalCpuTime100ns(HANDLE job) {
 int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
                       const std::vector<std::string>& envBlock,
                       const std::function<void(const char*, size_t)>& onChunk,
-                      const std::function<bool(HANDLE job, HANDLE process)>& waitLoop) {
+                      const std::function<bool(HANDLE job, HANDLE process)>& waitLoop,
+                      const std::string& stdinData = "") {
   SECURITY_ATTRIBUTES sa{};
   sa.nLength = sizeof(sa);
   sa.bInheritHandle = TRUE;
@@ -114,12 +115,28 @@ int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
   }
   ::SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
 
+  // Only created when stdinData is non-empty — everyone else keeps inheriting the
+  // real console stdin exactly as before. See runProcessWithTimeout's stdinData
+  // doc comment for why a dedicated pipe (even used just for this) matters: it's
+  // what forces a child JVM's System.console() to return null instead of binding
+  // straight to the console and prompting unanswerably past any piped input.
+  HANDLE stdinReadPipe = nullptr;
+  HANDLE stdinWritePipe = nullptr;
+  if (!stdinData.empty()) {
+    if (!::CreatePipe(&stdinReadPipe, &stdinWritePipe, &sa, 0)) {
+      ::CloseHandle(readPipe);
+      ::CloseHandle(writePipe);
+      throw std::runtime_error("Could not create a pipe for the child process's input");
+    }
+    ::SetHandleInformation(stdinWritePipe, HANDLE_FLAG_INHERIT, 0);
+  }
+
   STARTUPINFOA si{};
   si.cb = sizeof(si);
   si.dwFlags = STARTF_USESTDHANDLES;
   si.hStdOutput = writePipe;
   si.hStdError = writePipe;
-  si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+  si.hStdInput = stdinReadPipe ? stdinReadPipe : ::GetStdHandle(STD_INPUT_HANDLE);
 
   std::string env = buildEnvironmentBlock(envBlock);
   std::vector<char> cmdLineBuf(cmdLine.begin(), cmdLine.end());
@@ -133,9 +150,21 @@ int runWithJobObject(const std::string& cmdLine, const std::string& workingDir,
                               CREATE_NO_WINDOW | CREATE_SUSPENDED, env.data(),
                               workingDir.empty() ? nullptr : workingDir.c_str(), &si, &pi);
   ::CloseHandle(writePipe);
+  if (stdinReadPipe) ::CloseHandle(stdinReadPipe);
   if (!ok) {
     ::CloseHandle(readPipe);
+    if (stdinWritePipe) ::CloseHandle(stdinWritePipe);
     throw std::runtime_error("Could not start process: " + cmdLine);
+  }
+
+  if (stdinWritePipe) {
+    // stdinData is always tiny here (a handful of "y\n" lines) — well under the
+    // default pipe buffer, so a single synchronous WriteFile can't block on the
+    // child not having started reading yet. Closing right after signals EOF, so
+    // the child doesn't hang waiting for more input than it actually needs.
+    DWORD written = 0;
+    ::WriteFile(stdinWritePipe, stdinData.data(), static_cast<DWORD>(stdinData.size()), &written, nullptr);
+    ::CloseHandle(stdinWritePipe);
   }
 
   JobHandle jh;
@@ -180,13 +209,17 @@ void killProcessTree(HANDLE job, HANDLE process) {
 
 int runProcessWithTimeout(const std::string& cmdLine, const std::string& workingDir,
                            const std::vector<std::string>& envBlock, int timeoutSeconds,
-                           const std::function<void(const char*, size_t)>& onChunk) {
-  return runWithJobObject(cmdLine, workingDir, envBlock, onChunk, [&](HANDLE job, HANDLE process) {
-    DWORD result = ::WaitForSingleObject(process, static_cast<DWORD>(timeoutSeconds) * 1000);
-    if (result != WAIT_TIMEOUT) return false;
-    killProcessTree(job, process);
-    return true;
-  });
+                           const std::function<void(const char*, size_t)>& onChunk,
+                           const std::string& stdinData) {
+  return runWithJobObject(
+      cmdLine, workingDir, envBlock, onChunk,
+      [&](HANDLE job, HANDLE process) {
+        DWORD result = ::WaitForSingleObject(process, static_cast<DWORD>(timeoutSeconds) * 1000);
+        if (result != WAIT_TIMEOUT) return false;
+        killProcessTree(job, process);
+        return true;
+      },
+      stdinData);
 }
 
 int runProcessWithIdleTimeout(const std::string& cmdLine, const std::string& workingDir,

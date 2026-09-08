@@ -273,9 +273,20 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
                                    "PATH=" + jdkHome + "\\bin;" + getEnvVar("PATH")};
 
   onLog("Accepting Android SDK licenses...\n");
-  std::string acceptLicensesCmd =
-      "cmd.exe /c \"(for /L %i in (1,1,20) do @echo y) | \"" + sdkmanager + "\" --licenses\"";
-  runProcessWithTimeout(acceptLicensesCmd, "", env, 120, [&](const char* d, size_t n) { onLog(std::string(d, n)); });
+  // Feeding "y" via a dedicated stdin pipe (not a cmd.exe "echo y | ..." trick, and
+  // not this process's own inherited console stdin) matters here specifically:
+  // sdkmanager is a Java tool, and System.console() — which some interactive
+  // prompts read from instead of System.in — only returns non-null when stdin is a
+  // real, unredirected console. A genuinely separate pipe forces it to fall back to
+  // System.in, which reliably sees these answers; inheriting the real console
+  // (the previous approach) let sdkmanager bind straight to it and prompt directly,
+  // unanswerably, past whatever a shell-level pipe trick tried to feed it — exactly
+  // what a real install first surfaced (a Y/N prompt with no way to answer it).
+  std::string yesAnswers;
+  for (int i = 0; i < 20; i++) yesAnswers += "y\n";
+  std::string acceptLicensesCmd = "\"" + sdkmanager + "\" --licenses";
+  runProcessWithTimeout(acceptLicensesCmd, "", env, 120, [&](const char* d, size_t n) { onLog(std::string(d, n)); },
+                        yesAnswers);
 
   onLog("Installing Android SDK packages (platform-tools, platforms " + std::string(kAndroidPlatform) + "/" +
         kAndroidPlatformMin + ", build-tools " + kAndroidBuildTools + ", ndk " + kNdkVersion + ", cmake " +

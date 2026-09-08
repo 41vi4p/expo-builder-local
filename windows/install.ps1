@@ -269,6 +269,7 @@ Write-Host "  Location: $ExePath"
 # JDK/Android SDK/Node downloads happen, so the install isn't silently "incomplete"
 # until someone remembers to run `ebl setup`.
 
+$runtimeSetupFailed = $false
 if (-not $SkipRuntimeSetup) {
     Write-Host ""
     if ($Mode -eq "Native") {
@@ -278,6 +279,7 @@ if (-not $SkipRuntimeSetup) {
     }
     & $ExePath setup --runtime $Mode.ToLower()
     if ($LASTEXITCODE -ne 0) {
+        $runtimeSetupFailed = $true
         Write-Warn "ebl setup --runtime $($Mode.ToLower()) didn't finish cleanly (exit $LASTEXITCODE) - re-run it yourself later: ebl setup --runtime $($Mode.ToLower())"
     }
 }
@@ -289,3 +291,12 @@ Write-Host "own already-running process. Open a NEW terminal window from the Sta
 Write-Host "taskbar (or fully quit and relaunch the editor), then try:"
 Write-Host "  cd path\to\your\expo\app"
 Write-Host "  ebl build ."
+
+# ebl.exe itself IS correctly installed at this point regardless (that part
+# happened above, unconditionally) - this exit code is specifically about whether
+# the runtime setup step (JDK/SDK/Node downloads, or the Docker Desktop check/image
+# pulls) actually finished. Propagating a real failure here is what lets a caller
+# (the Inno Setup GUI installer's [Code] section in particular) tell the difference
+# between "fully set up" and "installed but still needs `ebl setup` re-run" instead
+# of always reporting success regardless.
+if ($runtimeSetupFailed) { exit 1 }
