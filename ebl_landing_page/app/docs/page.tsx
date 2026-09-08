@@ -82,14 +82,18 @@ export default function DocsPage() {
 
         <div className="min-w-0">
           <Section id="quick-start" title="Quick start">
-            <p>Install via the hosted APT repo (recommended — picks up new releases automatically):</p>
+            <p>On Debian/Ubuntu, install via the hosted APT repo (recommended — picks up new releases automatically):</p>
             <CodeBlock
               label="bash"
               code={`curl -fsSL https://41vi4p.github.io/expo-builder-local/apt/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/ebl-archive-keyring.gpg
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ebl-archive-keyring.gpg] https://41vi4p.github.io/expo-builder-local/apt stable main" | sudo tee /etc/apt/sources.list.d/ebl.list
 sudo apt update && sudo apt install ebl`}
             />
-            <p>Or the one-line installer — see the <a href="/download" className="text-accent hover:underline">Download page</a> for every option.</p>
+            <p>
+              Or the one-line installer, on any distro — it also builds a native pacman package from source on
+              Arch-based distros. See the <a href="/download" className="text-accent hover:underline">Download page</a>{" "}
+              for every option, Arch included.
+            </p>
             <p>Then:</p>
             <CodeBlock
               label="bash"

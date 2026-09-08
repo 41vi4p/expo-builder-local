@@ -4,7 +4,7 @@ import OSTabs from "@/components/OSTabs";
 
 export const metadata: Metadata = {
   title: "Download — expo-builder-local",
-  description: "Install or uninstall the ebl CLI on Linux or Windows.",
+  description: "Install or uninstall the ebl CLI on Linux (Debian/Ubuntu or Arch-based) or Windows.",
 };
 
 const RELEASES_URL = "https://github.com/41vi4p/expo-builder-local/releases";
@@ -69,7 +69,7 @@ function LinuxInstall() {
   return (
     <div className="space-y-10">
       <section>
-        <StepHeading n={1} title="APT repository (recommended)" />
+        <StepHeading n={1} title="APT repository (recommended — Debian/Ubuntu)" />
         <p className="mt-3 text-sm text-text-dim">
           A real, GPG-signed APT repo &mdash; once added, <code className="font-mono text-accent">sudo apt upgrade</code>{" "}
           picks up new releases automatically.
@@ -85,9 +85,17 @@ sudo apt update && sudo apt install ebl`}
       </section>
 
       <section>
-        <StepHeading n={2} title="One-line installer" />
+        <StepHeading n={2} title="One-line installer (any distro)" />
         <p className="mt-3 text-sm text-text-dim">
-          Adds the APT repo for you where possible, otherwise falls back to a direct <code className="font-mono text-accent">.deb</code> download.
+          On Debian/Ubuntu, adds the APT repo for you where possible, otherwise falls back to a direct{" "}
+          <code className="font-mono text-accent">.deb</code> download. On <strong className="text-text">Arch-based
+          distros</strong> (pacman detected), it instead builds{" "}
+          <code className="font-mono text-accent">packaging/arch/PKGBUILD</code> from source with{" "}
+          <code className="font-mono text-accent">makepkg</code>, giving a real pacman-tracked package &mdash;{" "}
+          <code className="font-mono text-accent">pacman -Qi ebl</code>/<code className="font-mono text-accent">pacman -R ebl</code>{" "}
+          both work normally afterward. Requires the <code className="font-mono text-accent">base-devel</code> group
+          and a non-root user (<code className="font-mono text-accent">makepkg</code> refuses to run as root) &mdash;
+          if either is missing, it falls back to the plain tarball below instead.
         </p>
         <div className="mt-4">
           <CodeBlock label="bash" code="curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh" />
@@ -95,7 +103,22 @@ sudo apt update && sudo apt install ebl`}
       </section>
 
       <section>
-        <StepHeading n={3} title="Direct .deb download" />
+        <StepHeading n={3} title="Arch package, built by hand" />
+        <p className="mt-3 text-sm text-text-dim">
+          Same PKGBUILD the one-line installer uses above &mdash; run it yourself if you&apos;d rather review it
+          first. Not published on the AUR yet.
+        </p>
+        <div className="mt-4">
+          <CodeBlock
+            label="bash"
+            code={`curl -fsSLO https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/packaging/arch/PKGBUILD
+makepkg -si`}
+          />
+        </div>
+      </section>
+
+      <section>
+        <StepHeading n={4} title="Direct .deb download (Debian/Ubuntu)" />
         <p className="mt-3 text-sm text-text-dim">
           Grab <code className="font-mono text-accent">ebl_*_amd64.deb</code> from GitHub Releases, then:
         </p>
@@ -194,6 +217,8 @@ function LinuxUninstall() {
     <div className="space-y-4 text-sm text-text-dim">
       <p>If installed via the APT repo or a `.deb`:</p>
       <CodeBlock label="bash" code={`sudo apt remove ebl\n# and, if you added it: sudo rm /etc/apt/sources.list.d/ebl.list`} />
+      <p>If installed on an Arch-based distro (via the one-line installer or the PKGBUILD directly):</p>
+      <CodeBlock label="bash" code="sudo pacman -R ebl" />
       <p>
         This removes the <code className="font-mono text-accent">ebl</code> binary only &mdash; your projects,{" "}
         <code className="font-mono text-accent">ebl_builds/</code> artifacts, and{" "}

@@ -68,21 +68,28 @@ nothing else to do here at release time — `pkgver` pointing at a tag that does
 exist yet just means that tag needs to be pushed (this same `git tag`/`git push`
 step) before `makepkg` can fetch it.
 
-Its `sha256sums=('SKIP')` is deliberate: this package isn't published to the AUR
-(no maintainer account/SSH key for that exists in this project yet), so there's no
-per-release step that would otherwise keep a pinned checksum in sync. Before an
-eventual AUR submission, replace `SKIP` with the real checksum of that tag's source
-archive (`sha256sum` on the same URL curl would fetch, or `updpkgsums` from
-`pacman-contrib`).
+`sha256sums` is a **real, pinned checksum** of the tagged source archive, not
+`SKIP` — there's no per-release AUR-publishing step to keep it in sync
+automatically the way the .deb's dpkg-shlibdeps/GPG signing is, so after tagging,
+recompute it by hand and update both `PKGBUILD` and `.SRCINFO`:
+
+```bash
+curl -fsSL -o /tmp/ebl-src.tar.gz "https://github.com/41vi4p/expo-builder-local/archive/refs/tags/v<version>.tar.gz"
+sha256sum /tmp/ebl-src.tar.gz   # or: updpkgsums (from pacman-contrib), run from packaging/arch/
+```
+
+If this step gets missed on a given release, set `sha256sums` back to `('SKIP')`
+rather than ship a stale/wrong checksum — a mismatched pin makes `makepkg` refuse to
+build entirely, whereas `SKIP` just means no integrity check.
 
 `packaging/arch/.SRCINFO` is generated from `PKGBUILD` — regenerate it (`makepkg
 --printsrcinfo > .SRCINFO` from `packaging/arch/`) any time `PKGBUILD` changes; it
 doesn't need network access or a real tag to exist, since it just parses the script.
 
-**Not AUR-submission-ready yet**, beyond the checksum above:
+**Not AUR-submission-ready yet:**
 - `# Maintainer:` in `PKGBUILD` is a placeholder (GitHub profile link, not a real
   name/email) — AUR convention expects the latter.
-- Publishing means pushing this directory's contents to
+- Publishing means pushing this directory's contents (`PKGBUILD` + `.SRCINFO`) to
   `ssh://aur@aur.archlinux.org/ebl.git`, which needs an AUR account and its own SSH
   key — a one-time, personal setup step for whoever ends up maintaining it there,
   not something CI can do.

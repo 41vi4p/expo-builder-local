@@ -3,6 +3,34 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## Arch packaging follow-up (PKGBUILD pkgrel 1 → 2, no ebl version change)
+
+**Date:** 2026-09-08
+**Type:** Fix / Enhancement
+
+- `packaging/arch/PKGBUILD`'s `sha256sums` was `SKIP` at v0.14.0 release time; now
+  pinned to the real, verified checksum of the tagged `v0.14.0` source archive.
+  Verified against the live GitHub release in a fresh `archlinux:latest` container:
+  `makepkg -s` reports the checksum as `Passed` (not `Skipped`), and the full
+  build/install/`ebl --version`/uninstall cycle still works end-to-end. Regenerated
+  `packaging/arch/.SRCINFO` to match.
+- Per `../CLAUDE.md`'s PKGBUILD-only bump rule, this bumped `pkgrel` (1 → 2), not
+  the shared `pkgver`/orchestrator/GUI/CLI/Windows version — the underlying CLI
+  build is unchanged, only the packaging metadata was fixed.
+- Documented the Arch install path on the landing page
+  (`ebl_landing_page/app/download/page.tsx`: a dedicated "One-line installer (any
+  distro)" step covering the `pacman`-detection path, a "built by hand" step for
+  the PKGBUILD directly, and a `pacman -R ebl` uninstall step; `app/docs/page.tsx`'s
+  quick-start now points Arch users at the Download page instead of only showing
+  the Debian/Ubuntu APT block) and expanded `docs/RELEASING.md`'s Arch section with
+  the exact checksum-refresh command for future releases.
+- AUR submission itself remains on hold — no AUR account/SSH key for this project
+  yet; see `docs/RELEASING.md`.
+
+**Files modified:** `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`,
+`docs/RELEASING.md`, `ebl_landing_page/app/download/page.tsx`,
+`ebl_landing_page/app/docs/page.tsx`
+
 ## v0.14.0 — Native package support for Arch-based distros
 
 **Date:** 2026-09-08

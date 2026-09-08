@@ -8,9 +8,12 @@
 # with the other four version fields, and ../../docs/RELEASING.md for the sha256sums
 # note below. Usable right now either via `makepkg -si` directly in this directory,
 # or through install.sh's Arch-detection path, which fetches this same file.
+#
+# Remember to regenerate .SRCINFO (`makepkg --printsrcinfo > .SRCINFO`) any time
+# this file changes.
 pkgname=ebl
 pkgver=0.14.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
 # Matches every other release artifact in this repo (CI, the .deb, the Windows
 # build) — all x86_64-only for now (see install.sh's own uname -m check).
@@ -21,12 +24,12 @@ depends=('curl' 'openssl')
 makedepends=('cmake')
 optdepends=('docker: required at runtime to actually run builds')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-# Not published to the AUR, so there's no per-release maintainer step that pins a
-# real checksum automatically (the way the .deb's dpkg-shlibdeps/GPG signing is
-# automated in .github/workflows/release.yml). Source still comes straight from
-# GitHub's own tag archive over HTTPS. If/when this gets submitted to the AUR,
-# replace SKIP with the real `sha256sum` of that tag's archive first.
-sha256sums=('SKIP')
+# Real checksum of the v0.14.0 tag archive (computed by hand after tagging, since
+# there's no per-release AUR-publishing step to do it automatically yet — see
+# ../../docs/RELEASING.md). Must be recomputed by hand on every pkgver bump; if that
+# step gets missed, just set it back to 'SKIP' rather than leave a stale checksum
+# that would fail installs.
+sha256sums=('7973d184798b78032e11456511bfaba984ba74e137520779837ecf87d6e39e22')
 
 build() {
   cd "expo-builder-local-$pkgver/cli"
