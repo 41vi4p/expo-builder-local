@@ -3,10 +3,11 @@
 #   curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh
 #
 # Prefers adding the hosted, signed APT repository (so `apt upgrade` picks up future
-# releases automatically) when apt/dpkg are available and the repo is reachable; falls
-# back to installing the latest release's .deb directly, then to a plain tarball
-# extracted into ~/.local (or /usr/local as root) — no package manager required
-# either way.
+# releases automatically) when apt/dpkg are available and the repo is reachable. On
+# Arch-based distros (pacman present), builds packaging/arch/PKGBUILD from source
+# with makepkg instead, for a real pacman-tracked package. Otherwise falls back to
+# installing the latest release's .deb directly, then to a plain tarball extracted
+# into ~/.local (or /usr/local as root) — no package manager required either way.
 set -eu
 
 REPO="41vi4p/expo-builder-local"
@@ -50,7 +51,39 @@ if command -v apt >/dev/null 2>&1 && curl -fsSL -o /dev/null "${APT_REPO_URL}/pu
   exit 0
 fi
 
-log "Hosted APT repo not reachable (or apt isn't available) — falling back to a direct download."
+if command -v apt >/dev/null 2>&1; then
+  log "Hosted APT repo not reachable — falling back to a direct download."
+fi
+
+# --- Preferred path (Arch-based distros): build + install a native pacman package ---
+# Not hosted as a signed repo the way APT is (that would mean maintaining a whole
+# second signed-repo pipeline) — instead this builds packaging/arch/PKGBUILD with
+# makepkg, straight from source against the distro's own curl/openssl, giving a real
+# pacman-tracked package (`pacman -Qi ebl`, `pacman -R ebl`) without needing an AUR
+# submission first. See packaging/arch/PKGBUILD's header for details.
+if command -v pacman >/dev/null 2>&1; then
+  if ! command -v makepkg >/dev/null 2>&1; then
+    log "pacman found but makepkg is missing (install the 'base-devel' group for a native package: sudo pacman -S --needed base-devel) — falling back to a direct tarball install."
+  elif [ "$(id -u)" = "0" ]; then
+    log "makepkg refuses to run as root — re-run this installer as a regular (non-root) user for a native pacman package. Falling back to a direct tarball install for now."
+  else
+    log "Arch-based distro detected — building the ebl PKGBUILD with makepkg..."
+    PKGBUILD_URL="https://raw.githubusercontent.com/${REPO}/main/packaging/arch/PKGBUILD"
+    ARCH_TMPDIR="$(mktemp -d)"
+    if curl -fsSL -o "${ARCH_TMPDIR}/PKGBUILD" "${PKGBUILD_URL}"; then
+      if ( cd "${ARCH_TMPDIR}" && makepkg -si --noconfirm ); then
+        rm -rf "${ARCH_TMPDIR}"
+        log "Installed via pacman. Try: ebl --help"
+        log "Future releases: re-run this installer to rebuild and upgrade."
+        exit 0
+      fi
+      log "makepkg failed — falling back to a direct tarball install."
+    else
+      log "Could not fetch the PKGBUILD — falling back to a direct tarball install."
+    fi
+    rm -rf "${ARCH_TMPDIR}"
+  fi
+fi
 
 # --- Fallback: download the latest release's .deb or tarball directly ---------------
 log "Fetching the latest release info from GitHub..."

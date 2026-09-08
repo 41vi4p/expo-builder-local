@@ -3,6 +3,33 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.14.0 — Native package support for Arch-based distros
+
+**Date:** 2026-09-08
+**Type:** Feature
+
+- Added `packaging/arch/PKGBUILD`, which builds the CLI from source (CMake) against
+  the installing machine's own `curl`/`openssl` via `makepkg` — no prebuilt-binary
+  ABI risk the way the Ubuntu-24.04-linked `.deb` would have on Arch, and no new CI
+  publishing job needed since there's no binary artifact to sign/host. Verified
+  end-to-end in an `archlinux:latest` container: `makepkg -si` builds, installs, and
+  produces a fully pacman-tracked package (`pacman -Qi`/`-Ql`/`-R` all behave
+  correctly).
+- `install.sh` now detects `pacman` and prefers this path (falling back to the
+  existing plain-tarball install when run as root — `makepkg` refuses that — or when
+  `makepkg` itself is missing), inserted between the existing APT-repo and generic
+  `.deb`/tarball paths without changing either of them.
+- Not published to the AUR yet (`sha256sums=('SKIP')` is deliberate until then — see
+  `docs/RELEASING.md`'s new "Arch Linux packaging" section for why and what a
+  submission would need).
+- `packaging/arch/PKGBUILD`'s `pkgver` joins the four other version fields that must
+  always be bumped together (see `../CLAUDE.md#-version-management`).
+
+**Files modified:** `install.sh`, `packaging/arch/PKGBUILD` (new),
+`packaging/arch/.SRCINFO` (new), `README.md`, `docs/RELEASING.md`, `../CLAUDE.md`,
+`cli/CMakeLists.txt`, `orchestrator/package.json`, `expo-builder-gui/package.json`,
+`windows/installer/ebl.iss`
+
 ## v0.13.2 — Version the Inno Setup installer's filename; sync the real landing page
 
 **Date:** 2026-08-02

@@ -38,6 +38,7 @@ remote-managed credentials, that's supported too (see [Build engines](#build-eng
 - [Signing](#signing)
 - [Docker Hub images](#docker-hub-images)
 - [APT repository](#apt-repository)
+- [Arch package](#arch-package)
 - [Local development](#local-development-contributing-to-this-repo)
 - [Path handling](#path-handling-important)
 - [Security notes](#security-notes)
@@ -76,6 +77,31 @@ curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/inst
 ```bash
 sudo apt install ./ebl_*_amd64.deb
 ```
+
+### Linux (Arch-based)
+
+**Via the one-line installer** — detects pacman and builds
+[`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD) from source with `makepkg`,
+against your own system's `curl`/`openssl` (no prebuilt-binary ABI risk), giving a
+real pacman-tracked package (`pacman -Qi ebl`, `pacman -R ebl` both work normally):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/install.sh | sh
+```
+
+Needs the `base-devel` group for `makepkg` (`sudo pacman -S --needed base-devel`) and
+must run as a regular user, not root — `makepkg` refuses to run as root. If either
+isn't the case, the installer automatically falls back to the plain tarball below.
+
+**Or build the PKGBUILD yourself**:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/packaging/arch/PKGBUILD
+makepkg -si
+```
+
+Not published on the AUR yet — see [`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD)'s
+header for why, and [`docs/RELEASING.md`](./docs/RELEASING.md) for release notes.
 
 ### Windows
 
@@ -384,6 +410,16 @@ See [`docs/APT_REPO_SETUP_GUIDE.md`](./docs/APT_REPO_SETUP_GUIDE.md) for the one
 signing-key setup this depends on, and [`docs/RELEASING.md`](./docs/RELEASING.md) for
 the release process itself (GitHub Actions, tag-triggered).
 
+## Arch package
+
+[`packaging/arch/PKGBUILD`](./packaging/arch/PKGBUILD) builds the CLI from source
+against the distro's own `curl`/`openssl` — unlike the APT repo above, there's no
+prebuilt binary to publish, so there's no separate CI job for it either; `install.sh`
+runs `makepkg` directly when it detects `pacman` (see
+[Quick start](#linux-arch-based)). Not yet published to the AUR — see
+[`docs/RELEASING.md`](./docs/RELEASING.md#arch-linux-packaging) for why and what a
+future submission would need.
+
 ## Local development (contributing to this repo)
 
 If you're working on the orchestrator/GUI themselves, `docker-compose.yml` is still
@@ -459,6 +495,9 @@ an absolute, real host path.
   `/usr/share/keyrings/ebl-archive-keyring.gpg` is missing or stale; re-run the three
   `curl`/`gpg`/`tee` commands from [Quick start](#quick-start-cli), or just re-run
   `install.sh`.
+- **`install.sh` falls back to a tarball on an Arch-based distro** — either it was run
+  as root (`makepkg` refuses that outright — re-run as a regular user), or the
+  `base-devel` group isn't installed (`sudo pacman -S --needed base-devel`).
 - **"Path is outside the configured allowed roots"** (GUI) — the projects folder set
   via `ebl config`/`HOST_PROJECTS_ROOT` doesn't cover the folder you picked, or (for
   docker-compose) the bind mount wasn't rebuilt after changing it.

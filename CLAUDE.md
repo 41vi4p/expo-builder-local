@@ -20,9 +20,15 @@ expo-builder-local/
 ├── CLAUDE.md              ← you are here
 ├── README.md              ← setup, usage, architecture, security notes
 ├── docker-compose.yml     ← local-dev path: wires up web + orchestrator; builds the runner image
-├── install.sh             ← one-line CLI installer (prefers the hosted APT repo, else .deb/tarball)
+├── install.sh             ← one-line CLI installer (APT repo / Arch's PKGBUILD via makepkg / .deb / tarball)
 ├── .env.example
 ├── Makefile
+├── packaging/
+│   └── arch/
+│       ├── PKGBUILD       ← builds the CLI from source (makepkg) for Arch-based distros —
+│       │                     not published to the AUR yet; see docs/RELEASING.md
+│       └── .SRCINFO       ← generated from PKGBUILD (`makepkg --printsrcinfo > .SRCINFO`) —
+│                             regenerate it every time PKGBUILD changes, don't hand-edit
 ├── docs/
 │   ├── CHANGELOG.md              ← version history for this tool (see below)
 │   ├── RELEASING.md              ← release process: what the workflow does, how to cut a tag
@@ -174,18 +180,25 @@ are compatible, so tracking them separately would just invite drift.
 
 - **Canonical source:** `orchestrator/package.json`'s `version`,
   `expo-builder-gui/package.json`'s `version`, `cli/CMakeLists.txt`'s
-  `project(... VERSION x.y.z ...)`, and `windows/installer/ebl.iss`'s
-  `MyAppVersion` — **always bump all four to the same value in the same change**,
-  even if a given change only touched one of them.
+  `project(... VERSION x.y.z ...)`, `windows/installer/ebl.iss`'s
+  `MyAppVersion`, and `packaging/arch/PKGBUILD`'s `pkgver` — **always bump all five
+  to the same value in the same change**, even if a given change only touched one
+  of them. (`PKGBUILD`'s `pkgrel` is separate — see below.)
 - **Bump rule (SemVer), applied automatically for every change, however small:**
   - `fix:` / `style:` / `refactor:` / docs/config-only change → **PATCH** (+0.0.1)
   - `feat:` / new endpoint / new component / new capability → **MINOR** (+0.1.0, reset PATCH)
   - Breaking change (API shape, WS message shape, env var rename, DB schema change
     requiring a fresh volume) → **MAJOR** (+1.0.0)
+  - A change that only touches `packaging/arch/PKGBUILD` itself (e.g. a `depends=`
+    fix) and doesn't otherwise change what gets built → bump `pkgrel` instead of
+    `pkgver`, same as any other PKGBUILD.
 - **After every code change to anything under `expo-builder-local/`:**
   1. Make the change.
-  2. Bump all four version fields (they must always match).
-  3. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
+  2. Bump all five version fields (they must always match).
+  3. Regenerate `packaging/arch/.SRCINFO` (`makepkg --printsrcinfo > .SRCINFO` from
+     `packaging/arch/`) — it's derived from `PKGBUILD` and goes stale the moment
+     `pkgver`/`pkgrel`/deps change; never hand-edit it.
+  4. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
 - This is not optional busywork — do it as part of the same commit/turn as the code
   change, not as a follow-up.
 - Do **not** add entries to the repo root's `/CHANGELOG.md` for expo-builder-local

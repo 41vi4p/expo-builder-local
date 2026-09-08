@@ -45,9 +45,9 @@ git push origin v0.3.1
 ```
 
 Bump `orchestrator/package.json`, `expo-builder-gui/package.json`,
-`cli/CMakeLists.txt`'s `project(... VERSION ...)`, and `windows/installer/ebl.iss`'s
-`MyAppVersion` to match *before* tagging — see `../CLAUDE.md`'s version-management
-section. The tag itself is what's authoritative for the GitHub Release name; keep it
+`cli/CMakeLists.txt`'s `project(... VERSION ...)`, `windows/installer/ebl.iss`'s
+`MyAppVersion`, and `packaging/arch/PKGBUILD`'s `pkgver` to match *before* tagging —
+see `../CLAUDE.md`'s version-management section. The tag itself is what's authoritative for the GitHub Release name; keep it
 in step with the CLI's own `PROJECT_VERSION` so `ebl --version` and the release tag
 never disagree on every platform — `ebl.exe` is the same `cli/` binary as Linux/macOS,
 just compiled for Windows, so there's no separate launcher version to track anymore.
@@ -55,3 +55,34 @@ just compiled for Windows, so there's no separate launcher version to track anym
 You can also trigger the workflow manually (`workflow_dispatch`, e.g. from the
 Actions tab) to republish the current `main` without cutting a new tag — useful for
 testing the pipeline itself, or re-publishing after fixing something in the workflow.
+
+## Arch Linux packaging
+
+Unlike the .deb/Windows artifacts above, [`packaging/arch/PKGBUILD`](../packaging/arch/PKGBUILD)
+is **not built by this workflow** — it builds `cli/` from source against the
+installing machine's own `curl`/`openssl` at install time (via `makepkg`, either
+directly or through `install.sh`'s pacman-detection path), so there's no separate
+binary artifact to publish or sign. Its `pkgver` is bumped by hand alongside the
+other four version fields (see `../CLAUDE.md`#-version-management), but there's
+nothing else to do here at release time — `pkgver` pointing at a tag that doesn't
+exist yet just means that tag needs to be pushed (this same `git tag`/`git push`
+step) before `makepkg` can fetch it.
+
+Its `sha256sums=('SKIP')` is deliberate: this package isn't published to the AUR
+(no maintainer account/SSH key for that exists in this project yet), so there's no
+per-release step that would otherwise keep a pinned checksum in sync. Before an
+eventual AUR submission, replace `SKIP` with the real checksum of that tag's source
+archive (`sha256sum` on the same URL curl would fetch, or `updpkgsums` from
+`pacman-contrib`).
+
+`packaging/arch/.SRCINFO` is generated from `PKGBUILD` — regenerate it (`makepkg
+--printsrcinfo > .SRCINFO` from `packaging/arch/`) any time `PKGBUILD` changes; it
+doesn't need network access or a real tag to exist, since it just parses the script.
+
+**Not AUR-submission-ready yet**, beyond the checksum above:
+- `# Maintainer:` in `PKGBUILD` is a placeholder (GitHub profile link, not a real
+  name/email) — AUR convention expects the latter.
+- Publishing means pushing this directory's contents to
+  `ssh://aur@aur.archlinux.org/ebl.git`, which needs an AUR account and its own SSH
+  key — a one-time, personal setup step for whoever ends up maintaining it there,
+  not something CI can do.

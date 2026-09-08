@@ -1,0 +1,41 @@
+# Maintainer: 41vi4p <https://github.com/41vi4p>
+#
+# Builds the `ebl` CLI from source against the distro's own curl/openssl, so there's
+# no prebuilt-binary ABI mismatch risk the way there would be shipping the .deb's
+# ubuntu:24.04-linked binary here (see ../../cli/CMakeLists.txt and
+# ../../docs/RELEASING.md). Not (yet) published to the AUR — see
+# ../../CLAUDE.md#-version-management for why pkgver here is bumped by hand in step
+# with the other four version fields, and ../../docs/RELEASING.md for the sha256sums
+# note below. Usable right now either via `makepkg -si` directly in this directory,
+# or through install.sh's Arch-detection path, which fetches this same file.
+pkgname=ebl
+pkgver=0.14.0
+pkgrel=1
+pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
+# Matches every other release artifact in this repo (CI, the .deb, the Windows
+# build) — all x86_64-only for now (see install.sh's own uname -m check).
+arch=('x86_64')
+url="https://github.com/41vi4p/expo-builder-local"
+license=('GPL3')
+depends=('curl' 'openssl')
+makedepends=('cmake')
+optdepends=('docker: required at runtime to actually run builds')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Not published to the AUR, so there's no per-release maintainer step that pins a
+# real checksum automatically (the way the .deb's dpkg-shlibdeps/GPG signing is
+# automated in .github/workflows/release.yml). Source still comes straight from
+# GitHub's own tag archive over HTTPS. If/when this gets submitted to the AUR,
+# replace SKIP with the real `sha256sum` of that tag's archive first.
+sha256sums=('SKIP')
+
+build() {
+  cd "expo-builder-local-$pkgver/cli"
+  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+package() {
+  cd "expo-builder-local-$pkgver/cli"
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 ../LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
