@@ -27,6 +27,24 @@ Version history for the orchestrator + GUI (versioned together — see
   — but none of it has actually built/run a real project. Treat it like the
   existing `BUILD_UID`/`BUILD_GID` Windows placeholder: carefully reasoned, not
   proven. Please report anything that doesn't work.
+- **First real-hardware test (QEMU Windows VM, GUI installer, Native mode) found
+  a real bug, now fixed**: `windows/install.ps1`'s `-LocalInstallDir` path (what
+  the Inno Setup GUI installer always uses) tried to `Copy-Item` `{app}\bin` onto
+  itself, since `{app}` is pinned by `ebl.iss`'s `DisableDirPage`/`DefaultDirName`
+  to the exact same directory `$InstallDir` already resolves to — Inno's own
+  `[Files]` section had already placed the files there. That self-copy threw under
+  `$ErrorActionPreference = "Stop"`, silently killing the script before PATH setup
+  or the native toolchain provisioning step ever ran — which is exactly why a real
+  install "did almost nothing" with no visible sign of any dependency downloads.
+  Fixed by skipping the copy when `-LocalInstallDir` already resolves to
+  `$InstallDir` (pre-existing bug, not introduced by native mode — just never
+  exercised on real hardware before, since this was likely the first time this
+  script's `-LocalInstallDir` path had actually been run end to end). Separately
+  confirmed the CI Windows build's `curl`/OpenSSL setup (`OpenSSL::Crypto` only,
+  no `OpenSSL::SSL` — vcpkg's `curl` port defaults to Schannel for TLS on Windows
+  unless the `openssl` feature is explicitly requested, which it isn't here) means
+  `native_toolchain.cpp`'s HTTPS downloads validate certs via the Windows store
+  normally, not a second landmine.
 - New CLI internals: `cli/src/native_process.*` (Windows Job-Object-based process
   runner — wall-clock + idle-CPU timeouts, the analog of
   `build-entrypoint.sh`'s `timeout`/`run_with_idle_timeout`), `native_toolchain.*`

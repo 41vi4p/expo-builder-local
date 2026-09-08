@@ -223,7 +223,16 @@ if ($Mode -eq "Docker" -and -not $SkipWslConfig -and (Get-Command wsl.exe -Error
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
-if ($LocalInstallDir) {
+if ($LocalInstallDir -and ([System.IO.Path]::GetFullPath($LocalInstallDir).TrimEnd('\') -ieq [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\'))) {
+    # The Inno Setup GUI installer always calls this with -LocalInstallDir "{app}",
+    # which DisableDirPage/DefaultDirName pin to this exact same $InstallDir - its
+    # own [Files] section already placed bin\/share\ there directly, so there's
+    # nothing to copy. Copying "{app}\bin" onto itself here used to throw (self-copy
+    # is a terminating error under $ErrorActionPreference = "Stop"), silently killing
+    # the whole script before it ever reached PATH setup or runtime setup below -
+    # which is exactly what made a real install look like it "did almost nothing".
+    Write-Step "Files already in place at $InstallDir (Inno Setup's own [Files] section put them there)."
+} elseif ($LocalInstallDir) {
     Write-Step "Installing ebl from $LocalInstallDir..."
     Copy-Item -Path (Join-Path $LocalInstallDir "bin") -Destination $InstallDir -Recurse -Force
     Copy-Item -Path (Join-Path $LocalInstallDir "share") -Destination $InstallDir -Recurse -Force
