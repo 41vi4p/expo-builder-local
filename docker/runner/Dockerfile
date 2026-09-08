@@ -47,8 +47,20 @@ RUN git config --system --add safe.directory '*'
 # --- Node.js (current LTS, tracked via NodeSource's rolling "lts" channel) -------
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && npm install -g npm@latest eas-cli@latest
+    && rm -rf /var/lib/apt/lists/*
+
+# Separate layer, deliberately: "npm@latest"/"eas-cli@latest" only ever re-resolve
+# when *this* layer actually rebuilds. Without EAS_CLI_CACHE_BUST changing, Docker's
+# build cache (including docker-publish.yml's GHA cache-from/cache-to, which persists
+# across separate CI runs, unlike a plain local build cache) would keep reusing
+# whatever version resolved the very first time this layer was built — silently
+# stale on every later publish, not just a one-time snapshot problem. CI passes a
+# fresh value on every release (see docker-publish.yml); local dev builds
+# (Makefile/docker-compose) don't, so they keep normal layer-cache reuse for fast
+# iteration. `ebl update`'s nocache+pull rebuild sidesteps this arg entirely by
+# disabling the build cache outright.
+ARG EAS_CLI_CACHE_BUST=unset
+RUN echo "cache-bust: ${EAS_CLI_CACHE_BUST}" && npm install -g npm@latest eas-cli@latest
 
 # --- Android SDK command-line tools --------------------------------------------
 RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \

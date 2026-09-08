@@ -67,9 +67,18 @@ public:
   bool imageExists(const std::string& tag);
 
   /** Tars `contextDir` and POSTs it to /build, invoking onLog for each line of
-   * build output. Throws if the daemon reports an error. */
+   * build output. Throws if the daemon reports an error.
+   *
+   * noCache forces Docker to ignore its build cache entirely (nocache=1) and
+   * re-pull the FROM base image even if one matching it is already local
+   * (pull=1) — without it, a `RUN npm install -g eas-cli@latest`-style
+   * instruction only ever re-resolves "latest" the very first time that layer is
+   * built; every build after that (local or CI) silently reuses whatever was
+   * "latest" back then. `ebl update` passes true specifically to defeat that;
+   * every other caller (the normal ensureRunnerImage() local-build fallback)
+   * leaves it false so day-to-day builds still benefit from layer caching. */
   void buildImage(const std::string& contextDir, const std::string& tag,
-                   const std::function<void(const std::string&)>& onLog);
+                   const std::function<void(const std::string&)>& onLog, bool noCache = false);
 
   /** Pulls `tag` from its registry (Docker Hub unless the tag names another
    * registry host), invoking onEvent for each status line: (layer id, status,

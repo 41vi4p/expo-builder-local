@@ -246,3 +246,14 @@ are compatible, so tracking them separately would just invite drift.
 - `expo-builder-gui/lib/types.ts` is a deliberate plain duplicate of
   `orchestrator/src/types.ts` (the two services deploy independently). Keep both in
   sync by hand when either changes.
+- `docker/runner/Dockerfile`'s `npm install -g npm@latest eas-cli@latest` layer only
+  ever re-resolves "latest" when that layer's build cache is actually invalidated —
+  its `EAS_CLI_CACHE_BUST` build arg is what forces that on every real publish (see
+  the Dockerfile's own comment). `.github/workflows/docker-publish.yml` and
+  `scripts/publish-images.sh` both pass a fresh value on every run; local dev builds
+  (`Makefile`, `docker-compose.yml`) deliberately don't, so they keep normal
+  layer-cache reuse. `cli/src/commands/update.cpp` (`ebl update`) sidesteps this arg
+  entirely instead, via `DockerClient::buildImage`'s `noCache` param (Docker's
+  `nocache`+`pull` build options) — keep both mechanisms in mind if this ever needs
+  changing, they solve the same staleness problem for two different callers (CI vs.
+  a user's own machine).

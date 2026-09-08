@@ -33,7 +33,11 @@ ORCHESTRATOR_TAG="${DOCKERHUB_NAMESPACE}/expo-builder-local-orchestrator:latest"
 WEB_TAG="${DOCKERHUB_NAMESPACE}/expo-builder-local-web:latest"
 
 echo "==> Building ${RUNNER_TAG} (this one's large — Android SDK — expect ~10-20 min)"
-docker build -t "${RUNNER_TAG}" docker/runner
+# EAS_CLI_CACHE_BUST forces docker/runner/Dockerfile's "npm install -g eas-cli@latest"
+# layer to actually re-resolve, rather than silently reusing a cached npm/eas-cli
+# version from an earlier local build of this same image (see that Dockerfile's
+# comment on this ARG, and docker-publish.yml's equivalent for the automated path).
+docker build --build-arg "EAS_CLI_CACHE_BUST=$(date +%s)" -t "${RUNNER_TAG}" docker/runner
 
 echo "==> Building ${ORCHESTRATOR_TAG}"
 docker build -t "${ORCHESTRATOR_TAG}" orchestrator

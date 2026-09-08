@@ -127,9 +127,10 @@ void DockerClient::removeImage(const std::string& tag) {
 }
 
 void DockerClient::buildImage(const std::string& contextDir, const std::string& tag,
-                               const std::function<void(const std::string&)>& onLog) {
+                               const std::function<void(const std::string&)>& onLog, bool noCache) {
   std::string tar = createTarFromDirectory(contextDir);
   std::string path = "/build?t=" + urlEncode(tag) + "&rm=1";
+  if (noCache) path += "&nocache=1&pull=1";
 
   std::string residual;
   std::string firstError;

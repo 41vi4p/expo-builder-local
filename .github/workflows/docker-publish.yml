@@ -80,3 +80,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # runner-only: forces its Dockerfile's "npm install -g eas-cli@latest" layer
+          # (and everything after it) to actually rebuild on every publish, instead of
+          # the GHA cache above silently reusing whatever "latest" resolved to on a
+          # previous run — see that Dockerfile's own comment on EAS_CLI_CACHE_BUST.
+          # Harmless no-op for orchestrator/web, which don't declare this ARG.
+          build-args: |
+            EAS_CLI_CACHE_BUST=${{ github.run_id }}-${{ github.run_attempt }}

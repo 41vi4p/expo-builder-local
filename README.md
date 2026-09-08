@@ -250,6 +250,7 @@ for why that matters.
 | `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. |
 | `ebl stop` | Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved. |
 | `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. |
+| `ebl update` | Force-refreshes the runner/orchestrator/web images right now, unconditionally. `ebl build`/`ebl start` already pull on every run, but that only ever transfers layers that changed upstream — it can't fix an image whose published tag was itself built from a stale layer cache. `ebl update` always re-pulls all three, and for the runner image specifically, rebuilds it from scratch (Docker's build cache fully disabled) if pulling isn't possible at all. |
 | `ebl clean [--all]` | Removes ebl's own stopped build containers (leftovers from an interrupted/crashed build). With `--all`, also removes the shared Gradle/npm cache volumes and the runner/orchestrator/web images — the next `ebl build`/`ebl setup` just re-pulls/re-creates whatever it needs, so this is safe, just slower on the next run. Refuses `--all` while a build is currently running. |
 
 Run `ebl <command> --help` for the full option list of any command.

@@ -3,6 +3,57 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.15.0 — `ebl update`, and a fix for eas-cli getting stuck stale
+
+**Date:** 2026-09-08
+**Type:** Feature / Fix
+
+- Added `ebl update`: force-refreshes the runner/orchestrator/web images right
+  now, unconditionally. `ebl build`/`ebl start` already pull on every run
+  (`ensureRunnerImage`/`ensureServiceImage`), but a plain pull only transfers
+  layers that changed upstream — it can't fix an image whose *published* tag was
+  itself built from a stale Docker layer cache. For the runner image
+  specifically, if pulling isn't possible at all (offline, or a custom
+  `--runner-image` that was never published), `ebl update` rebuilds it from the
+  bundled context with Docker's build cache fully disabled (`nocache=1&pull=1`,
+  not a normal cached build) — `DockerClient::buildImage` gained a `noCache`
+  parameter for this; every other caller still leaves it `false`.
+- Root cause investigated: `docker/runner/Dockerfile`'s `npm install -g
+  npm@latest eas-cli@latest` layer only ever re-resolves "latest" the first time
+  it's actually built — every build after that (local *or* CI) silently reuses
+  whatever was "latest" back then, since Docker's cache key for that instruction
+  doesn't depend on wall-clock time. `.github/workflows/docker-publish.yml`
+  compounds this by caching across separate CI runs (`cache-from`/`cache-to:
+  type=gha`), so a release with no earlier-layer changes could in principle
+  silently republish the exact same stale eas-cli forever. (The specific
+  staleness that prompted this — a locally pulled runner image showing
+  `eas-cli/21.8.0` against a then-current `23.2.0` on npm — turned out to
+  actually be a 3-week-old local pull on one machine, not a stale Hub image; a
+  fresh pull already returned `23.2.0`. The CI risk above is still real and
+  worth closing pre-emptively, so it's fixed regardless.)
+- Fixed via a new `EAS_CLI_CACHE_BUST` build arg on that Dockerfile layer
+  (`RUN echo "cache-bust: ${EAS_CLI_CACHE_BUST}" && npm install ...` — the value
+  has to actually appear in the instruction for Docker to key its cache on it).
+  `docker-publish.yml` and `scripts/publish-images.sh` (the manual publish path)
+  both now pass a fresh value on every run; local dev builds
+  (`Makefile`/`docker-compose.yml`) deliberately don't, so they keep normal
+  layer-cache reuse for fast iteration. Verified the cache-invalidation mechanism
+  itself against a minimal standalone Dockerfile (same ARG pattern): identical
+  arg value → cached; changed value → rebuilds.
+- Verified `ebl update` end-to-end against real Docker: the pull-success path
+  (all three images), and the pull-failure → local no-cache rebuild fallback
+  (confirmed a real base-image re-pull via Docker's build log, not a cached
+  `FROM` layer) — cancelled once the mechanism was confirmed, since a full
+  from-scratch runner build takes ~10-20 minutes and wasn't otherwise needed.
+
+**Files modified:** `cli/src/commands/update.{hpp,cpp}` (new),
+`cli/src/docker_client.{hpp,cpp}`, `cli/src/main.cpp`, `cli/CMakeLists.txt`,
+`docker/runner/Dockerfile`, `.github/workflows/docker-publish.yml`,
+`scripts/publish-images.sh`, `README.md`,
+`ebl_landing_page/app/docs/page.tsx`, `../CLAUDE.md`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
 ## v0.14.1 — Patch vulnerable eslint/build-tooling transitive deps in the GUI
 
 **Date:** 2026-09-08

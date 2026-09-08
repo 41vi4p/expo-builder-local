@@ -22,6 +22,8 @@ const COMMANDS = [
   { cmd: "ebl start", body: "Runs the orchestrator + web GUI as Docker containers, waits for both to report healthy, prints the GUI URL." },
   { cmd: "ebl stop", body: "Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved." },
   { cmd: "ebl build [path]", body: "Builds an Expo project. Works completely standalone — no setup/config/start required." },
+  { cmd: "ebl update", body: "Force-refreshes the runner/orchestrator/web images right now — build/start already pull on every run, but this rebuilds the runner from scratch (no cache) if it can't pull one at all." },
+  { cmd: "ebl clean [--all]", body: "Removes stopped build containers. With --all, also clears the shared cache volumes and the runner/orchestrator/web images." },
 ];
 
 const ENGINES = [
