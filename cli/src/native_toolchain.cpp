@@ -7,11 +7,14 @@
 #include <curl/curl.h>
 #include <io.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
 #include <stdexcept>
+#include <thread>
 
 #include "native_process.hpp"
 
@@ -52,6 +55,19 @@ std::string getEnvVar(const char* name) {
   const char* v = std::getenv(name);
   return v ? std::string(v) : std::string();
 }
+
+/** CreateProcess cannot launch a .bat/.cmd file directly — only cmd.exe itself
+ * understands batch-file execution; CreateProcess needs a real PE image (.exe) as
+ * its target, and sdkmanager ships only as sdkmanager.bat. Wraps an
+ * already-correctly-quoted command line (e.g. `"C:\...\sdkmanager.bat" --licenses`)
+ * so cmd.exe launches it instead. Relies on cmd.exe's own documented `/c` handling:
+ * when the string after `/c` doesn't meet the narrow "exactly two quotes, whole
+ * thing is one bare executable path" fast path (which `innerCommand` won't, since
+ * it has 2+ quotes of its own plus arguments), cmd strips only the very first and
+ * very last quote character and executes everything between them completely
+ * unmodified — so one more wrapping quote pair here reproduces `innerCommand`
+ * byte-for-byte on the other side. */
+std::string wrapCmdExe(const std::string& innerCommand) { return "cmd.exe /c \"" + innerCommand + "\""; }
 
 // One-line, in-place-redrawn (via \r, same idea as pull_progress.cpp's Docker-pull
 // renderer, just simpler since a toolchain download is always a single file, never
@@ -155,16 +171,51 @@ void downloadFile(const std::string& url, const std::string& destPath,
 
 /** Extracts a zip via PowerShell's Expand-Archive — the same tool
  * windows/install.ps1 already uses for the CLI's own release zip — rather than
- * adding a new C++ zip-library dependency just for this. */
+ * adding a new C++ zip-library dependency just for this.
+ *
+ * Expand-Archive prints nothing at all by default, so a large JDK/Android-SDK zip
+ * (tens of seconds to extract) looked *identical* to a hang once the preceding
+ * download's progress bar hit 100% — a real install first surfaced exactly that
+ * ("no output... feels like it got stuck"). Runs the extraction on its own thread
+ * so the calling thread can render a simple elapsed-time heartbeat in the
+ * meantime — not real byte-level progress (Expand-Archive doesn't report any),
+ * but enough to show it's still alive. */
 void extractZip(const std::string& zipPath, const std::string& destDir,
                  const std::function<void(const std::string&)>& onLog) {
   fs::create_directories(destDir);
   std::string cmdLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
                          "\"Expand-Archive -LiteralPath '" +
                          zipPath + "' -DestinationPath '" + destDir + "' -Force\"";
-  int exitCode = runProcessWithTimeout(cmdLine, "", {}, 600, [&](const char* data, size_t len) {
-    onLog(std::string(data, len));
+
+  onLog("  Extracting " + fs::path(zipPath).filename().string() + "...\n");
+
+  std::atomic<bool> done{false};
+  int exitCode = 1;
+  std::string capturedOutput;
+  std::thread worker([&]() {
+    exitCode = runProcessWithTimeout(cmdLine, "", {}, 600,
+                                      [&](const char* data, size_t len) { capturedOutput.append(data, len); });
+    done.store(true);
   });
+
+  bool isTty = ::_isatty(::_fileno(stdout)) != 0;
+  auto start = std::chrono::steady_clock::now();
+  while (!done.load()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    if (isTty) {
+      int elapsed =
+          static_cast<int>(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+      onLog("\r    ...still extracting (" + std::to_string(elapsed) + "s)");
+    }
+  }
+  worker.join();
+  if (isTty) onLog("\n");
+  // Expand-Archive is normally silent, but forward anything it did print (e.g. an
+  // error) — buffered until here rather than streamed live from the worker thread,
+  // since onLog isn't safe to call concurrently from two threads at once (the
+  // heartbeat above and this).
+  if (!capturedOutput.empty()) onLog(capturedOutput);
+
   if (exitCode != 0) {
     throw std::runtime_error("Expand-Archive failed (exit " + std::to_string(exitCode) + ") extracting " + zipPath);
   }
@@ -284,16 +335,17 @@ std::string ensureAndroidSdk(NativeToolchainConfig& toolchain, const std::string
   // what a real install first surfaced (a Y/N prompt with no way to answer it).
   std::string yesAnswers;
   for (int i = 0; i < 20; i++) yesAnswers += "y\n";
-  std::string acceptLicensesCmd = "\"" + sdkmanager + "\" --licenses";
+  std::string acceptLicensesCmd = wrapCmdExe("\"" + sdkmanager + "\" --licenses");
   runProcessWithTimeout(acceptLicensesCmd, "", env, 120, [&](const char* d, size_t n) { onLog(std::string(d, n)); },
                         yesAnswers);
 
   onLog("Installing Android SDK packages (platform-tools, platforms " + std::string(kAndroidPlatform) + "/" +
         kAndroidPlatformMin + ", build-tools " + kAndroidBuildTools + ", ndk " + kNdkVersion + ", cmake " +
         kCmakeVersion + ")...\n");
-  std::string installCmd = "\"" + sdkmanager + "\" \"platform-tools\" \"platforms;" + std::string(kAndroidPlatform) +
-                            "\" \"platforms;" + kAndroidPlatformMin + "\" \"build-tools;" + kAndroidBuildTools +
-                            "\" \"ndk;" + kNdkVersion + "\" \"cmake;" + kCmakeVersion + "\"";
+  std::string installCmd =
+      wrapCmdExe("\"" + sdkmanager + "\" \"platform-tools\" \"platforms;" + std::string(kAndroidPlatform) +
+                 "\" \"platforms;" + kAndroidPlatformMin + "\" \"build-tools;" + kAndroidBuildTools + "\" \"ndk;" +
+                 kNdkVersion + "\" \"cmake;" + kCmakeVersion + "\"");
   int exitCode = runProcessWithTimeout(installCmd, "", env, 1800,
                                         [&](const char* d, size_t n) { onLog(std::string(d, n)); });
   if (exitCode != 0) {

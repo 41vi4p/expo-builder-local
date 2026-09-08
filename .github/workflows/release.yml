@@ -35,6 +35,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: expo-builder-local
+          # Full history + tags, not the default shallow clone - the "Create GitHub
+          # Release" step below needs the full tag list to find the previous
+          # release for its compare-link, and docs/CHANGELOG.md's own history isn't
+          # otherwise reachable from a depth-1 checkout either.
+          fetch-depth: 0
 
       - name: Verify public key is committed
         run: |
@@ -129,6 +134,37 @@ jobs:
       - name: Checksums
         run: sha256sum build/packages/deb/*.deb ebl-*-linux-amd64.tar.gz > SHA256SUMS.txt
 
+      - name: Extract this version's docs/CHANGELOG.md section for the release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -e
+          # docs/CHANGELOG.md entries look like "## v0.16.3 — Title" (see
+          # ../CLAUDE.md's changelog entry format) — pull out just the block for
+          # this tag: from its own "## vX.Y.Z " heading up to (not including) the
+          # next "## " heading, or EOF if this is the most recent entry.
+          awk -v want="## ${GITHUB_REF_NAME} " '
+            index($0, want) == 1 { printing = 1 }
+            printing && /^## / && index($0, want) != 1 { exit }
+            printing { print }
+          ' docs/CHANGELOG.md > /tmp/release-notes.md
+
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "::warning::No docs/CHANGELOG.md entry found for ${GITHUB_REF_NAME} — falling back to a generated summary."
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${GITHUB_REF_NAME}" -q .body > /tmp/release-notes.md
+          else
+            # Same "Full Changelog" compare link `--generate-notes` would have
+            # added, computed by hand since we're not using that flag anymore -
+            # PREV_TAG is empty (and the line just omitted) for the very first tag.
+            PREV_TAG="$(git tag --sort=-v:refname | grep -A1 -x "${GITHUB_REF_NAME}" | tail -n1)"
+            if [ -n "${PREV_TAG}" ] && [ "${PREV_TAG}" != "${GITHUB_REF_NAME}" ]; then
+              printf '\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' \
+                "${GITHUB_REPOSITORY}" "${PREV_TAG}" "${GITHUB_REF_NAME}" >> /tmp/release-notes.md
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Create GitHub Release (direct-download fallback)
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -136,7 +172,7 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --title "ebl ${GITHUB_REF_NAME}" \
-            --generate-notes \
+            --notes-file /tmp/release-notes.md \
             build/packages/deb/*.deb \
             ebl-*-linux-amd64.tar.gz \
             SHA256SUMS.txt

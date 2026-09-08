@@ -3,6 +3,68 @@
 Version history for the orchestrator + GUI (versioned together — see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.16.3 — Native engine fixes from real-hardware testing (v0.16.1-v0.16.3)
+
+**Date:** 2026-09-09
+**Type:** Fix
+
+First real-hardware (QEMU Windows VM) testing of v0.16.0's native engine, covering
+tags v0.16.1-v0.16.3 whose version fields/changelog were never updated when cut —
+backfilled here as one entry. Every item below was found by actually running the
+installer, not by inspection.
+
+- **`install.ps1` self-copy crash (v0.16.1):** the Inno Setup GUI installer always
+  calls `install.ps1 -LocalInstallDir "{app}"`, but `{app}` is pinned
+  (`DisableDirPage`/`DefaultDirName`) to the exact same path `$InstallDir` already
+  resolves to — Inno's own `[Files]` section had already placed everything there.
+  The resulting `Copy-Item "{app}\bin" -Destination "{app}"` self-copy threw under
+  `$ErrorActionPreference = "Stop"`, silently killing the script before PATH setup
+  or runtime provisioning ever ran — a real install "did almost nothing." Fixed by
+  skipping the copy when `-LocalInstallDir` already resolves to `$InstallDir`.
+- **Garbled console output (`ГÇö` for `—`), and zero download feedback (v0.16.2):**
+  the Windows console defaults to a legacy OEM/ANSI codepage, mangling every UTF-8
+  em dash/punctuation character this CLI prints; fixed with
+  `SetConsoleOutputCP(CP_UTF8)`/`SetConsoleCP(CP_UTF8)` at startup
+  (`main.cpp`) — fixes it everywhere, not just native mode's own messages.
+  Separately, `native_toolchain.cpp`'s JDK/SDK/Node downloads had no progress
+  output at all once started, indistinguishable from a hang; added a live,
+  in-place-redrawn progress bar (libcurl `CURLOPT_XFERINFOFUNCTION`) plus fixed
+  every plain status line in that file to actually end with `\n` (the `onLog`
+  callback adds none itself, so status messages were running together).
+- **Unanswerable Android SDK license prompt, and Inno reporting "success" on a
+  killed run (v0.16.2):** `sdkmanager --licenses`' prompt could bind directly to
+  the inherited console (Java's `System.console()`) and bypass any piped "y"
+  answers entirely; fixed by giving that child process a genuinely separate stdin
+  pipe (`runProcessWithTimeout` gained an optional `stdinData` param), which
+  reliably forces `System.console()` to fall back to `System.in`. Separately,
+  Inno's declarative `[Run]` section never checked the launched program's exit
+  code at all, so closing the console mid-run (killing the process) still ended
+  in "Installed successfully" — moved the `install.ps1` invocation into `[Code]`'s
+  `CurStepChanged(ssPostInstall)` using `Exec()` + an explicit `ResultCode` check,
+  showing a clear warning instead when setup didn't finish cleanly.
+  `install.ps1` itself now also propagates a real nonzero exit code on failure.
+- **Silent zip extraction, and sdkmanager launched incorrectly (v0.16.3):**
+  `Expand-Archive` prints nothing at all by default, so after a download's
+  progress bar hit 100% the whole extraction (tens of seconds for a large
+  JDK/SDK zip) looked exactly like a second hang; added an "Extracting..."
+  announcement plus a live elapsed-time heartbeat while it runs on its own
+  thread. Also found and fixed a real bug the stdin-pipe fix above introduced:
+  `CreateProcess` cannot launch a `.bat`/`.cmd` file directly (not a PE image —
+  Windows returns `ERROR_BAD_EXE_FORMAT`), but the license-acceptance and
+  package-install commands both invoke `sdkmanager.bat` directly; both now go
+  through a `cmd.exe /c` wrapper (a new `wrapCmdExe` helper), matching how the
+  pre-fix pipe-trick version worked by incidental cmd.exe wrapping.
+- Version fields (this project's canonical five) hadn't actually been bumped for
+  v0.16.1 or v0.16.2 when those tags were cut — both shipped as `0.16.0`
+  internally despite the tag name. Caught and corrected as part of this entry;
+  `ebl --version` and the release tag should no longer disagree going forward.
+
+**Files modified:** `windows/install.ps1`, `windows/installer/ebl.iss`,
+`cli/src/main.cpp`, `cli/src/native_toolchain.cpp`,
+`cli/src/native_process.{hpp,cpp}`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.16.0 — Native Windows build engine (Docker Desktop/WSL2 no longer required)
 
 **Date:** 2026-09-08
