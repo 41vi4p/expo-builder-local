@@ -337,6 +337,20 @@ int DockerClient::waitContainer(const std::string& id) {
   return static_cast<int>(parsed.at("StatusCode").asInt());
 }
 
+ContainerStats DockerClient::getContainerStats(const std::string& id) {
+  // stream=false: a single JSON object, not the newline-delimited streaming
+  // response Docker also supports on this same endpoint - much simpler for a
+  // poll-once-a-second use, and doesn't need a dedicated long-lived connection.
+  HttpResponse res = http_.request("GET", "/containers/" + id + "/stats?stream=false", "", {}, /*timeoutSeconds=*/10);
+  if (res.status != 200) {
+    throw std::runtime_error("Failed to fetch container stats (HTTP " + std::to_string(res.status) + "): " + res.body);
+  }
+  Json parsed = Json::parse(res.body);
+  std::optional<ContainerStats> stats = parseDockerStats(parsed);
+  if (!stats) throw std::runtime_error("Malformed stats response from Docker");
+  return *stats;
+}
+
 void DockerClient::removeContainer(const std::string& id) {
   HttpResponse res = http_.request("DELETE", "/containers/" + id + "?force=1");
   if (res.status != 204 && res.status != 404) {

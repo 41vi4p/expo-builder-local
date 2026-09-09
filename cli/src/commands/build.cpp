@@ -14,14 +14,17 @@
 #include <csignal>
 #include <cstdlib>
 #include <ctime>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
 
+#include "../build_status_view.hpp"
 #include "../color.hpp"
 #include "../config_store.hpp"
 #include "../detect.hpp"
@@ -137,6 +140,15 @@ Options:
                                   else (the live build log, status lines) moves to
                                   stderr, so stdout carries only that one JSON line.
                                   Exit code is still 0/1/130 as normal either way.
+      --status                   Replace the raw streamed build log with a live,
+                                  redrawing dashboard: current phase + progress,
+                                  elapsed time, and the build container's CPU/memory
+                                  usage (current value + a short sparkline history),
+                                  plus a short tail of recent log lines. Needs a real
+                                  terminal (falls back to normal output otherwise) -
+                                  can't be combined with --json. On failure, the last
+                                  buffered log lines are still printed afterward so
+                                  nothing is lost for debugging.
   -h, --help                     Show this help
 )";
 }
@@ -158,6 +170,7 @@ struct Options {
   std::string npmCacheVolume = "expo-builder-local_npm-cache";
   std::string dockerSocket = "/var/run/docker.sock";
   bool json = false;
+  bool status = false;
 };
 
 bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
@@ -194,6 +207,7 @@ bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
       if (arg == "--npm-cache-volume") { opts.npmCacheVolume = needValue(i, "--npm-cache-volume"); continue; }
       if (arg == "--docker-socket") { opts.dockerSocket = needValue(i, "--docker-socket"); continue; }
       if (arg == "--json") { opts.json = true; continue; }
+      if (arg == "--status") { opts.status = true; continue; }
       if (!arg.empty() && arg[0] == '-') {
         std::cerr << ebl::color::red("Unknown option: " + arg) << "\n";
         exitCode = 2;
@@ -312,6 +326,19 @@ int runBuild(int argc, char** argv) {
     }
     return code;
   };
+
+  if (opts.status && opts.json) {
+    return fail("--status and --json can't be used together - both need exclusive control of stdout.", 2);
+  }
+  if (opts.status && !ebl::color::enabled()) {
+    // color::enabled() is exactly the isatty(stdout) check this also needs - a
+    // redrawing dashboard can't work when stdout is piped/redirected (nowhere to
+    // move the cursor back up to), so fall back to the normal streamed log instead
+    // of hard-failing.
+    std::cerr << ebl::color::yellow("--status needs a real terminal (stdout isn't one here) - continuing without it.")
+              << "\n";
+    opts.status = false;
+  }
 
   // --prod is sugar for the production defaults, but explicit --artifact/--profile
   // (if the user passed them too) always win.
@@ -504,19 +531,75 @@ int runBuild(int argc, char** argv) {
     std::string buildNumber;
     std::string residual;
 
+    // --status-only state: onChunk (running on attachThread) is the sole writer;
+    // statusMutex protects statusState specifically because the status-polling
+    // thread below also writes to it (CPU/memory samples) and reads it (to render).
+    // fullLogBuffer needs no lock - only ever touched here, and only ever read
+    // after attachThread has already been joined (see the failure path below).
+    constexpr size_t kRecentLogLineCap = 6;
+    constexpr size_t kFullLogLineCap = 200;
+    std::mutex statusMutex;
+    ebl::BuildStatusState statusState;
+    std::deque<std::string> fullLogBuffer;
+
     auto onChunk = [&](const char* data, size_t len) {
-      log.write(data, static_cast<std::streamsize>(len));
-      log.flush();
+      if (!opts.status) {
+        // Unchanged from before --status existed: raw, immediate passthrough
+        // (marker lines included - a separate, pre-existing cosmetic wart, not
+        // touched here to avoid any behavior change to this already-shipped
+        // default path). --status suppresses this entirely instead, since a raw
+        // scrolling log and a redrawing-in-place dashboard can't share a terminal.
+        log.write(data, static_cast<std::streamsize>(len));
+        log.flush();
+      }
 
       residual.append(data, len);
       size_t pos;
       while ((pos = residual.find_first_of("\r\n")) != std::string::npos) {
         std::string line = residual.substr(0, pos);
         residual.erase(0, pos + 1);
-        if (line.rfind("@@ENGINE:", 0) == 0) resolvedEngine = line.substr(9);
-        else if (line.rfind("@@ARTIFACT:", 0) == 0) artifactPath = toHostArtifactPath(params.appPath, line.substr(11));
-        else if (line.rfind("@@ERROR:", 0) == 0) errorMessage = line.substr(8);
-        else if (line.rfind("@@BUILD_NUMBER:", 0) == 0) buildNumber = line.substr(15);
+
+        if (line.rfind("@@ENGINE:", 0) == 0) { resolvedEngine = line.substr(9); continue; }
+        if (line.rfind("@@ARTIFACT:", 0) == 0) {
+          artifactPath = toHostArtifactPath(params.appPath, line.substr(11));
+          continue;
+        }
+        if (line.rfind("@@ERROR:", 0) == 0) { errorMessage = line.substr(8); continue; }
+        if (line.rfind("@@BUILD_NUMBER:", 0) == 0) { buildNumber = line.substr(15); continue; }
+        if (line.rfind("@@PHASE:", 0) == 0) {
+          // Format: @@PHASE:<id>:<label> - split on the first colon only, in case
+          // a label itself ever contains one.
+          if (opts.status) {
+            std::string rest = line.substr(8);
+            size_t sep = rest.find(':');
+            std::lock_guard<std::mutex> lock(statusMutex);
+            statusState.phaseId = sep == std::string::npos ? rest : rest.substr(0, sep);
+            statusState.phaseLabel = sep == std::string::npos ? "" : rest.substr(sep + 1);
+            statusState.progressPercent = 0;
+          }
+          continue;
+        }
+        if (line.rfind("@@PROGRESS:", 0) == 0) {
+          if (opts.status) {
+            try {
+              int pct = std::stoi(line.substr(11));
+              std::lock_guard<std::mutex> lock(statusMutex);
+              statusState.progressPercent = pct;
+            } catch (const std::exception&) {
+              // Malformed - just skip this update, keep whatever was there.
+            }
+          }
+          continue;
+        }
+
+        // Not one of ebl's own markers - genuine build-tool output.
+        if (opts.status && !line.empty()) {
+          std::lock_guard<std::mutex> lock(statusMutex);
+          statusState.recentLogLines.push_back(line);
+          if (statusState.recentLogLines.size() > kRecentLogLineCap) statusState.recentLogLines.pop_front();
+          fullLogBuffer.push_back(line);
+          if (fullLogBuffer.size() > kFullLogLineCap) fullLogBuffer.pop_front();
+        }
       }
     };
 
@@ -535,14 +618,71 @@ int runBuild(int argc, char** argv) {
     });
 
     time_t startedAt = time(nullptr);
+
+    // Polls the container's CPU/memory once a second and redraws the dashboard -
+    // a single thread does both, rather than splitting polling and rendering, to
+    // avoid an extra thread + lock for no real benefit at a 1Hz cadence. Started
+    // before startContainer() below (same reasoning as attachThread/cancelWatcher
+    // being created before it) - a stats fetch against a not-yet-running
+    // container just throws, caught per-tick, and that tick is skipped.
+    ebl::BuildStatusView statusView(appPath.string());
+    std::thread statusThread;
+    if (opts.status) {
+      statusThread = std::thread([&]() {
+        constexpr size_t kHistoryCap = 60;  // ~60s at 1Hz - plenty for a 40-wide sparkline
+        while (!buildFinished.load()) {
+          try {
+            ebl::ContainerStats stats = docker.getContainerStats(containerId);
+            std::lock_guard<std::mutex> lock(statusMutex);
+            statusState.cpuPercent = stats.cpuPercent;
+            statusState.memUsedMb = stats.memUsedMb;
+            statusState.memLimitMb = stats.memLimitMb;
+            statusState.cpuHistory.push_back(stats.cpuPercent);
+            if (statusState.cpuHistory.size() > kHistoryCap) statusState.cpuHistory.pop_front();
+            statusState.memPercentHistory.push_back(stats.memPercent);
+            if (statusState.memPercentHistory.size() > kHistoryCap) statusState.memPercentHistory.pop_front();
+          } catch (const std::exception&) {
+            // One missed sample isn't fatal - the dashboard just keeps showing
+            // the last known values until the next tick succeeds.
+          }
+
+          ebl::BuildStatusState snapshot;
+          {
+            std::lock_guard<std::mutex> lock(statusMutex);
+            snapshot = statusState;
+          }
+          snapshot.elapsedSeconds = static_cast<long>(time(nullptr) - startedAt);
+          statusView.render(snapshot);
+
+          std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        }
+      });
+    }
+
     docker.startContainer(containerId);
     int exitStatus = docker.waitContainer(containerId);
     long durationSeconds = static_cast<long>(time(nullptr) - startedAt);
 
     attachThread.join();
 
+    if (opts.status) {
+      // One last render with the truly final state (attachThread has now drained
+      // every marker, including @@PHASE:done/@@PROGRESS:100) - the status thread's
+      // own last tick could otherwise have raced ahead of the final markers and
+      // left a slightly stale frame as the last thing visible before the
+      // success/failure summary below it.
+      ebl::BuildStatusState finalSnapshot;
+      {
+        std::lock_guard<std::mutex> lock(statusMutex);
+        finalSnapshot = statusState;
+      }
+      finalSnapshot.elapsedSeconds = durationSeconds;
+      statusView.render(finalSnapshot);
+    }
+
     buildFinished.store(true);
     cancelWatcher.join();
+    if (statusThread.joinable()) statusThread.join();
     std::signal(SIGINT, SIG_DFL);
     std::signal(SIGTERM, SIG_DFL);
 
@@ -611,6 +751,16 @@ int runBuild(int argc, char** argv) {
       } else {
         log << "\n" << ebl::color::red(ebl::color::bold("Build failed after " + formatDuration(durationSeconds))) << "\n";
         log << "  " << finalError << "\n\n";
+        // --status never showed the raw build log at all (that's the whole
+        // point) - on failure specifically, dump what was buffered so a failure
+        // doesn't leave the user with nothing to diagnose it from. Not needed on
+        // the success path (nothing to debug) or in --json mode (mutually
+        // exclusive with --status anyway).
+        if (opts.status && !fullLogBuffer.empty()) {
+          log << ebl::color::dim("Last " + std::to_string(fullLogBuffer.size()) + " build log line(s):") << "\n";
+          for (const auto& l : fullLogBuffer) log << "  " << l << "\n";
+          log << "\n";
+        }
       }
       result = 1;
     }

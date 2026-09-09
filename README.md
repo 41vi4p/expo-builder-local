@@ -283,6 +283,7 @@ ebl build . --engine eas --expo-token "$EXPO_TOKEN"
 ebl build . --release --keystore ./release.jks --key-alias upload \
   --store-password "$STORE_PW" --key-password "$KEY_PW"
 ebl build . --json > result.json   # scripting/CI — see below
+ebl build . --status               # live dashboard instead of the raw log — see below
 ```
 
 Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
@@ -300,6 +301,16 @@ success, or `{"success":false,"error":"..."}` on failure. The exit code is still
 prompts for a missing Expo token (there's no clean way to prompt without corrupting
 the JSON on stdout) — pass `--expo-token`/set `EXPO_TOKEN` up front, or it fails fast
 with a clear error instead of hanging.
+
+**`--status`** — replaces the raw streamed build log with a live, redrawing
+dashboard: current phase + a progress bar, elapsed time, the build container's
+CPU/memory usage (current value plus a short ASCII sparkline of recent history),
+and a short tail of recent log lines. Polls the container's stats once a second.
+Needs a real terminal — falls back to the normal streamed log (with a warning) if
+stdout isn't one — and can't be combined with `--json` (both need exclusive
+control of stdout). On failure, the buffered log lines are still printed
+afterward so nothing is lost for debugging even though the raw log wasn't shown
+live.
 
 Every successful build lands in `<project>/ebl_builds/v<app-version>-build<n>/` — `n`
 is a simple counter local to that project (see `ebl_builds/.build-counter`), so

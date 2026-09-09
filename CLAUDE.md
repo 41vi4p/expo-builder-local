@@ -74,12 +74,14 @@ expo-builder-local/
 │   ├── tests/               (unit tests, OFF by default — cmake -DEBL_BUILD_TESTS=ON
 │   │                          then ctest; hand-rolled harness (test_framework.hpp),
 │   │                          not a vendored framework — see its own comment for why.
-│   │                          json.cpp/detect.cpp/version_compare.cpp are covered so
-│   │                          far — pure logic, no libcurl/OpenSSL/Docker needed
-│   │                          (update_check.cpp itself deliberately isn't linked in
-│   │                          here — it needs curl/config_store.cpp's crypto chain,
-│   │                          which is why isVersionNewer lives in its own
-│   │                          dependency-free version_compare.* instead). Grow this
+│   │                          json.cpp/detect.cpp/version_compare.cpp/docker_stats.cpp
+│   │                          are covered so far — pure logic, no libcurl/OpenSSL/
+│   │                          Docker needed (update_check.cpp/docker_client.cpp
+│   │                          themselves deliberately aren't linked in here — they
+│   │                          need curl/config_store.cpp's crypto chain or a real
+│   │                          Docker daemon, which is why isVersionNewer/
+│   │                          parseDockerStats each live in their own dependency-free
+│   │                          module instead). Grow this
 │   │                          as more of src/ becomes unit-testable, not just left
 │   │                          as-is)
 │   └── src/
@@ -107,6 +109,22 @@ expo-builder-local/
 │       │                                 once/24h via configDir()/update-check.json;
 │       │                                 version comparison itself lives in
 │       │                                 version_compare.* for unit-testability)
+│       ├── docker_stats.*              (parseDockerStats() — CPU%/memory from a raw
+│       │                                 /containers/{id}/stats frame, same formula
+│       │                                 orchestrator/src/docker/stats.ts uses; pure
+│       │                                 logic, split out for unit-testability, same
+│       │                                 as version_compare.*. docker_client.cpp's
+│       │                                 getContainerStats() is the one-shot HTTP
+│       │                                 fetch wrapping it)
+│       ├── build_status_view.*         (BuildStatusView — commands/build.cpp's
+│       │                                 `--status` live dashboard: redraw-in-place
+│       │                                 via ANSI cursor movement, same technique
+│       │                                 pull_progress.cpp uses for one line,
+│       │                                 extended to a whole block. Plain ASCII
+│       │                                 sparklines only, deliberately - no Unicode
+│       │                                 block characters, so this renders correctly
+│       │                                 on a legacy Windows console codepage with no
+│       │                                 global UTF-8 console-output change needed)
 │       └── {docker_client,json,tar_writer,detect,metrics,host_info,version_compare,runner_context,color}.{hpp,cpp}
 └── windows/               ← Windows-specific packaging only — ebl.exe itself is just
                               `cli/` built for Windows (see above), not a separate binary
@@ -157,7 +175,10 @@ Shared building blocks:
 - `docker_client.*` — the actual Engine API calls: one-shot build containers (image
   list/build/pull, volume create, container create/attach/start/wait/remove) *and*
   long-running service containers (`ServiceContainerSpec`, network create, find-by-
-  name, running-check) used by `ebl start`/`stop`.
+  name, running-check) used by `ebl start`/`stop`; also `getContainerStats()` (a
+  one-shot `GET /containers/{id}/stats?stream=false`, meant to be polled rather than
+  held open) for `ebl build --status`'s live CPU/memory dashboard — see
+  `docker_stats.*` for the actual frame-parsing logic.
 - `config_store.*` — `EblConfig` (projects folder, ports, Expo
   token, generated orchestrator `MASTER_KEY`) persisted at `~/.config/ebl/config.json`
   on Linux/macOS (0600) or `%APPDATA%\ebl\config.json` on Windows (no POSIX chmod
@@ -259,7 +280,15 @@ are compatible, so tracking them separately would just invite drift.
   and `cli/src/commands/build.cpp` (CLI path) parse independently — if you add a new
   build phase, marker, or change engine behavior, update **both** consumers, plus the
   phase weight tables in `progress.ts` and the phase sequence in
-  `expo-builder-gui/components/BuildTimeline.tsx`.
+  `expo-builder-gui/components/BuildTimeline.tsx`. On the CLI side, `@@ENGINE:`/
+  `@@ARTIFACT:`/`@@ERROR:`/`@@BUILD_NUMBER:` are always parsed; `@@PHASE:`/
+  `@@PROGRESS:` are only actually *used* when `--status` is passed (they drive
+  `BuildStatusView`'s live dashboard - see below). Default (non-`--status`) mode
+  still echoes every marker line as literal text in the raw streamed log - a
+  pre-existing cosmetic wart, deliberately left alone rather than risk changing
+  already-shipped default output while adding `--status`. `--status` itself never
+  shows this, since it suppresses the raw passthrough entirely in favor of the
+  dashboard.
 - Every build's artifact lands in `<project>/ebl_builds/v<app-version>-build<n>/` —
   `n` comes from `ebl_builds/.build-counter`, a bare-integer file
   `build-entrypoint.sh` increments itself (not something either the CLI or the

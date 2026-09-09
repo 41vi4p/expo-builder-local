@@ -6,9 +6,11 @@ add_executable(ebl_tests
   test_json.cpp
   test_detect.cpp
   test_version_compare.cpp
+  test_docker_stats.cpp
   ../src/json.cpp
   ../src/detect.cpp
   ../src/version_compare.cpp
+  ../src/docker_stats.cpp
 )
 target_include_directories(ebl_tests PRIVATE ../src)
 if(NOT MSVC)

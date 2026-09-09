@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # This VERSION is the single source of truth for the CLI's version (see main.cpp's
 # --version output) — kept in step with orchestrator/package.json and
 # expo-builder-gui/package.json per ../CLAUDE.md's version-management rule.
-project(expo-builder-local-cli VERSION 0.23.0 LANGUAGES CXX)
+project(expo-builder-local-cli VERSION 0.24.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +47,8 @@ add_executable(ebl
   ${EBL_PLATFORM_SOURCES}
   src/winpath.cpp
   src/docker_client.cpp
+  src/docker_stats.cpp
+  src/build_status_view.cpp
   src/tar_writer.cpp
   src/detect.cpp
   src/metrics.cpp

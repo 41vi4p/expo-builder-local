@@ -3,6 +3,63 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.24.0 - `ebl build --status`: a live TUI dashboard during the build
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **New `--status` flag on `ebl build`** - replaces the raw streamed build log
+  with a live, redrawing-in-place dashboard: current phase + a progress bar,
+  elapsed time, the build container's CPU/memory usage (current value plus a
+  short auto-scaling ASCII sparkline of recent history), and a short tail of
+  recent log lines. Polls the container's stats once a second. Needs a real
+  terminal - falls back to the normal streamed log (with a stderr warning) if
+  stdout isn't one, and can't be combined with `--json` (both need exclusive
+  control of stdout, rejected with a clear error). On failure, the buffered
+  log lines are printed afterward anyway so nothing is lost for debugging,
+  even though the raw log wasn't shown live.
+- **New `DockerClient::getContainerStats()`** - a one-shot (not streaming)
+  `GET /containers/{id}/stats?stream=false`, meant to be polled rather than
+  held open. The actual frame parsing (CPU%/memory formula - same one the
+  `docker` CLI itself uses) lives in new, dependency-free `docker_stats.*`
+  (ported from `orchestrator/src/docker/stats.ts`'s `parseDockerStats`, kept
+  in sync by hand same as `detect.cpp`/`metrics.cpp`), split out specifically
+  so it's unit-testable without a real Docker daemon - 6 new test cases
+  (realistic frame, `online_cpus` missing → falls back to `percpu_usage`
+  array length, cgroup v1 `cache` vs. v2 `inactive_file`, non-positive CPU
+  delta doesn't produce garbage, malformed/non-object input).
+- **New `build_status_view.*`** (`BuildStatusView`) - the actual dashboard
+  renderer, redrawing via ANSI cursor movement (the same technique
+  `pull_progress.cpp` already used for one line, extended here to a whole
+  block: move up N lines, clear to end of screen, repaint). Deliberately
+  **plain ASCII sparklines**, not Unicode block characters - renders
+  correctly on a legacy Windows console codepage without needing a global
+  UTF-8 console-output change.
+- **`@@PHASE:`/`@@PROGRESS:` are now actually parsed by the CLI** (previously
+  only `@@ENGINE:`/`@@ARTIFACT:`/`@@ERROR:`/`@@BUILD_NUMBER:` were, despite
+  `../CLAUDE.md` already documenting `build.cpp` as one of three independent
+  marker consumers) - they drive `--status`'s dashboard. Note: default
+  (non-`--status`) output still echoes every marker line as literal text in
+  the raw streamed log - a separate, pre-existing cosmetic wart, deliberately
+  left alone here to avoid any behavior change to already-shipped default
+  output while adding this feature.
+- **Verified beyond unit tests**: the redraw-in-place logic was smoke-tested
+  standalone with fabricated changing state across 15 ticks (confirmed
+  correct cursor-up counts tracking frame growth, clean final frame);
+  `getContainerStats()` was verified against a real running container on a
+  real Docker daemon (not just mocked JSON) - a tight busy-loop container
+  correctly reported ~100% CPU.
+
+**Files modified:** `cli/src/docker_stats.hpp` (new),
+`cli/src/docker_stats.cpp` (new), `cli/src/build_status_view.hpp` (new),
+`cli/src/build_status_view.cpp` (new), `cli/tests/test_docker_stats.cpp`
+(new), `cli/src/docker_client.hpp`, `cli/src/docker_client.cpp`,
+`cli/src/commands/build.cpp`, `cli/src/commands/completion.cpp`,
+`cli/CMakeLists.txt`, `cli/tests/CMakeLists.txt`, `README.md`, `../CLAUDE.md`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.23.0 - `ebl --version` now checks for a newer release
 
 **Date:** 2026-09-09

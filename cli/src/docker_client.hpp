@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "docker_stats.hpp"
 #include "http_client.hpp"
 
 namespace ebl {
@@ -127,6 +128,14 @@ public:
 
   /** Blocks until the container exits; returns its exit code. */
   int waitContainer(const std::string& id);
+
+  /** One-shot (not streaming) snapshot of the container's current CPU/memory usage
+   * — GET /containers/{id}/stats?stream=false. Meant to be polled periodically
+   * (e.g. once a second) from a live status view, not held open. Throws on
+   * failure (container gone, daemon unreachable, malformed response) — a caller
+   * polling in a loop should catch per-tick and just skip that frame rather than
+   * treat one failed sample as fatal. */
+  ContainerStats getContainerStats(const std::string& id);
 
   void removeContainer(const std::string& id);
 
