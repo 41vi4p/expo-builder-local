@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # This VERSION is the single source of truth for the CLI's version (see main.cpp's
 # --version output) — kept in step with orchestrator/package.json and
 # expo-builder-gui/package.json per ../CLAUDE.md's version-management rule.
-project(expo-builder-local-cli VERSION 0.19.3 LANGUAGES CXX)
+project(expo-builder-local-cli VERSION 0.20.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -89,6 +89,18 @@ endif()
 
 install(TARGETS ebl RUNTIME DESTINATION bin)
 install(DIRECTORY "${RUNNER_BUILD_DIR}/" DESTINATION share/expo-builder-local/runner OPTIONAL)
+
+# Off by default - a normal `cmake --build` (what a real release/install does) stays
+# exactly as fast/minimal as before. CI (.github/workflows/ci.yml's linux-cli-build
+# job) turns this on explicitly with -DEBL_BUILD_TESTS=ON; see tests/CMakeLists.txt.
+option(EBL_BUILD_TESTS "Build cli/tests/ unit tests (ebl_tests)" OFF)
+if(EBL_BUILD_TESTS)
+  # enable_testing() has to be called here (top level), not just inside
+  # tests/CMakeLists.txt, or `ctest` run from the top of the build dir won't
+  # discover the add_test() registered there at all ("No tests were found").
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 # --- .deb packaging (`cpack -G DEB` after building — see ../Makefile's `deb` target,
 # and ../docs/RELEASING.md for how CI builds + signs this on a tagged release) --------

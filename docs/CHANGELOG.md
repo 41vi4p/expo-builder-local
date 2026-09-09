@@ -3,6 +3,42 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.20.0 - The CLI finally has a test suite, and CI actually builds it on Linux
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **`.github/workflows/ci.yml` previously never built the CLI on Linux at all** -
+  only the GUI (`npm run build`) and a *Windows* CLI build. A broken Linux
+  build (the platform the CLI actually ships a `.deb` for) would only surface
+  at release time. New `linux-cli-build` job: installs `cmake`/`libcurl4-
+  openssl-dev`/`libssl-dev`, configures+builds `cli/` natively (GCC, system
+  libcurl/OpenSSL - no vcpkg needed here), and runs the new test suite via
+  `ctest`.
+- **New `cli/tests/`: a real, if small, unit test suite** - `EBL_BUILD_TESTS`
+  CMake option (`OFF` by default, so a normal build/install/release stays
+  exactly as fast as before) builds `ebl_tests`, covering `json.cpp` (parsing,
+  malformed input, escaping, round-tripping) and `detect.cpp` (Expo-project
+  detection: valid/missing/malformed `package.json`, `dependencies` vs.
+  `devDependencies`, owner/profile extraction from `app.json`/`eas.json`) -
+  the two pure-logic units with no Docker/filesystem-beyond-temp-dirs/network
+  dependency, so they're actually fast and deterministic to test. Uses a
+  small hand-rolled harness (`tests/test_framework.hpp` - `EBL_TEST`/
+  `EBL_CHECK`/`EBL_CHECK_EQ`) rather than a vendored framework like Catch2/
+  doctest, consistent with this project's existing "no vendored dependencies"
+  stance (`json.*` itself is hand-written for the same reason).
+- **Also wired into `windows-cli-build`** - the same tests build and run
+  under MSVC too (`ctest -C Release`), since neither test file touches
+  anything platform-specific.
+
+**Files modified:** `cli/tests/test_framework.hpp` (new),
+`cli/tests/test_main.cpp` (new), `cli/tests/test_json.cpp` (new),
+`cli/tests/test_detect.cpp` (new), `cli/tests/CMakeLists.txt` (new),
+`cli/CMakeLists.txt`, `.github/workflows/ci.yml`, `../CLAUDE.md`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.19.3 - ebl.exe (and the installer, and the landing page) now share one real icon
 
 **Date:** 2026-09-09

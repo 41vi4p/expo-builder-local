@@ -44,8 +44,10 @@ expo-builder-local/
 │   │                         images (runner/orchestrator/web), linux/amd64 only (no QEMU/multi-arch
 │   │                         — the runner's Android SDK download would be slow+untested under
 │   │                         emulation), pushed via docker/build-push-action
-│   └── ci.yml              ← push/PR: just `npm run build` in expo-builder-gui — deliberately
-│                              minimal, no CLI/orchestrator build check
+│   └── ci.yml              ← push/PR: `npm run build` in expo-builder-gui, `cli/` builds +
+│                              cli/tests/ (ebl_tests) natively on both Linux and Windows, and
+│                              windows/installer/ebl.iss compiles — deliberately still no
+│                              orchestrator build check, no macOS job
 ├── scripts/
 │   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images by hand
 ├── docker/runner/         ← Android toolchain image (Node 22 LTS + JDK 17 + SDK + eas-cli)
@@ -69,6 +71,12 @@ expo-builder-local/
 │   │   │                     regenerate both by hand if that logo ever changes, not
 │   │   │                     auto-synced)
 │   │   └── ebl.rc           (Windows-only — embeds ebl.ico as ebl.exe's own icon)
+│   ├── tests/               (unit tests, OFF by default — cmake -DEBL_BUILD_TESTS=ON
+│   │                          then ctest; hand-rolled harness (test_framework.hpp),
+│   │                          not a vendored framework — see its own comment for why.
+│   │                          Only json.cpp/detect.cpp are covered so far — pure
+│   │                          logic, no libcurl/OpenSSL/Docker needed. Grow this as
+│   │                          more of src/ becomes unit-testable, not just left as-is)
 │   └── src/
 │       ├── main.cpp                    (subcommand dispatch only)
 │       ├── commands/                  (build, setup, config, start+stop — one file per subcommand)

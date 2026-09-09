@@ -1,10 +1,11 @@
 name: CI
 
-# Minimal build check: does the frontend (expo-builder-gui) still build, does cli/
-# still build natively for Windows (MSVC + vcpkg for curl/OpenSSL), and does the
-# Inno Setup installer script (windows/installer) still compile against that build?
-# Runs on every push and pull request. Deliberately scoped to just this — no Linux
-# CLI/orchestrator build checks, no test suite.
+# Build check + unit tests, on every push and pull request: does the frontend
+# (expo-builder-gui) still build; does cli/ still build+pass its unit tests natively
+# on Linux (GCC, system libcurl/OpenSSL) and for Windows (MSVC + vcpkg for
+# curl/OpenSSL); does the Inno Setup installer script (windows/installer) still
+# compile against that Windows build? Deliberately still scoped to just this — no
+# orchestrator build check, no macOS job (not supported yet at all).
 
 on:
   push:
@@ -33,6 +34,25 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  linux-cli-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expo-builder-local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: expo-builder-local
+
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev
+
+      # -DEBL_BUILD_TESTS=ON also builds tests/ (ebl_tests) - off by default so a
+      # normal release/install build stays exactly as fast/minimal as before; see
+      # cli/CMakeLists.txt's own comment on this option.
+      - run: cmake -S cli -B cli/build -DCMAKE_BUILD_TYPE=Release -DEBL_BUILD_TESTS=ON
+      - run: cmake --build cli/build -j"$(nproc)"
+      - run: ctest --output-on-failure --test-dir cli/build
+
   windows-cli-build:
     runs-on: windows-latest
     defaults:
@@ -51,12 +71,17 @@ jobs:
           git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
           C:\vcpkg\bootstrap-vcpkg.bat
       - run: C:\vcpkg\vcpkg.exe install curl:x64-windows-static openssl:x64-windows-static
+      # -DEBL_BUILD_TESTS=ON: the same cli/tests/ unit tests as linux-cli-build - they
+      # only touch json.cpp/detect.cpp (no libcurl/OpenSSL, no platform-specific code),
+      # so building+running them here too is cheap cross-platform coverage.
       - run: |
           cmake -S cli -B cli\build `
             -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
+            -DEBL_BUILD_TESTS=ON
       - run: cmake --build cli\build --config Release
+      - run: ctest --output-on-failure --test-dir cli\build -C Release
       - run: cmake --install cli\build --config Release --prefix cli\build\install
 
       # windows-latest also ships Chocolatey preinstalled — use it to compile the
