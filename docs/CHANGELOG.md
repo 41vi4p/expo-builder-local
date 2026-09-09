@@ -3,7 +3,7 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
-## v0.16.1 - install.ps1 offers to install Docker Desktop for you
+## v0.18.0 - install.ps1 offers to install Docker Desktop for you
 
 **Date:** 2026-09-09
 **Type:** Enhancement
