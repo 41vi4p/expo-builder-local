@@ -3,6 +3,54 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.22.0 - `ebl build --json` for scripting/CI
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **New `--json` flag on `ebl build`** - prints the final result as a single
+  JSON object on stdout instead of the colored human summary, so `ebl build`
+  can be scripted without screen-scraping ANSI text. On success:
+  `artifactPath`, `sizeBytes`, `versionName`, `versionCode`, `applicationId`,
+  `engine`, `buildNumber`, `durationSeconds`, `gitCommit`, `gitBranch`,
+  `sha256` - the same fields the colored summary already showed, just
+  structured. On failure (including a caught exception, or SIGINT/SIGTERM
+  cancellation): `{"success":false,"error":"..."}` /
+  `{"success":false,"cancelled":true,"durationSeconds":N}`. The exit code is
+  unchanged either way (0/1/130) so a script can check either the JSON or `$?`.
+- **Everything else moves to stderr in `--json` mode** - the live build log
+  (raw container stdout, streamed via the existing `onChunk` callback),
+  status lines ("Checking for updates...", "Container: ...", "Press Ctrl-C to
+  cancel..."), and `PullProgressRenderer`'s pull-progress display (which
+  previously always wrote straight to `std::cout` - it now takes an
+  `std::ostream&`, defaulting to `std::cout` for its three other unaffected
+  callers in `setup.cpp`/`start.cpp`/`update.cpp`) all get redirected to a
+  local `log` reference that's `std::cerr` in `--json` mode, `std::cout`
+  otherwise - so stdout in `--json` mode carries *only* the one final JSON
+  line, verified by actually redirecting stderr to `/dev/null` and piping
+  stdout straight into `python3 -m json.tool`/`json.load`.
+- **`--json` never prompts for a missing Expo token** - `prompt.cpp`'s
+  question text always writes to `std::cout` regardless of the caller's own
+  `log` redirection, which would otherwise land in the middle of the JSON
+  line. Fails fast instead with an actionable error
+  (`No Expo token found... pass --expo-token or set EXPO_TOKEN`) - verified
+  this doesn't hang even with stdin closed (`</dev/null`).
+- Every early-validation failure (`Not a directory`, `doesn't look like an
+  Expo project`, bad `--artifact`/`--engine`, missing/not-found keystore) now
+  also respects `--json` via a small `fail()` helper - argument-parsing
+  errors themselves (`parseArgs`, e.g. `Unknown option`) are deliberately
+  exempted, same as most CLI tools with a `--json` flag: a malformed
+  invocation isn't a case where `--json` can be trusted to have parsed
+  correctly yet.
+- Updated the four shell-completion scripts (v0.21.0) to include the new
+  flag.
+
+**Files modified:** `cli/src/commands/build.cpp`, `cli/src/pull_progress.hpp`,
+`cli/src/pull_progress.cpp`, `cli/src/commands/completion.cpp`, `README.md`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`cli/CMakeLists.txt`, `windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.21.0 - Shell completions: `ebl completion <bash|zsh|fish|powershell>`
 
 **Date:** 2026-09-09

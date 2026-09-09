@@ -3,6 +3,7 @@
 // updated in place (cursor-up + redraw) instead of a new line scrolling past for
 // every progress tick. Falls back to plain line-by-line output when stdout isn't a
 // terminal (piped/redirected), same as the real `docker` CLI does.
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -11,7 +12,11 @@ namespace ebl {
 
 class PullProgressRenderer {
  public:
-  PullProgressRenderer();
+  /** Writes to `out` (default std::cout) — pass std::cerr when stdout needs to
+   * stay reserved for something else (e.g. `ebl build --json`'s final JSON
+   * result). The cursor-redraw-in-place behavior only activates when the chosen
+   * stream (not necessarily stdout) is itself a real terminal. */
+  explicit PullProgressRenderer(std::ostream& out = std::cout);
 
   /** id: layer short hash, or empty for a plain status line (e.g. "Status:
    * Downloaded newer image for ..."), which is always printed as its own line and
@@ -21,6 +26,7 @@ class PullProgressRenderer {
   void onEvent(const std::string& id, const std::string& status, const std::string& progress);
 
  private:
+  std::ostream& out_;
   bool isTty_;
   std::vector<std::string> order_;
   std::unordered_map<std::string, size_t> indexOf_;

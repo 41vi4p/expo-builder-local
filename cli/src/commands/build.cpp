@@ -26,6 +26,7 @@
 #include "../config_store.hpp"
 #include "../detect.hpp"
 #include "../docker_client.hpp"
+#include "../json.hpp"
 #include "../metrics.hpp"
 #include "../prompt.hpp"
 #include "../pull_progress.hpp"
@@ -131,6 +132,11 @@ Options:
       --docker-socket <path>     Docker socket path (default: /var/run/docker.sock;
                                   ignored on Windows, which always talks to Docker
                                   Desktop's \\.\pipe\docker_engine)
+      --json                     Print the final result as a single JSON object on
+                                  stdout instead of the colored summary - everything
+                                  else (the live build log, status lines) moves to
+                                  stderr, so stdout carries only that one JSON line.
+                                  Exit code is still 0/1/130 as normal either way.
   -h, --help                     Show this help
 )";
 }
@@ -151,6 +157,7 @@ struct Options {
   std::string gradleCacheVolume = "expo-builder-local_gradle-cache";
   std::string npmCacheVolume = "expo-builder-local_npm-cache";
   std::string dockerSocket = "/var/run/docker.sock";
+  bool json = false;
 };
 
 bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
@@ -186,6 +193,7 @@ bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
       if (arg == "--gradle-cache-volume") { opts.gradleCacheVolume = needValue(i, "--gradle-cache-volume"); continue; }
       if (arg == "--npm-cache-volume") { opts.npmCacheVolume = needValue(i, "--npm-cache-volume"); continue; }
       if (arg == "--docker-socket") { opts.dockerSocket = needValue(i, "--docker-socket"); continue; }
+      if (arg == "--json") { opts.json = true; continue; }
       if (!arg.empty() && arg[0] == '-') {
         std::cerr << ebl::color::red("Unknown option: " + arg) << "\n";
         exitCode = 2;
@@ -248,29 +256,29 @@ std::string formatDuration(long seconds) {
  * already current), so this doubles as the update check on every build. Falls back,
  * in order: the cached local image if the pull fails but one is present (offline or
  * Hub unreachable); building it from the bundled context if neither is available
- * (fully offline-capable). */
-void ensureRunnerImage(DockerClient& docker, const std::string& tag) {
-  std::cout << ebl::color::dim("Checking for updates to \"" + tag + "\"...") << "\n";
+ * (fully offline-capable). All status output goes to `log`, not std::cout directly -
+ * in --json mode `log` is std::cerr, so stdout stays clean for the final JSON. */
+void ensureRunnerImage(DockerClient& docker, const std::string& tag, std::ostream& log) {
+  log << ebl::color::dim("Checking for updates to \"" + tag + "\"...") << "\n";
   try {
-    ebl::PullProgressRenderer progress;
+    ebl::PullProgressRenderer progress(log);
     docker.pullImage(tag, [&progress](const std::string& id, const std::string& status, const std::string& p) {
       progress.onEvent(id, status, p);
     });
     return;
   } catch (const std::exception& e) {
     if (docker.imageExists(tag)) {
-      std::cout << ebl::color::dim(std::string("Update check failed (") + e.what() + ") — using the cached local image.")
-                << "\n";
+      log << ebl::color::dim(std::string("Update check failed (") + e.what() + ") — using the cached local image.")
+          << "\n";
       return;
     }
-    std::cout << ebl::color::dim(std::string("Pull failed (") + e.what() + ") — building it locally instead...")
-              << "\n";
+    log << ebl::color::dim(std::string("Pull failed (") + e.what() + ") — building it locally instead...") << "\n";
   }
 
-  std::cout << ebl::color::yellow("Building \"" + tag + "\" now (one-time, ~10-20 minutes)...") << "\n";
+  log << ebl::color::yellow("Building \"" + tag + "\" now (one-time, ~10-20 minutes)...") << "\n";
   std::string contextDir = ebl::resolveRunnerContextDir();
-  docker.buildImage(contextDir, tag, [](const std::string& line) { std::cout << line << std::flush; });
-  std::cout << ebl::color::green("Runner image \"" + tag + "\" built.") << "\n";
+  docker.buildImage(contextDir, tag, [&log](const std::string& line) { log << line << std::flush; });
+  log << ebl::color::green("Runner image \"" + tag + "\" built.") << "\n";
 }
 
 }  // namespace
@@ -282,37 +290,54 @@ int runBuild(int argc, char** argv) {
   int exitCode = 0;
   if (!parseArgs(argc, argv, opts, exitCode)) return exitCode;
 
+  // In --json mode, stdout is reserved exclusively for the one final JSON line -
+  // every status/log line that would otherwise go to stdout goes to `log` (stderr)
+  // instead, still visible for debugging, just not mixed into the machine-readable
+  // output. `log` is std::cout, unchanged, when --json wasn't passed.
+  std::ostream& log = opts.json ? std::cerr : std::cout;
+
+  // Only fills in "error" - "success" is always false here, since every use of this
+  // helper is on a path that's bailing out before a build even started. Argument-
+  // parsing errors above (parseArgs itself) are deliberately NOT run through this -
+  // a malformed invocation isn't a case where the caller can trust --json was even
+  // parsed correctly yet, so those stay plain stderr text like any other CLI tool.
+  auto fail = [&](const std::string& message, int code) -> int {
+    if (opts.json) {
+      Json j = Json::object();
+      j.set("success", Json(false));
+      j.set("error", Json(message));
+      std::cout << j.dump() << "\n";
+    } else {
+      std::cerr << ebl::color::red(message) << "\n";
+    }
+    return code;
+  };
+
   // --prod is sugar for the production defaults, but explicit --artifact/--profile
   // (if the user passed them too) always win.
   std::string artifact = opts.artifact.value_or(opts.prod ? "aab" : "apk");
 
   fs::path appPath = fs::absolute(opts.path).lexically_normal();
   if (!fs::exists(appPath) || !fs::is_directory(appPath)) {
-    std::cerr << ebl::color::red("Not a directory: " + appPath.string()) << "\n";
-    return 2;
+    return fail("Not a directory: " + appPath.string(), 2);
   }
 
   ebl::ExpoProjectInfo project = ebl::detectExpoProject(appPath.string());
   if (!project.isExpoProject) {
-    std::cerr << ebl::color::red(appPath.string() + " doesn't look like an Expo project: " + project.reason) << "\n";
-    return 2;
+    return fail(appPath.string() + " doesn't look like an Expo project: " + project.reason, 2);
   }
 
   if (artifact != "apk" && artifact != "aab") {
-    std::cerr << ebl::color::red("--artifact must be \"apk\" or \"aab\", got \"" + artifact + "\"") << "\n";
-    return 2;
+    return fail("--artifact must be \"apk\" or \"aab\", got \"" + artifact + "\"", 2);
   }
   if (opts.engine != "auto" && opts.engine != "gradle" && opts.engine != "eas") {
-    std::cerr << ebl::color::red("--engine must be \"auto\", \"gradle\", or \"eas\", got \"" + opts.engine + "\"") << "\n";
-    return 2;
+    return fail("--engine must be \"auto\", \"gradle\", or \"eas\", got \"" + opts.engine + "\"", 2);
   }
   if (opts.release && !opts.keystore) {
-    std::cerr << ebl::color::red("--release requires --keystore <path>") << "\n";
-    return 2;
+    return fail("--release requires --keystore <path>", 2);
   }
   if (opts.keystore && !fs::exists(fs::path(*opts.keystore))) {
-    std::cerr << ebl::color::red("Keystore not found: " + fs::absolute(*opts.keystore).string()) << "\n";
-    return 2;
+    return fail("Keystore not found: " + fs::absolute(*opts.keystore).string(), 2);
   }
 
   std::string profile;
@@ -348,14 +373,14 @@ int runBuild(int argc, char** argv) {
     params.expoToken = *envToken;
   } else if (auto fileToken = readProjectTokenFile(appPath)) {
     params.expoToken = *fileToken;
-    std::cout << ebl::color::dim("Using Expo token from " + std::string(kProjectTokenFilename) + ".") << "\n";
+    log << ebl::color::dim("Using Expo token from " + std::string(kProjectTokenFilename) + ".") << "\n";
   } else if (savedConfig) {
     params.expoToken = savedConfig->expoTokenFor(project.owner);
     bool viaOwner = !project.owner.empty() &&
                      std::any_of(savedConfig->expoTokensByOwner.begin(), savedConfig->expoTokensByOwner.end(),
                                  [&](const ebl::ExpoTokenEntry& e) { return e.owner == project.owner; });
     if (viaOwner) {
-      std::cout << ebl::color::dim("Using saved Expo token for owner \"" + project.owner + "\".") << "\n";
+      log << ebl::color::dim("Using saved Expo token for owner \"" + project.owner + "\".") << "\n";
     }
   }
 
@@ -367,7 +392,16 @@ int runBuild(int argc, char** argv) {
   // runner image and starting the container first.
   bool engineNeedsToken = opts.engine == "eas" || (opts.engine == "auto" && fs::exists(appPath / "eas.json"));
   if (params.expoToken.empty() && engineNeedsToken) {
-    std::cout << ebl::color::yellow("No Expo token found, but the \"" + opts.engine + "\" engine needs one.") << "\n";
+    // --json never prompts, even on a real terminal - prompt.cpp's own question
+    // text always goes to std::cout regardless of `log`, which would land right in
+    // the middle of what's supposed to be a single clean JSON line on stdout. Fail
+    // fast with an actionable message instead of a prompt no script can answer.
+    if (opts.json) {
+      return fail("No Expo token found, but the \"" + opts.engine +
+                      "\" engine needs one - pass --expo-token or set EXPO_TOKEN (--json never prompts).",
+                  2);
+    }
+    log << ebl::color::yellow("No Expo token found, but the \"" + opts.engine + "\" engine needs one.") << "\n";
     std::string entered =
         ebl::promptHidden("Expo access token (from https://expo.dev/accounts/[account]/settings/access-tokens)");
     if (entered.empty()) {
@@ -382,9 +416,8 @@ int runBuild(int argc, char** argv) {
     if (!save.empty() && (save[0] == 'y' || save[0] == 'Y')) {
       try {
         saveProjectTokenFile(appPath, entered);
-        std::cout << ebl::color::green("Saved to " + (appPath / kProjectTokenFilename).string() +
-                                        " (added to .gitignore).")
-                  << "\n";
+        log << ebl::color::green("Saved to " + (appPath / kProjectTokenFilename).string() + " (added to .gitignore).")
+            << "\n";
       } catch (const std::exception& e) {
         std::cerr << ebl::color::red(std::string("Could not save token file: ") + e.what()) << "\n";
       }
@@ -415,14 +448,14 @@ int runBuild(int argc, char** argv) {
                                 "). Wait for it to finish, or stop it with: docker stop " + *existing);
     }
 
-    ensureRunnerImage(docker, runnerImage);
+    ensureRunnerImage(docker, runnerImage, log);
     docker.ensureVolume(opts.gradleCacheVolume);
     docker.ensureVolume(opts.npmCacheVolume);
 
-    std::cout << "\n" << ebl::color::bold("Building " + ebl::color::cyan(appPath.string())) << "\n";
-    std::cout << ebl::color::dim("  profile=" + profile + " artifact=" + artifact + " engine=" + opts.engine +
-                                  " signing=" + params.signingMode)
-              << "\n\n";
+    log << "\n" << ebl::color::bold("Building " + ebl::color::cyan(appPath.string())) << "\n";
+    log << ebl::color::dim("  profile=" + profile + " artifact=" + artifact + " engine=" + opts.engine +
+                            " signing=" + params.signingMode)
+        << "\n\n";
 
 #ifdef _WIN32
     // See commands/start.cpp's HOST_UID/HOST_GID comment — same placeholder-pending-
@@ -435,8 +468,8 @@ int runBuild(int argc, char** argv) {
 #endif
     std::string containerId = docker.createContainer(params, runnerImage, opts.gradleCacheVolume,
                                                        opts.npmCacheVolume, buildUid, buildGid);
-    std::cout << ebl::color::dim("Container: " + containerId) << "\n";
-    std::cout << ebl::color::dim("Press Ctrl-C to cancel — the container will be stopped and removed.") << "\n";
+    log << ebl::color::dim("Container: " + containerId) << "\n";
+    log << ebl::color::dim("Press Ctrl-C to cancel — the container will be stopped and removed.") << "\n";
 
     // Ctrl-C (SIGINT) or a `kill` (SIGTERM) sets g_interruptRequested; this watcher
     // thread notices it and force-removes the container, which is what unblocks the
@@ -472,8 +505,8 @@ int runBuild(int argc, char** argv) {
     std::string residual;
 
     auto onChunk = [&](const char* data, size_t len) {
-      std::cout.write(data, static_cast<std::streamsize>(len));
-      std::cout.flush();
+      log.write(data, static_cast<std::streamsize>(len));
+      log.flush();
 
       residual.append(data, len);
       size_t pos;
@@ -518,7 +551,15 @@ int runBuild(int argc, char** argv) {
     }
 
     if (wasCancelled) {
-      std::cout << "\n" << ebl::color::yellow(ebl::color::bold("Build cancelled after " + formatDuration(durationSeconds))) << "\n\n";
+      if (opts.json) {
+        Json j = Json::object();
+        j.set("success", Json(false));
+        j.set("cancelled", Json(true));
+        j.set("durationSeconds", Json(durationSeconds));
+        std::cout << j.dump() << "\n";
+      } else {
+        log << "\n" << ebl::color::yellow(ebl::color::bold("Build cancelled after " + formatDuration(durationSeconds))) << "\n\n";
+      }
       result = 130;  // 128 + SIGINT, standard shell convention
       curl_global_cleanup();
       return result;
@@ -528,29 +569,60 @@ int runBuild(int argc, char** argv) {
 
     if (exitStatus == 0 && !artifactPath.empty()) {
       ebl::ArtifactMetrics metrics = ebl::extractArtifactMetrics(params.appPath, artifactPath);
-      std::cout << "\n"
-                << ebl::color::green(ebl::color::bold("Build " + (buildNumber.empty() ? "" : "#" + buildNumber + " ") +
-                                                       "succeeded in " + formatDuration(durationSeconds)))
-                << "\n";
-      std::cout << "  " << ebl::color::dim("Artifact:") << "     " << artifactPath << "\n";
-      std::cout << "  " << ebl::color::dim("Size:") << "         " << formatBytes(metrics.sizeBytes) << "\n";
-      std::cout << "  " << ebl::color::dim("Version:") << "      " << (metrics.versionName.empty() ? "?" : metrics.versionName);
-      if (!metrics.versionCode.empty()) std::cout << " (versionCode " << metrics.versionCode << ")";
-      std::cout << "\n";
-      if (!metrics.applicationId.empty()) std::cout << "  " << ebl::color::dim("Application:") << "  " << metrics.applicationId << "\n";
-      std::cout << "  " << ebl::color::dim("Engine:") << "       " << (resolvedEngine.empty() ? opts.engine : resolvedEngine) << "\n";
-      if (!metrics.gitCommit.empty()) std::cout << "  " << ebl::color::dim("Git:") << "          " << metrics.gitBranch << "@" << metrics.gitCommit << "\n";
-      std::cout << "  " << ebl::color::dim("SHA-256:") << "      " << metrics.sha256 << "\n\n";
+      if (opts.json) {
+        Json j = Json::object();
+        j.set("success", Json(true));
+        j.set("artifactPath", Json(artifactPath));
+        j.set("sizeBytes", Json(static_cast<double>(metrics.sizeBytes)));
+        j.set("versionName", Json(metrics.versionName));
+        j.set("versionCode", Json(metrics.versionCode));
+        j.set("applicationId", Json(metrics.applicationId));
+        j.set("engine", Json(resolvedEngine.empty() ? opts.engine : resolvedEngine));
+        j.set("buildNumber", Json(buildNumber));
+        j.set("durationSeconds", Json(durationSeconds));
+        j.set("gitCommit", Json(metrics.gitCommit));
+        j.set("gitBranch", Json(metrics.gitBranch));
+        j.set("sha256", Json(metrics.sha256));
+        std::cout << j.dump() << "\n";
+      } else {
+        log << "\n"
+            << ebl::color::green(ebl::color::bold("Build " + (buildNumber.empty() ? "" : "#" + buildNumber + " ") +
+                                                   "succeeded in " + formatDuration(durationSeconds)))
+            << "\n";
+        log << "  " << ebl::color::dim("Artifact:") << "     " << artifactPath << "\n";
+        log << "  " << ebl::color::dim("Size:") << "         " << formatBytes(metrics.sizeBytes) << "\n";
+        log << "  " << ebl::color::dim("Version:") << "      " << (metrics.versionName.empty() ? "?" : metrics.versionName);
+        if (!metrics.versionCode.empty()) log << " (versionCode " << metrics.versionCode << ")";
+        log << "\n";
+        if (!metrics.applicationId.empty()) log << "  " << ebl::color::dim("Application:") << "  " << metrics.applicationId << "\n";
+        log << "  " << ebl::color::dim("Engine:") << "       " << (resolvedEngine.empty() ? opts.engine : resolvedEngine) << "\n";
+        if (!metrics.gitCommit.empty()) log << "  " << ebl::color::dim("Git:") << "          " << metrics.gitBranch << "@" << metrics.gitCommit << "\n";
+        log << "  " << ebl::color::dim("SHA-256:") << "      " << metrics.sha256 << "\n\n";
+      }
       result = 0;
     } else {
-      std::cout << "\n" << ebl::color::red(ebl::color::bold("Build failed after " + formatDuration(durationSeconds))) << "\n";
-      if (!errorMessage.empty()) std::cout << "  " << errorMessage << "\n";
-      else std::cout << "  Build process exited with status " << exitStatus << "\n";
-      std::cout << "\n";
+      std::string finalError = !errorMessage.empty() ? errorMessage : "Build process exited with status " + std::to_string(exitStatus);
+      if (opts.json) {
+        Json j = Json::object();
+        j.set("success", Json(false));
+        j.set("error", Json(finalError));
+        j.set("durationSeconds", Json(durationSeconds));
+        std::cout << j.dump() << "\n";
+      } else {
+        log << "\n" << ebl::color::red(ebl::color::bold("Build failed after " + formatDuration(durationSeconds))) << "\n";
+        log << "  " << finalError << "\n\n";
+      }
       result = 1;
     }
   } catch (const std::exception& e) {
-    std::cerr << "\n" << ebl::color::red(std::string(e.what())) << "\n";
+    if (opts.json) {
+      Json j = Json::object();
+      j.set("success", Json(false));
+      j.set("error", Json(std::string(e.what())));
+      std::cout << j.dump() << "\n";
+    } else {
+      std::cerr << "\n" << ebl::color::red(std::string(e.what())) << "\n";
+    }
     result = 1;
   }
 

@@ -59,7 +59,7 @@ _ebl_completions() {
           return ;;
       esac
       if [[ "${cur}" == -* ]]; then
-        COMPREPLY=($(compgen -W "--prod -a --artifact -p --profile -e --engine --release --keystore --store-password --key-alias --key-password --expo-token --runner-image --gradle-cache-volume --npm-cache-volume --docker-socket -h --help" -- "${cur}"))
+        COMPREPLY=($(compgen -W "--prod -a --artifact -p --profile -e --engine --release --keystore --store-password --key-alias --key-password --expo-token --runner-image --gradle-cache-volume --npm-cache-volume --docker-socket --json -h --help" -- "${cur}"))
       else
         COMPREPLY=($(compgen -d -- "${cur}"))
       fi
@@ -129,6 +129,7 @@ _ebl() {
         '--gradle-cache-volume[Docker volume for the Gradle cache]:volume:' \
         '--npm-cache-volume[Docker volume for the npm cache]:volume:' \
         '--docker-socket[Docker socket path]:path:_files' \
+        '--json[print the final result as JSON on stdout instead of the colored summary]' \
         '(-h --help)'{-h,--help}'[show help]' \
         '1:project path:_files -/'
       ;;
@@ -192,6 +193,7 @@ complete -c ebl -n "__fish_seen_subcommand_from build" -l runner-image -d "Runne
 complete -c ebl -n "__fish_seen_subcommand_from build" -l gradle-cache-volume -d "Docker volume for the Gradle cache"
 complete -c ebl -n "__fish_seen_subcommand_from build" -l npm-cache-volume -d "Docker volume for the npm cache"
 complete -c ebl -n "__fish_seen_subcommand_from build" -l docker-socket -r -F -d "Docker socket path"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l json -d "Print the final result as JSON on stdout"
 complete -c ebl -n "__fish_seen_subcommand_from build" -s h -l help -d "Show help"
 
 complete -c ebl -n "__fish_seen_subcommand_from setup config start stop" -s h -l help -d "Show help"
@@ -234,7 +236,7 @@ Register-ArgumentCompleter -Native -CommandName ebl -ScriptBlock {
                 } elseif ($prev -eq '-e' -or $prev -eq '--engine') {
                     $candidates = @('auto', 'gradle', 'eas')
                 } else {
-                    $candidates = @('--prod', '-a', '--artifact', '-p', '--profile', '-e', '--engine', '--release', '--keystore', '--store-password', '--key-alias', '--key-password', '--expo-token', '--runner-image', '--gradle-cache-volume', '--npm-cache-volume', '--docker-socket', '-h', '--help')
+                    $candidates = @('--prod', '-a', '--artifact', '-p', '--profile', '-e', '--engine', '--release', '--keystore', '--store-password', '--key-alias', '--key-password', '--expo-token', '--runner-image', '--gradle-cache-volume', '--npm-cache-volume', '--docker-socket', '--json', '-h', '--help')
                 }
             }
             { $_ -in @('setup', 'config', 'start', 'stop') } {

@@ -282,6 +282,7 @@ ebl build . --prod             # --artifact aab --profile production
 ebl build . --engine eas --expo-token "$EXPO_TOKEN"
 ebl build . --release --keystore ./release.jks --key-alias upload \
   --store-password "$STORE_PW" --key-password "$KEY_PW"
+ebl build . --json > result.json   # scripting/CI — see below
 ```
 
 Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
@@ -289,6 +290,16 @@ environment variables over the `--store-password` etc. flags where you can — f
 values are more likely to end up in your shell history. If `ebl config` has already
 saved an Expo token, `ebl build` picks it up as a default too (any explicit flag/env
 var/`.ebl-token` file still wins).
+
+**`--json`** — for scripting/CI: everything that would normally go to stdout (the
+live build log, status lines) moves to stderr instead, so stdout carries exactly one
+JSON object with the final result — `{"success":true,"artifactPath":...,"sizeBytes":
+...,"versionName":...,"sha256":...,"engine":...,"durationSeconds":...,...}` on
+success, or `{"success":false,"error":"..."}` on failure. The exit code is still
+0/1/130 as normal either way, so a script can check either. Note: `--json` never
+prompts for a missing Expo token (there's no clean way to prompt without corrupting
+the JSON on stdout) — pass `--expo-token`/set `EXPO_TOKEN` up front, or it fails fast
+with a clear error instead of hanging.
 
 Every successful build lands in `<project>/ebl_builds/v<app-version>-build<n>/` — `n`
 is a simple counter local to that project (see `ebl_builds/.build-counter`), so
