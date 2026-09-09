@@ -44,6 +44,12 @@ jobs:
         with:
           path: expo-builder-local
 
+      # GitHub's runner image pre-registers a google-chrome.list apt source we never
+      # use here - when Google's own mirror has a transient hash-sum mismatch (real,
+      # observed failure - not caused by anything in this repo), a plain `apt-get
+      # update` fails outright even though every package we actually want is fine.
+      # Drop it first so this doesn't depend on a third party's mirror being healthy.
+      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev
 
       # -DEBL_BUILD_TESTS=ON also builds tests/ (ebl_tests) - off by default so a

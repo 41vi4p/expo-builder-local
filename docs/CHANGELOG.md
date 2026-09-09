@@ -3,6 +3,40 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.24.1 - CI fixed (unrelated flaky apt mirror), --status memory now shows GB
+
+**Date:** 2026-09-09
+**Type:** Fix
+
+- **CI was failing on both `ci.yml`'s `linux-cli-build` job and
+  `release.yml`'s "Assemble APT repository tree" step** - `sudo apt-get
+  update` was failing outright (`E: Failed to fetch
+  https://dl.google.com/linux/chrome-stable/... Hash Sum mismatch`), even
+  though neither step installs anything Chrome-related. Root cause: GitHub's
+  `ubuntu-latest` runner image pre-registers a `google-chrome.list` apt
+  source (for whoever's workflow needs headless Chrome), and Google's own
+  mirror had a transient hash-sum mismatch - `apt-get update` fails on *any*
+  configured source erroring, not just the ones a given `apt-get install`
+  actually needs. Not caused by anything in this repo, and not something a
+  retry reliably fixes either (the mirror could stay broken for a while).
+  Fixed by removing that one unused source list (`sudo rm -f
+  /etc/apt/sources.list.d/google-chrome.list`) before `apt-get update` in
+  both places - `release.yml`'s other `apt-get update` (inside the
+  `ubuntu:24.04` container that builds the `.deb`) doesn't need this, since a
+  fresh container image never has that file to begin with.
+- **`ebl build --status`'s memory line now auto-scales to GB** above 1024MB
+  (`state.memUsedMb`/`memLimitMb` each independently, so e.g. `512MB /
+  8.00GB` is shown rather than forcing both to the same unit) - a build
+  container's memory limit is routinely several GB, and `4096MB` read worse
+  than `4.00GB`. Same MB→GB threshold `build.cpp`'s own `formatBytes()`
+  already uses for KB→MB.
+
+**Files modified:** `.github/workflows/ci.yml`, `.github/workflows/release.yml`,
+`cli/src/build_status_view.cpp`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.24.0 - `ebl build --status`: a live TUI dashboard during the build
 
 **Date:** 2026-09-09

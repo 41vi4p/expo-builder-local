@@ -57,6 +57,19 @@ std::string truncate(const std::string& s, size_t maxLen) {
   return s.size() > maxLen ? s.substr(0, maxLen) + "..." : s;
 }
 
+// Auto-scales to GB above 1024MB (a build container's memory limit is routinely
+// several GB, and "4096MB" reads worse than "4.00GB") - same MB/GB-style threshold
+// build.cpp's own formatBytes() already uses for KB vs. MB.
+std::string formatMemory(double mb) {
+  char buf[32];
+  if (mb >= 1024.0) {
+    std::snprintf(buf, sizeof(buf), "%.2fGB", mb / 1024.0);
+  } else {
+    std::snprintf(buf, sizeof(buf), "%.0fMB", mb);
+  }
+  return buf;
+}
+
 }  // namespace
 
 BuildStatusView::BuildStatusView(std::string appLabel) : appLabel_(std::move(appLabel)) {}
@@ -77,9 +90,10 @@ void BuildStatusView::render(const BuildStatusState& state) {
       << renderSparkline(state.cpuHistory, kSparklineWidth) << "\n";
 
   double memPercent = state.memLimitMb > 0 ? (state.memUsedMb / state.memLimitMb) * 100.0 : 0.0;
-  char memBuf[64];
-  std::snprintf(memBuf, sizeof(memBuf), "%.0fMB / %.0fMB (%.1f%%)", state.memUsedMb, state.memLimitMb, memPercent);
-  out << "  " << ebl::color::dim("Memory  ") << "  " << memBuf << "  "
+  char memPctBuf[16];
+  std::snprintf(memPctBuf, sizeof(memPctBuf), "%.1f%%", memPercent);
+  out << "  " << ebl::color::dim("Memory  ") << "  " << formatMemory(state.memUsedMb) << " / "
+      << formatMemory(state.memLimitMb) << " (" << memPctBuf << ")  "
       << renderSparkline(state.memPercentHistory, kSparklineWidth) << "\n";
 
   if (!state.recentLogLines.empty()) {
