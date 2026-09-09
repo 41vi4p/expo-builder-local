@@ -1,14 +1,14 @@
 Package: ebl
-Version: 0.19.2
+Version: 0.23.0
 Architecture: amd64
 Maintainer: expo-builder-local maintainers <noreply@example.com>
-Installed-Size: 654
+Installed-Size: 688
 Depends: libc6 (>= 2.38), libcurl4t64 (>= 7.16.2), libgcc-s1 (>= 3.0), libssl3t64 (>= 3.0.0), libstdc++6 (>= 13.1)
-Filename: pool/main/e/ebl/ebl_0.19.2_amd64.deb
-Size: 248750
-MD5sum: 7de0c6586bce3e1525d6e4e82631b658
-SHA1: 670a42fb6bdea77a6c591953418355fc42239878
-SHA256: 77433a78eb45facf4db9d8f74622b3530955c8618440eb423e4f04e114635dcd
+Filename: pool/main/e/ebl/ebl_0.23.0_amd64.deb
+Size: 263118
+MD5sum: 781107c3843f7af8db980be2fd02f2fe
+SHA1: 4ca14d7cc88f4f4125a6b62882fa850aa85926ac
+SHA256: 534fbb5cff995d424eeec08fda99f1a487722a3b938a05abbb782036860ce94a
 Section: devel
 Priority: optional
 Homepage: https://github.com/41vi4p/expo-builder-local
