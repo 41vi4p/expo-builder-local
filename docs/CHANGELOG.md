@@ -3,6 +3,31 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.17.1 - Installer crash fixed (UninstallSilent called during Setup)
+
+**Date:** 2026-09-09
+**Type:** Fix
+
+- **Installer crash confirmed on real hardware:** `ebl.iss` (v0.17.0) decided
+  the new checkbox uninstaller's `-Quiet` flag via a `{code:GetUninstallArgs}`
+  callback referenced from a declarative `[UninstallRun]` entry, calling
+  `UninstallSilent()` inside it - this threw `Internal error: Cannot call
+  "UninstallSilent" function during Setup` while *installing* ("Saving
+  uninstall information..."), not uninstalling. Root cause: a `{code:...}`
+  callback used in `[UninstallRun]`'s `Parameters` is evaluated by Setup at
+  install time, to bake a fixed command line into the uninstall log for the
+  standalone uninstaller to run later - `UninstallSilent()` only means
+  anything during a real uninstall run, so it can never be called from there.
+  Fixed by dropping `[UninstallRun]` entirely and moving the `-Quiet`/dialog
+  decision into a `CurUninstallStepChanged` procedure (`usUninstall` step)
+  that calls `Exec()` directly, the same pattern already used for the install
+  side's `CurStepChanged` - this runs as part of the uninstaller's own
+  execution, where `UninstallSilent()` is valid.
+
+**Files modified:** `windows/installer/ebl.iss`, `../CLAUDE.md`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`cli/CMakeLists.txt`, `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
 ## v0.17.0 - Checkbox uninstaller, JDK 21, stale Node pin fixed
 
 **Date:** 2026-09-09

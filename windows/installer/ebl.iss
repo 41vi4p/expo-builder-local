@@ -27,7 +27,7 @@
 ; job for the `cmake --install` step that produces them).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.17.0"
+#define MyAppVersion "0.17.1"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"
@@ -79,18 +79,6 @@ Source: "..\..\cli\build\install\share\*"; DestDir: "{app}\share"; Flags: ignore
 Source: "..\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
-[UninstallRun]
-; A normal (non-silent) GUI uninstall gets the checkbox dialog uninstall.ps1 shows
-; for its optional leftovers (native toolchain, saved settings) - GetUninstallArgs
-; below only appends -Quiet (skip the dialog, keep every optional leftover) for a
-; silent/unattended uninstall (/VERYSILENT etc., checked via UninstallSilent()). The
-; console window itself is still hidden either way (runhidden + -WindowStyle Hidden)
-; - a WinForms dialog shows fine from a hidden host process, so the user sees just
-; the checkbox picker, not a console flashing behind it.
-Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\uninstall.ps1""{code:GetUninstallArgs}"; \
-    Flags: waituntilterminated runhidden
-
 [Code]
 var
   ModePage: TInputOptionWizardPage;
@@ -121,19 +109,6 @@ end;
 function GetInstallModeArg(Param: String): String;
 begin
   Result := '-Mode ' + SelectedModeName();
-end;
-
-// [UninstallRun]'s {code:GetUninstallArgs} - appends -Quiet only for a silent
-// uninstall (UninstallSilent covers /VERYSILENT and /SILENT), so uninstall.ps1's
-// checkbox dialog only shows for a normal, user-driven uninstall - a silent one has
-// no one to show a dialog to, and must behave exactly like it always did (remove
-// the install dir + PATH entry only, touch nothing optional).
-function GetUninstallArgs(Param: String): String;
-begin
-  if UninstallSilent() then
-    Result := ' -Quiet'
-  else
-    Result := '';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -173,5 +148,38 @@ begin
             'Finish it yourself later by running: ebl setup --runtime ' + modeLower,
           mbInformation, MB_OK, IDOK);
     end;
+  end;
+end;
+
+// Replaces a declarative [UninstallRun] entry. A {code:...} callback referenced
+// from [UninstallRun]'s Parameters is evaluated by Setup at INSTALL time (to bake a
+// fixed, static command line into the uninstall log for the standalone uninstaller
+// to run later) - not by the uninstaller itself at uninstall time. UninstallSilent()
+// only means anything during a real uninstall run, so calling it from a {code:}
+// callback that way fails with "Internal error: Cannot call 'UninstallSilent'
+// function during Setup" (confirmed - a real install hit exactly this while saving
+// uninstall information). CurUninstallStepChanged runs as part of the actual
+// uninstaller's own execution instead, where UninstallSilent() is valid.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  args: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // -Quiet (skip the checkbox dialog, keep every optional leftover untouched)
+    // only for a genuinely silent/unattended uninstall (/VERYSILENT, /SILENT) -
+    // there's no one to show a dialog to in that case. The console window stays
+    // hidden either way (-WindowStyle Hidden); a WinForms dialog still displays
+    // fine from a hidden host process, so a normal uninstall shows just the
+    // checkbox picker, not a console flashing behind it.
+    if UninstallSilent() then
+      args := ' -Quiet'
+    else
+      args := '';
+    Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + ExpandConstant('{app}') +
+        '\uninstall.ps1"' + args,
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 end;

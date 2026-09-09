@@ -97,17 +97,25 @@ expo-builder-local/
     │                         mode only; downloads+extracts the ebl.exe release archive,
     │                         puts ebl.exe's bin/ dir on PATH, then runs
     │                         `ebl setup --runtime <Mode>` either way)
-    ├── uninstall.ps1       (always removes the install dir + PATH entry; interactively
-    │                         offers to also remove the native toolchain
-    │                         (%LOCALAPPDATA%\ebl\toolchain\...) and/or saved config
-    │                         (%APPDATA%\ebl) - skipped entirely with -Quiet, which is
-    │                         what the GUI uninstaller's hidden [UninstallRun] passes)
+    ├── uninstall.ps1       (always removes the install dir + PATH entry; shows a
+    │                         WinForms checkbox dialog for everything optional it
+    │                         finds (native toolchain components ebl itself
+    │                         downloaded under %LOCALAPPDATA%\ebl\toolchain\..., and
+    │                         saved config/Expo token at %APPDATA%\ebl) - skipped
+    │                         entirely with -Quiet, which only a silent/unattended
+    │                         uninstall passes)
     └── installer/
         └── ebl.iss         (Inno Setup script → ebl-setup.exe; bundles the same
                               `cmake --install`ed bin/+share/ tree plus the two .ps1
                               files above; its [Code] section adds a wizard page
                               choosing Native vs Docker, threaded into install.ps1
-                              via -Mode - see GetInstallModeArg)
+                              via -Mode - see GetInstallModeArg. Both install and
+                              uninstall run their .ps1 via Exec() from
+                              CurStepChanged/CurUninstallStepChanged rather than a
+                              declarative [Run]/[UninstallRun] entry - the latter
+                              can't have its Parameters call UninstallSilent(),
+                              since {code:...} there is evaluated by Setup at
+                              install time, not by the uninstaller later)
 ```
 
 ## 🖥️ CLI package (`cli/`)
