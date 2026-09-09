@@ -1,9 +1,68 @@
-# expo-builder-local — Changelog
+# expo-builder-local - Changelog
 
-Version history for the orchestrator + GUI (versioned together — see
+Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
-## v0.15.0 — `ebl update`, and a fix for eas-cli getting stuck stale
+## v0.16.0 - GitHub Releases now get real release notes, not just a changelog link
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **Release notes are now generated from `docs/CHANGELOG.md`, not
+  `--generate-notes`.** Every tagged release previously got GitHub's
+  auto-generated notes - a commit/PR list with no explanation of *why*
+  anything changed - leaving the actual explanation only reachable via a link
+  to the changelog. `release.yml`'s "Create GitHub Release" step now extracts
+  that tag's own `## v<version> - ...` section straight out of
+  `docs/CHANGELOG.md` (via `awk`, stopping at the next `## ` heading) and uses
+  it as the release body directly (`--notes-file`, not `--generate-notes`),
+  falling back to `gh api .../releases/generate-notes` only if a tag somehow
+  has no matching section. A "Full Changelog" compare link against the
+  previous tag (the one genuinely useful thing `--generate-notes` provided) is
+  still appended by hand, computed from `git tag --sort=-v:refname`. Requires
+  `actions/checkout`'s `fetch-depth: 0` (was the default shallow clone) so the
+  full tag history is actually available to sort.
+
+**Files modified:** `.github/workflows/release.yml`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `cli/CMakeLists.txt`, `windows/installer/ebl.iss`,
+`packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
+## v0.15.1 - Tried a native (non-Docker) Windows build engine - abandoned
+
+**Date:** 2026-09-09
+**Type:** Refactor
+
+- **Tried, and scrapped: a native Windows build engine.** To avoid Docker
+  Desktop/WSL2 friction on Windows (licensing, install size, WSL2 memory
+  tuning, the Engine API crashing under memory pressure during a heavy native
+  compile), we built a second build engine that installed the Android SDK/
+  JDK/Node directly on the Windows host and ran builds as real host processes
+  - no container at all. This included a full Win32 toolchain provisioner
+  (JDK/Android SDK/Node detection+download), a Job-Object-based process
+  runner with wall-clock and idle-CPU timeouts, a native reimplementation of
+  `build-entrypoint.sh`'s phases, an installer wizard page to choose Native vs
+  Docker, and a checkbox-based uninstaller for the native toolchain.
+- **Why it was abandoned:** real Windows hardware testing (after several
+  rounds of fixing genuine bugs - a `.bat`-launch limitation in
+  `CreateProcess`, an unanswerable license prompt caused by `System.console()`
+  bypassing piped stdin, a directory-rename collision, console codepage
+  mojibake, a stale cached Node version) surfaced a fundamental, unfixable
+  blocker: `eas build --local` refuses to run on any platform except macOS or
+  Linux, even when building for Android - a hard-coded eas-cli restriction,
+  not something native mode was in a position to work around. Since `eas
+  build --local` is one of this tool's two build engines (the other being
+  direct Gradle), a Windows-native engine that can never support one of them
+  isn't the reliable, friction-free alternative to Docker it was meant to be.
+- **Decision:** revert entirely rather than ship a build engine with a known,
+  unfixable gap. Effort on Windows now goes into improving the existing
+  Docker + WSL2 path instead (the `install.ps1`/`uninstall.ps1`/`ebl.iss`
+  packaging and the WSL2 memory/swap auto-tuning already in place here, from
+  v0.13.0-v0.15.0, are unaffected and remain the one supported Windows path).
+  No code changes in this entry beyond this changelog note - the native-engine
+  commits were reverted rather than patched, so there is nothing left in the
+  tree describing what to keep in sync going forward.
+
+## v0.15.0 - `ebl update`, and a fix for eas-cli getting stuck stale
 
 **Date:** 2026-09-08
 **Type:** Feature / Fix

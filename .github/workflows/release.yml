@@ -35,6 +35,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: expo-builder-local
+          # Full history (including all tags), not just the tagged commit - needed
+          # below to find the previous tag for the release's "Full Changelog"
+          # compare link.
+          fetch-depth: 0
 
       - name: Verify public key is committed
         run: |
@@ -129,6 +133,40 @@ jobs:
       - name: Checksums
         run: sha256sum build/packages/deb/*.deb ebl-*-linux-amd64.tar.gz > SHA256SUMS.txt
 
+      - name: Extract this version's docs/CHANGELOG.md section for the release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -e
+          # Pull out the "## v<this tag> - ..." section verbatim, stopping at the
+          # next "## " heading - this is the actual human-written summary of what
+          # changed, not GitHub's auto-generated PR/commit list (--generate-notes),
+          # which is noisy and doesn't explain *why* anything changed.
+          awk -v want="## ${GITHUB_REF_NAME} " '
+            index($0, want) == 1 { printing = 1 }
+            printing && /^## / && index($0, want) != 1 { exit }
+            printing { print }
+          ' docs/CHANGELOG.md > /tmp/release-notes.md
+
+          # Fall back to GitHub's auto-generated notes if this tag has no matching
+          # changelog section (shouldn't normally happen - every release should get
+          # one - but better than an empty release body).
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "::warning::No docs/CHANGELOG.md section found for ${GITHUB_REF_NAME} - falling back to auto-generated notes."
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${GITHUB_REF_NAME}" --jq .body > /tmp/release-notes.md
+          fi
+
+          # Append a "Full Changelog" compare link against the previous tag, the one
+          # useful thing --generate-notes provided that a hand-written changelog
+          # section doesn't - computed by hand since we're not using that flag.
+          PREV_TAG="$(git tag --sort=-v:refname | grep -A1 -x "${GITHUB_REF_NAME}" | tail -n1)"
+          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "${GITHUB_REF_NAME}" ]; then
+            echo "" >> /tmp/release-notes.md
+            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${GITHUB_REF_NAME}" >> /tmp/release-notes.md
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Create GitHub Release (direct-download fallback)
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -136,7 +174,7 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --title "ebl ${GITHUB_REF_NAME}" \
-            --generate-notes \
+            --notes-file /tmp/release-notes.md \
             build/packages/deb/*.deb \
             ebl-*-linux-amd64.tar.gz \
             SHA256SUMS.txt
