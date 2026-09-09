@@ -3,6 +3,40 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.16.1 - install.ps1 offers to install Docker Desktop for you
+
+**Date:** 2026-09-09
+**Type:** Enhancement
+
+- **`install.ps1` now offers to download and launch the official Docker
+  Desktop installer** when it isn't found, instead of only printing a link
+  and exiting. This is deliberately not a silent/scripted install - Docker
+  Desktop needs admin rights and has its own license terms (free for
+  personal/small business/education use, paid for larger orgs), so this
+  script downloads the real installer from `desktop.docker.com` and hands
+  control to its own GUI (`Start-Process -Wait`) rather than driving it with
+  install flags. Declining, or the download/launch failing, falls back to the
+  previous behavior (print the manual-install link, exit 1). New
+  `-SkipDockerInstallPrompt` flag skips straight to that fallback message
+  without prompting, for anyone who wants the old exactly-this-and-nothing-more
+  behavior.
+- **Also fixed a real bug that predates the native-engine detour and was
+  never actually shipped fixed:** the GUI installer's `[Run]` step calls
+  `install.ps1 -LocalInstallDir "{app}"`, and `$LocalInstallDir` is always
+  identical to `$InstallDir` in that path - `Copy-Item -Path
+  "$LocalInstallDir\bin" -Destination $InstallDir` was therefore copying a
+  folder onto its own location, which throws under `$ErrorActionPreference =
+  "Stop"` and silently killed the script before the PATH update ever ran,
+  while Inno Setup's wizard still reported "Installed successfully" (Exec()
+  wasn't used to check the exit code at the time this was written). Fixed by
+  comparing the two paths first and skipping the copy entirely when they
+  match - the GUI installer's own `[Files]` section already put everything
+  there.
+
+**Files modified:** `windows/install.ps1`, `windows/installer/ebl.iss`,
+`README.md`, `orchestrator/package.json`, `expo-builder-gui/package.json`,
+`cli/CMakeLists.txt`, `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
 ## v0.16.0 - GitHub Releases now get real release notes, not just a changelog link
 
 **Date:** 2026-09-09

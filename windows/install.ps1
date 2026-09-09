@@ -11,10 +11,11 @@
     installed and running.
 
     This script:
-      0. Checks that Docker Desktop is installed. It does NOT install Docker Desktop
-         itself (a much heavier installer with its own license/reboot
-         considerations) - Docker Desktop is a hard prerequisite you install
-         yourself first, from https://www.docker.com/products/docker-desktop/.
+      0. Checks that Docker Desktop is installed. If it isn't, offers to download the
+         official Docker Desktop installer and launch it for you - its own GUI, its
+         own license terms, no flags of ours involved. This script never silently
+         installs or configures Docker Desktop itself; it just gets the real
+         installer running so you don't have to go find the URL yourself.
       1. If Docker Desktop's WSL2 backend is present, tunes its memory/swap limits
          in %UserProfile%\.wslconfig from the host's actual installed RAM (see
          PARAMETER SkipWslConfig below) - ebl.exe itself talks to Docker Desktop
@@ -39,6 +40,11 @@
     Skip the Docker Desktop presence check (e.g. if it's installed somewhere this
     script's detection doesn't recognize).
 
+.PARAMETER SkipDockerInstallPrompt
+    If Docker Desktop isn't found, print the manual-install message and exit instead
+    of offering to download+launch its installer. Has no effect if -SkipDockerCheck
+    is also set (the check itself is skipped entirely then).
+
 .PARAMETER SkipWslConfig
     Skip WSL2 memory/swap auto-tuning entirely - leave %UserProfile%\.wslconfig
     (if any) untouched.
@@ -57,6 +63,7 @@
 
 param(
     [switch]$SkipDockerCheck,
+    [switch]$SkipDockerInstallPrompt,
     [switch]$SkipWslConfig,
     [switch]$ForceWslConfig,
     [string]$LocalInstallDir
@@ -89,15 +96,50 @@ if (-not $SkipDockerCheck) {
             Where-Object { $_.DisplayName -like "Docker Desktop*" } |
             Select-Object -First 1
     }
-    if (-not $dockerDesktopFound) {
+    if (-not $dockerDesktopFound -and -not $SkipDockerInstallPrompt) {
+        Write-Warn "Docker Desktop doesn't look installed."
+        $answer = Read-Host "Download and launch the official Docker Desktop installer now? Its own installer window will open with its own license terms - this script doesn't install or configure it for you, just gets it running. [Y/n]"
+        if ($answer -eq "" -or $answer -match '^[Yy]') {
+            $dockerInstallerUrl = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+            $dockerInstallerPath = Join-Path ([System.IO.Path]::GetTempPath()) "Docker Desktop Installer.exe"
+            try {
+                Write-Step "Downloading the official Docker Desktop installer (several hundred MB - this can take a while)..."
+                Invoke-WebRequest -Uri $dockerInstallerUrl -OutFile $dockerInstallerPath -UseBasicParsing
+                Write-Step "Launching the Docker Desktop installer - it may prompt for admin rights (its own UAC prompt, not this script's) and ask you to restart when it's done."
+                Start-Process -FilePath $dockerInstallerPath -Wait
+            } catch {
+                Write-Warn "Could not download/launch the Docker Desktop installer ($($_.Exception.Message))."
+                Write-Warn "Install it yourself from https://www.docker.com/products/docker-desktop/ and re-run this script."
+                exit 1
+            } finally {
+                Remove-Item $dockerInstallerPath -ErrorAction SilentlyContinue
+            }
+
+            # Re-check rather than assume - the user may have cancelled the wizard,
+            # or it may still need the restart it just asked for before it's fully
+            # registered (Docker Desktop's own installer handles that prompt itself,
+            # not this script).
+            $dockerDesktopFound = Test-Path $dockerDesktopExe
+            if (-not $dockerDesktopFound) {
+                Write-Warn "Docker Desktop still isn't detected - if its installer asked you to restart, do that first,"
+                Write-Warn "then re-run this script (or just 'ebl setup') to finish installing ebl."
+                exit 1
+            }
+            Write-Host "   Docker Desktop installed. If it asked you to restart, do that before running 'ebl setup'."
+        } else {
+            Write-Warn "Skipped. Install it yourself from https://www.docker.com/products/docker-desktop/ and re-run this script."
+            exit 1
+        }
+    } elseif (-not $dockerDesktopFound) {
         Write-Warn "Docker Desktop doesn't look installed."
         Write-Warn "ebl needs it (installed and running) - install it first:"
         Write-Warn "  https://www.docker.com/products/docker-desktop/"
         Write-Warn "Then re-run this script. Already have it somewhere this check doesn't"
         Write-Warn "recognize? Re-run with -SkipDockerCheck."
         exit 1
+    } else {
+        Write-Host "   Found."
     }
-    Write-Host "   Found."
 }
 
 # --- 1. WSL2 memory/swap ---------------------------------------------------------
@@ -199,7 +241,16 @@ if (-not $SkipWslConfig -and (Get-Command wsl.exe -ErrorAction SilentlyContinue)
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
-if ($LocalInstallDir) {
+if ($LocalInstallDir -and ([System.IO.Path]::GetFullPath($LocalInstallDir).TrimEnd('\') -ieq [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\'))) {
+    # The Inno Setup GUI installer's [Files] section already put bin\/share\ exactly
+    # here (LocalInstallDir is always {app}, i.e. this same $InstallDir) - copying
+    # "$InstallDir\bin" onto "$InstallDir" would be copying a folder onto its own
+    # location, which throws under $ErrorActionPreference = "Stop" and silently
+    # aborted the whole script here (confirmed on real hardware: the GUI installer's
+    # wizard reported "Installed successfully" while this had actually failed before
+    # ever reaching the PATH update below). Nothing to copy - just skip straight past.
+    Write-Step "Files already in place at $InstallDir (Inno Setup's own [Files] section put them there)."
+} elseif ($LocalInstallDir) {
     Write-Step "Installing ebl from $LocalInstallDir..."
     Copy-Item -Path (Join-Path $LocalInstallDir "bin") -Destination $InstallDir -Recurse -Force
     Copy-Item -Path (Join-Path $LocalInstallDir "share") -Destination $InstallDir -Recurse -Force

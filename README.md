@@ -121,17 +121,18 @@ and that's what actually runs your builds. See [`windows/`](./windows) and
    ```
    then **restart your computer** (required for it to take effect).
 2. **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — install
-   and start it.
-3. **Run the installer** (below). Neither installer installs WSL2 or Docker Desktop
-   for you — both need their own reboot/license handling — but both check for each
-   up front and tell you exactly what's missing and how to fix it (the `wsl --install`
-   command above, or a direct Docker Desktop download link) rather than failing
-   partway through.
+   and start it, or just let the installer below offer to do this step for you.
+3. **Run the installer** (below). Neither installer installs WSL2 for you — it needs
+   its own reboot handling — but both check for it up front and tell you exactly
+   what's missing (the `wsl --install` command above). If Docker Desktop isn't
+   found, the installer offers to download the official Docker Desktop installer
+   and launch it for you (its own GUI, its own license terms — this project never
+   silently installs or configures it on your behalf).
 
-**One-line installer** (PowerShell) — checks for WSL2 and Docker Desktop, sizes
-WSL2's memory/swap limits from your actual installed RAM (see the requirements note
-above — this is what makes that automatic on Windows), downloads and installs
-`ebl.exe`, and puts it on your PATH:
+**One-line installer** (PowerShell) — checks for WSL2, offers to install Docker
+Desktop if it's missing, sizes WSL2's memory/swap limits from your actual installed
+RAM (see the requirements note above — this is what makes that automatic on
+Windows), downloads and installs `ebl.exe`, and puts it on your PATH:
 
 ```powershell
 irm https://raw.githubusercontent.com/41vi4p/expo-builder-local/main/windows/install.ps1 | iex
