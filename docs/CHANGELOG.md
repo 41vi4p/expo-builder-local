@@ -3,6 +3,39 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.19.0 - `ebl --version` now shows build/host info, not just a bare number
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **`ebl -v`/`--version` now prints a short description, build metadata, and
+  host info**, not just `ebl <version>`:
+  ```
+  ebl 0.19.0 - build managed Expo (SDK 56+) projects into signed Android APK/AABs, in a disposable Docker container
+
+  Built:    Sep  9 2026 17:23:00 (GCC 13.3.0)
+  Platform: Linux x86_64
+  Host:     Ubuntu 24.04.4 LTS (kernel 7.0.0-31-generic)
+  ```
+  `Built`/`Platform` are compile-time (`__DATE__`/`__TIME__`, compiler
+  identification via `__clang_version__`/`_MSC_VER`/`__VERSION__`, architecture
+  via the usual `__x86_64__`/`_M_X64`-style macros). `Host` is a new
+  `ebl::hostOsVersion()` (new `src/host_info.{hpp,cpp}`, compiled on every
+  platform via internal `#ifdef _WIN32` - not split into `_win`/`_unix` files,
+  same pattern as `metrics.cpp`) - a **runtime** read of the actual OS this
+  binary is running on right now, distinct from `Platform`: on Windows, reads
+  `ProductName`/`DisplayVersion`/`CurrentBuildNumber`/`UBR` straight out of
+  `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion` (the standard workaround
+  for `GetVersionEx()`/`VerifyVersionInfo()` lying to any process without an
+  explicit Windows 10/11 manifest entry); on Linux, `/etc/os-release`'s
+  `PRETTY_NAME` plus `uname()`'s kernel release; on macOS (no `/etc/os-release`),
+  falls back to plain `uname()` output.
+
+**Files modified:** `cli/src/host_info.{hpp,cpp}` (new), `cli/src/main.cpp`,
+`cli/CMakeLists.txt`, `../CLAUDE.md`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `windows/installer/ebl.iss`,
+`packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
 ## v0.18.0 - install.ps1 offers to install Docker Desktop for you
 
 **Date:** 2026-09-09

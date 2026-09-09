@@ -26,6 +26,7 @@
 #include "commands/setup.hpp"
 #include "commands/start.hpp"
 #include "commands/update.hpp"
+#include "host_info.hpp"
 
 namespace {
 
@@ -50,6 +51,42 @@ void enableAnsiOnWindowsConsole() {
 #endif
 constexpr const char* kVersion = EXPO_BUILDER_CLI_VERSION;
 
+std::string compilerString() {
+#if defined(__clang__)
+  return std::string("Clang ") + __clang_version__;
+#elif defined(_MSC_VER)
+  return "MSVC " + std::to_string(_MSC_VER / 100) + "." + std::to_string(_MSC_VER % 100);
+#elif defined(__GNUC__)
+  return std::string("GCC ") + __VERSION__;
+#else
+  return "unknown compiler";
+#endif
+}
+
+std::string archString() {
+#if defined(__aarch64__) || defined(_M_ARM64)
+  return "arm64";
+#elif defined(__x86_64__) || defined(_M_X64)
+  return "x86_64";
+#elif defined(__i386__) || defined(_M_IX86)
+  return "x86";
+#else
+  return "unknown arch";
+#endif
+}
+
+std::string platformString() {
+#ifdef _WIN32
+  return "Windows";
+#elif defined(__APPLE__)
+  return "macOS";
+#elif defined(__linux__)
+  return "Linux";
+#else
+  return "Unknown";
+#endif
+}
+
 void printTopLevelUsage() {
   std::cout << R"(ebl <command> [options]
 
@@ -72,6 +109,15 @@ common starting point if you just want a build right now.
   -v, --version   Show version
       --about     Show project/developer/license/repository info
 )";
+}
+
+void printVersion() {
+  std::cout << "ebl " << kVersion
+            << " - build managed Expo (SDK 56+) projects into signed Android APK/AABs, "
+               "in a disposable Docker container\n\n";
+  std::cout << "Built:    " << __DATE__ << " " << __TIME__ << " (" << compilerString() << ")\n";
+  std::cout << "Platform: " << platformString() << " " << archString() << "\n";
+  std::cout << "Host:     " << ebl::hostOsVersion() << "\n";
 }
 
 void printAbout() {
@@ -105,7 +151,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (command == "-v" || command == "--version") {
-    std::cout << "ebl " << kVersion << "\n";
+    printVersion();
     return 0;
   }
   if (command == "--about" || command == "about") {

@@ -79,7 +79,7 @@ expo-builder-local/
 │       ├── http_client_common.cpp      (httpGetTcp/urlEncode — plain TCP, shared by both)
 │       ├── winpath.*                   (Windows-only path→Docker-bind-mount translation,
 │       │                                 e.g. "D:\App" → "//d/App"; identity elsewhere)
-│       └── {docker_client,json,tar_writer,detect,metrics,runner_context,color}.{hpp,cpp}
+│       └── {docker_client,json,tar_writer,detect,metrics,host_info,runner_context,color}.{hpp,cpp}
 └── windows/               ← Windows-specific packaging only — ebl.exe itself is just
                               `cli/` built for Windows (see above), not a separate binary
     ├── install.ps1         (one-line installer: Docker Desktop presence check,
