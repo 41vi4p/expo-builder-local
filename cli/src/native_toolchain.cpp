@@ -35,13 +35,21 @@ constexpr const char* kNdkVersion = "27.1.12297006";
 constexpr const char* kCmakeVersion = "3.22.1";
 
 // Node LTS is a rolling target in docker/runner/Dockerfile (NodeSource's
-// "setup_lts.x" always resolves to whatever's current). A native install has to
-// pin something concrete instead - this is a best-effort snapshot of a recent
-// Node 22.x LTS point release (matching CLAUDE.md's "Node 22 LTS" baseline) and
-// should be bumped by hand periodically; it is not auto-resolved against
-// nodejs.org's "latest-lts" listing to avoid the added fragility of parsing a
-// directory index for a first version of this provisioner.
-constexpr const char* kNodeVersion = "22.11.0";
+// "setup_lts.x" always resolves to whatever's current LTS is at build time - as of
+// this comment that's Node 24 "Krypton", which is why this constant tracks 24.x
+// too, not because 24 is hardcoded as a requirement anywhere). A native install has
+// to pin something concrete instead - this is a best-effort snapshot of a recent
+// point release and should be bumped by hand periodically; it is not auto-resolved
+// against nodejs.org's "latest-lts" listing to avoid the added fragility of parsing
+// a directory index for a first version of this provisioner. Staying stale is a
+// genuine, confirmed problem, not just theoretical: an earlier 22.11.0 pin here
+// already failed React Native 0.86.3/Metro 0.84.5's own package.json engines
+// checks (`npm warn EBADENGINE` - "required": "^22.13.0" among others) on a real
+// install. Re-check this against current RN/Metro/Expo SDK engines requirements
+// whenever bumping it, not just against nodejs.org's own latest LTS - and keep it
+// in the same major line the Dockerfile's rolling channel would currently resolve
+// to, so native and Docker mode don't drift onto different Node majors.
+constexpr const char* kNodeVersion = "24.20.0";
 
 std::string toolchainRoot() {
   const char* localAppData = std::getenv("LOCALAPPDATA");
@@ -223,7 +231,7 @@ void extractZip(const std::string& zipPath, const std::string& destDir,
 
 // --- JDK ---------------------------------------------------------------------
 
-std::string detectExistingJdk17() {
+std::string detectExistingJdk21() {
   std::string javaHome = getEnvVar("JAVA_HOME");
   if (!javaHome.empty() && fs::exists(fs::path(javaHome) / "bin" / "javac.exe")) {
     // Best-effort version check only - if javac exists under JAVA_HOME at all,
@@ -241,23 +249,23 @@ std::string ensureJdk(NativeToolchainConfig& toolchain, const std::function<void
     return toolchain.jdkHome;
   }
 
-  if (std::string existing = detectExistingJdk17(); !existing.empty()) {
+  if (std::string existing = detectExistingJdk21(); !existing.empty()) {
     onLog("Found an existing JDK at " + existing + " (JAVA_HOME) - reusing it.\n");
     toolchain.jdkHome = existing;
     toolchain.jdkInstalledByEbl = false;
     return existing;
   }
 
-  onLog("No JDK 17 found - downloading Eclipse Temurin 17 (Adoptium)...\n");
+  onLog("No JDK 21 found - downloading Eclipse Temurin 21 (Adoptium)...\n");
   std::string root = toolchainRoot();
-  std::string zipPath = root + "\\jdk17.zip";
-  std::string extractDir = root + "\\jdk17";
-  downloadFile("https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse", zipPath,
+  std::string zipPath = root + "\\jdk21.zip";
+  std::string extractDir = root + "\\jdk21";
+  downloadFile("https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse", zipPath,
                onLog);
   extractZip(zipPath, extractDir, onLog);
   fs::remove(zipPath);
 
-  // Adoptium's zip contains one top-level "jdk-17.x.x+y" directory.
+  // Adoptium's zip contains one top-level "jdk-21.x.x+y" directory.
   std::string jdkHome;
   for (const auto& entry : fs::directory_iterator(extractDir)) {
     if (entry.is_directory() && fs::exists(entry.path() / "bin" / "javac.exe")) {

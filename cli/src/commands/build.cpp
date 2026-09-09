@@ -445,8 +445,8 @@ int runBuild(int argc, char** argv) {
     }
 
     std::cout << "\n"
-              << ebl::color::bold("Building " + ebl::color::cyan(appPath.string())) << " "
-              << ebl::color::dim("(native - UNVERIFIED ON REAL WINDOWS HARDWARE)") << "\n";
+              << ebl::color::bold("Building " + ebl::color::cyan(appPath.string())) << " " << ebl::color::dim("(native)")
+              << "\n";
     std::cout << ebl::color::dim("  profile=" + profile + " artifact=" + artifact + " engine=" + opts.engine +
                                   " signing=" + params.signingMode)
               << "\n\n";

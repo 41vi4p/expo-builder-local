@@ -27,7 +27,7 @@
 ; job for the `cmake --install` step that produces them).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.16.3"
+#define MyAppVersion "0.17.0"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"
@@ -80,12 +80,15 @@ Source: "..\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallRun]
-; -Quiet: this runs hidden (runhidden) with no console attached to prompt on, so it
-; only ever does the always-safe part (remove the install dir + PATH entry) - the
-; interactive native-toolchain/config cleanup prompts only happen when uninstall.ps1
-; is run directly from a terminal instead (see its own header comment).
+; A normal (non-silent) GUI uninstall gets the checkbox dialog uninstall.ps1 shows
+; for its optional leftovers (native toolchain, saved settings) - GetUninstallArgs
+; below only appends -Quiet (skip the dialog, keep every optional leftover) for a
+; silent/unattended uninstall (/VERYSILENT etc., checked via UninstallSilent()). The
+; console window itself is still hidden either way (runhidden + -WindowStyle Hidden)
+; - a WinForms dialog shows fine from a hidden host process, so the user sees just
+; the checkbox picker, not a console flashing behind it.
 Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall.ps1"" -Quiet"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\uninstall.ps1""{code:GetUninstallArgs}"; \
     Flags: waituntilterminated runhidden
 
 [Code]
@@ -99,7 +102,7 @@ begin
     'How should ebl build Android apps on this machine? You can switch later with "ebl setup --runtime <docker|native>".',
     '',
     True, False);
-  ModePage.Add('Native (recommended) - installs the Android SDK, JDK 17, and Node.js directly on this machine (isolated under %LOCALAPPDATA%\ebl, never touching an existing install). No Docker Desktop or WSL2 required. Builds run directly on your system rather than in an isolated container.');
+  ModePage.Add('Native (recommended) - installs the Android SDK, JDK 21, and Node.js directly on this machine (isolated under %LOCALAPPDATA%\ebl, never touching an existing install). No Docker Desktop or WSL2 required. Builds run directly on your system rather than in an isolated container.');
   ModePage.Add('Docker-based - uses Docker Desktop + WSL2 to run builds in a disposable, fully isolated Linux container, the same engine Linux/macOS use. Requires installing Docker Desktop (and WSL2) separately if you don''t already have them, and uses more disk/memory for the container runtime.');
   ModePage.SelectedValueIndex := 0; // Native pre-selected, per ../CLAUDE.md's "defaults to native on Windows"
 end;
@@ -118,6 +121,19 @@ end;
 function GetInstallModeArg(Param: String): String;
 begin
   Result := '-Mode ' + SelectedModeName();
+end;
+
+// [UninstallRun]'s {code:GetUninstallArgs} - appends -Quiet only for a silent
+// uninstall (UninstallSilent covers /VERYSILENT and /SILENT), so uninstall.ps1's
+// checkbox dialog only shows for a normal, user-driven uninstall - a silent one has
+// no one to show a dialog to, and must behave exactly like it always did (remove
+// the install dir + PATH entry only, touch nothing optional).
+function GetUninstallArgs(Param: String): String;
+begin
+  if UninstallSilent() then
+    Result := ' -Quiet'
+  else
+    Result := '';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

@@ -30,7 +30,7 @@ void printUsage() {
 One-time setup. Two runtimes, Windows only - everywhere else this is always
 "docker":
 
-  native  (default on Windows) Installs the Android SDK, JDK 17, and Node.js
+  native  (default on Windows) Installs the Android SDK, JDK 21, and Node.js
           directly on this machine, isolated under %LOCALAPPDATA%\ebl - no Docker
           Desktop or WSL2 required. Detects and reuses an existing JDK/SDK/Node
           install first rather than downloading its own copy where possible.
@@ -122,11 +122,7 @@ int runSetup(int argc, char** argv) {
     return 2;
   }
   if (runtime == "native") {
-    std::cout << ebl::color::bold("Setting up the native build engine (no Docker/WSL2 needed)...") << "\n";
-    std::cout << ebl::color::dim(
-                      "UNVERIFIED ON REAL WINDOWS HARDWARE - see ../CLAUDE.md's native-engine section. Please "
-                      "report anything that doesn't work.")
-              << "\n\n";
+    std::cout << ebl::color::bold("Setting up the native build engine (no Docker/WSL2 needed)...") << "\n\n";
 
     // A native run's only durable record used to be whatever text happened to
     // still be on screen when it failed - gone the moment the console closed, and

@@ -3,6 +3,94 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.17.0 - Checkbox uninstaller, JDK 21, stale Node pin fixed
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **Uninstaller now asks what to remove, with real checkboxes:** the GUI
+  uninstall previously ran fully hidden and silently kept every leftover
+  (native toolchain download, saved config/Expo token) with no way to say
+  otherwise short of running `uninstall.ps1` from a terminal and answering two
+  Y/N prompts. `uninstall.ps1` now shows a WinForms checkbox dialog (built with
+  `System.Windows.Forms`, present in Windows PowerShell 5.1 by default - no new
+  dependency) listing exactly the optional leftovers actually present on this
+  machine (JDK/Android SDK/Node, only the components ebl itself downloaded -
+  anything only detected and reused is never listed; saved settings/Expo
+  token), with "Select all"/"Keep all" buttons for the everything-at-once case.
+  The install dir + PATH entry removal itself stays mandatory (that's what
+  "uninstall" means) and isn't part of the checklist. `ebl.iss`'s
+  `[UninstallRun]` step now runs a normal (non-silent) uninstall with the
+  dialog showing (console window still hidden - a WinForms dialog displays
+  fine from a hidden host process); a genuinely silent uninstall
+  (`/VERYSILENT`, detected via Inno's `UninstallSilent()`) still gets `-Quiet`
+  and keeps every optional leftover untouched, unchanged from before.
+- **JDK bumped 17 to 21:** both engines now provision/detect JDK 21 instead of
+  17 - `docker/runner/Dockerfile` (`openjdk-21-jdk-headless`, `JAVA_HOME`
+  updated to match; Ubuntu 24.04's default repos carry it, no extra PPA/repo
+  needed) and the native toolchain (`native_toolchain.cpp`'s Adoptium Temurin
+  download URL and detection logic, toolchain directory renamed
+  `jdk17` to `jdk21`), keeping native and Docker mode on the same JDK major.
+- **Node version pin was already stale:** `native_toolchain.cpp`'s hardcoded
+  Node version (22.11.0, unchanged since v0.16.0) failed React Native
+  0.86.3/Metro 0.84.5's own `package.json` engines checks (`npm warn EBADENGINE`,
+  requiring `^22.13.0`) on a real install - the first fully successful native
+  build (v0.16.4) still hit this, just as a warning rather than a hard failure.
+  Bumped to the current Node 24 LTS ("Krypton", 24.20.0 as of this entry) -
+  matching where `docker/runner/Dockerfile`'s own rolling `setup_lts.x` channel
+  currently resolves to as well, so native and Docker mode stay on the same Node
+  major instead of silently drifting apart.
+- Repo-wide style pass: every em dash used throughout comments/docs/prose
+  replaced with a plain hyphen, across essentially every source/doc file in this
+  project (~99 files) - a formatting preference, not a functional change.
+  Verified afterward with full rebuilds of the CLI and both Next.js apps, plus
+  shell/YAML syntax checks.
+
+**Files modified:** `windows/uninstall.ps1`, `windows/installer/ebl.iss`,
+`docker/runner/Dockerfile`, `cli/src/native_toolchain.{hpp,cpp}`,
+`cli/src/commands/setup.cpp`, `windows/install.ps1`, `README.md`, `../CLAUDE.md`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`cli/CMakeLists.txt`, `packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`,
+plus a dash-only edit across ~95 other files (not individually listed - see the
+style-pass note above)
+
+## v0.16.4 - First fully successful native-engine run, plus the fixes that got it there
+
+**Date:** 2026-09-09
+**Type:** Fix
+
+- **`rename: Access is denied` moving `cmdline-tools` into place (real crash,
+  confirmed on hardware):** Windows' `MoveFileExW` (what `std::filesystem::rename`
+  uses) refuses to replace an existing directory at the destination -
+  `MOVEFILE_REPLACE_EXISTING` is documented as unsupported for directories, and
+  Windows surfaces that as a bare "Access is denied" with no explanation. Root
+  cause: the config was only ever saved to disk after *all three* toolchain
+  components (JDK, Android SDK, Node) finished, so any failure partway through
+  meant every retry redownloaded and re-extracted everything from scratch -
+  including the Android SDK step that had already succeeded in an earlier run
+  and left `cmdline-tools\latest` sitting there, which this retry's fresh
+  extraction then collided with. Fixed two ways: `provisionNativeToolchain`
+  gained an `onComponentDone` callback that `commands/setup.cpp` uses to save the
+  config right after each component succeeds (so a retry actually skips
+  finished work, per `ensureJdk`/`ensureAndroidSdk`/`ensureNode`'s
+  already-existing "already provisioned" checks, which previously never had a
+  saved config to check against); and the `cmdline-tools` rename itself now
+  clears any stale destination first regardless, as defense in depth.
+- **No persistent record of what a run actually did:** every earlier failure
+  report depended on catching fleeting console text before it scrolled off or
+  the window closed, and the GUI installer's failure dialog only ever said "did
+  not finish successfully" with no reason. `ebl setup --runtime native` now
+  writes everything it prints to `%APPDATA%\ebl\native-setup.log` (overwritten
+  fresh each run), and the installer's failure dialog points at it directly.
+- **Confirmed working end to end on real hardware** after the above - a full
+  native-mode install and build actually completed. Removed the "UNVERIFIED ON
+  REAL WINDOWS HARDWARE" console warnings from `ebl setup`/`ebl build` (they're
+  still noted as recent/still-maturing in `../CLAUDE.md` for maintainers, just
+  not alarming every end user anymore).
+
+**Files modified:** `cli/src/native_toolchain.{hpp,cpp}`,
+`cli/src/commands/setup.cpp`, `cli/src/commands/build.cpp`
+
 ## v0.16.3 - Native engine fixes from real-hardware testing (v0.16.1-v0.16.3)
 
 **Date:** 2026-09-09

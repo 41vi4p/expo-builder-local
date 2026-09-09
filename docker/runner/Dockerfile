@@ -18,16 +18,16 @@ ARG NDK_VERSION=27.1.12297006
 ENV DEBIAN_FRONTEND=noninteractive \
     ANDROID_HOME=/opt/android-sdk \
     ANDROID_SDK_ROOT=/opt/android-sdk \
-    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
     GRADLE_USER_HOME=/cache/gradle \
     NPM_CONFIG_CACHE=/cache/npm
 
-# --- OS deps + JDK 17 -----------------------------------------------------------
+# --- OS deps + JDK 21 -----------------------------------------------------------
 # `apt-get upgrade` patches any CVEs already fixed upstream for packages baked into
 # the ubuntu:24.04 base layer itself, not just the ones we explicitly install below.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       curl ca-certificates unzip zip git openssh-client build-essential \
-      python3 file gosu openjdk-17-jdk-headless procps \
+      python3 file gosu openjdk-21-jdk-headless procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Docker Desktop for Windows' bind-mount layer doesn't map host ownership at all -

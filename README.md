@@ -109,7 +109,7 @@ header for why, and [`docs/RELEASING.md`](./docs/RELEASING.md) for release notes
 **two build engines to choose from** - Docker Desktop/WSL2 was, until now, the only
 option on Windows, and it's the single biggest source of Windows friction (VM
 overhead, WSL2 memory tuning, Docker Desktop's own licensing/install). **Native
-mode is the default**: it installs the Android SDK, JDK 17, and Node.js directly on
+mode is the default**: it installs the Android SDK, JDK 21, and Node.js directly on
 this machine (isolated under `%LOCALAPPDATA%\ebl`, never touching an existing
 install) and runs builds as real processes on your system - no Docker Desktop or
 WSL2 at all.
@@ -247,7 +247,7 @@ locally or learning Gradle.
                  ┌─ ebl build .  (direct, no services needed) ───────────┐
                  │                                                       │
 Browser ──HTTP/WS──▶ web (Next.js) ──HTTP/WS──▶ orchestrator (Fastify) ──┴─▶ runner container
-   ▲                started by `ebl start`      │ /var/run/docker.sock      (Node + JDK 17 +
+   ▲                started by `ebl start`      │ /var/run/docker.sock      (Node + JDK 21 +
    └── ebl setup/config/start drive Docker      ▼                           Android SDK)
        directly - no docker-compose.yml    bind-mounts your project,
        or git checkout required            writes the APK/AAB into

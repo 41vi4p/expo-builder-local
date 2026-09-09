@@ -9,7 +9,7 @@
     Native - see ../CLAUDE.md's native-engine section, UNVERIFIED ON REAL WINDOWS
     HARDWARE):
 
-      Native (default): installs the Android SDK, JDK 17, and Node.js directly on
+      Native (default): installs the Android SDK, JDK 21, and Node.js directly on
         this machine, isolated under %LOCALAPPDATA%\ebl - no Docker Desktop or
         WSL2 required. Detects and reuses an existing JDK/SDK/Node install first
         rather than downloading its own copy where possible.

@@ -48,7 +48,9 @@ expo-builder-local/
 │                              minimal, no CLI/orchestrator build check
 ├── scripts/
 │   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images by hand
-├── docker/runner/         ← Android toolchain image (Node 22 LTS + JDK 17 + SDK + eas-cli)
+├── docker/runner/         ← Android toolchain image (Node LTS (rolling - whatever's
+│                             current at image-build time; Node 24 "Krypton" as of
+│                             this comment) + JDK 21 + SDK + eas-cli)
 │   ├── Dockerfile
 │   ├── docker-entrypoint.sh   (UID/GID re-homing)
 │   ├── build-entrypoint.sh    (the actual build: prebuild/eas → gradle → collect)
@@ -198,10 +200,10 @@ placeholder above: plausible and carefully reasoned, not proven. Report anything
 that doesn't work.
 
 - **`native_toolchain.*`** - `provisionNativeToolchain()`, called from
-  `commands/setup.cpp`'s `--runtime native` branch. Detects an existing JDK 17/
+  `commands/setup.cpp`'s `--runtime native` branch. Detects an existing JDK 21/
   Android SDK/Node install first (env vars / `where node`) and reuses it untouched;
   downloads anything missing into an ebl-owned, isolated
-  `%LOCALAPPDATA%\ebl\toolchain\{jdk17,android-sdk,node}` (JDK: Adoptium Temurin;
+  `%LOCALAPPDATA%\ebl\toolchain\{jdk21,android-sdk,node}` (JDK: Adoptium Temurin;
   Android SDK: **same pinned versions as `docker/runner/Dockerfile`'s ARGs** - keep
   both in sync if those ever change; Node: official nodejs.org zip, `kNodeVersion`
   in `native_toolchain.cpp` is a hand-pinned snapshot to bump periodically, since

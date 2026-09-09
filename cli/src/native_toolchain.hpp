@@ -9,10 +9,10 @@
 
 namespace ebl {
 
-/** Detects an existing JDK 17 / Android SDK / Node install first (never touches or
+/** Detects an existing JDK 21 / Android SDK / Node install first (never touches or
  * reconfigures it - just records its path with installedByEbl=false), and
  * downloads+installs an ebl-owned copy of anything missing under
- * %LOCALAPPDATA%\ebl\toolchain\{jdk17,android-sdk,node}, isolated from any
+ * %LOCALAPPDATA%\ebl\toolchain\{jdk21,android-sdk,node}, isolated from any
  * system-wide install so a later uninstall can safely remove exactly what it
  * downloaded and nothing else (see NativeToolchainConfig's per-component
  * installedByEbl flags). The Android SDK components installed match
