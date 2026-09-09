@@ -3,6 +3,50 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.19.2 - Patched a high-severity js-yaml CVE in the landing page's dev deps
+
+**Date:** 2026-09-09
+**Type:** Security
+
+- **`js-yaml` 4.0.0-4.3.1 (a transitive dev dependency, pulled in via
+  `eslint` -> `@eslint/eslintrc`) had a high-severity CPU-exhaustion advisory**
+  ([GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh):
+  `maxTotalMergeKeys` doesn't limit CPU use for empty merge sources) - resolved
+  via `npm audit fix` (non-force; a compatible patch bump to `4.3.2` within
+  `@eslint/eslintrc`'s own existing range, nothing in `package.json` itself
+  changed). `npm audit` reports 0 vulnerabilities after. Verified with a full
+  `npm run build` (Turbopack, all 5 routes) afterward.
+
+**Files modified:** `ebl_landing_page/package-lock.json`,
+`orchestrator/package.json`, `expo-builder-gui/package.json`,
+`cli/CMakeLists.txt`, `windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
+## v0.19.1 - Patched a critical Next.js RCE + a high-severity sharp CVE in the GUI
+
+**Date:** 2026-09-09
+**Type:** Security
+
+- **`next` 16.3.0 had two critical/RCE-class advisories**
+  ([GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36):
+  unauthenticated RCE on Windows-hosted servers;
+  [GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4):
+  unauthenticated RCE in the Image Optimization API when AVIF files are used) -
+  bumped to `16.3.4`, the exact patched version `npm audit` recommended, rather
+  than a caret range, matching this file's existing pin style.
+- **`sharp` (next's own optional dependency for image optimization) had a
+  high-severity libheif vulnerability** below `0.35.4`
+  ([GHSA-rgj7-g3m4-5g8c](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c)) -
+  resolved automatically as a side effect of the `next` bump (16.3.4 depends on
+  `sharp@0.35.4`), no separate override needed.
+- `npm audit` reports 0 vulnerabilities after these two changes.  Verified with
+  a full `npm run build` (Turbopack, all 5 routes) afterward.
+
+**Files modified:** `expo-builder-gui/package.json`,
+`expo-builder-gui/package-lock.json`, `orchestrator/package.json`,
+`cli/CMakeLists.txt`, `windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.19.0 - `ebl --version` now shows build/host info, not just a bare number
 
 **Date:** 2026-09-09
