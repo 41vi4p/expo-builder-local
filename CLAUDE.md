@@ -79,7 +79,11 @@ expo-builder-local/
 │   │                          more of src/ becomes unit-testable, not just left as-is)
 │   └── src/
 │       ├── main.cpp                    (subcommand dispatch only)
-│       ├── commands/                  (build, setup, config, start+stop — one file per subcommand)
+│       ├── commands/                  (build, setup, config, start+stop, update, clean,
+│       │                                completion — one file per subcommand. completion.cpp's
+│       │                                four shell scripts are hand-written against each other
+│       │                                subcommand's actual flags, not generated from a shared
+│       │                                table — update them by hand if flags ever change)
 │       ├── config_store.*, crypto.*, base64.*   (encrypted config.json — ~/.config/ebl/ on
 │       │                                          Linux/macOS, %APPDATA%\ebl\ on Windows)
 │       ├── prompt.*                    (promptString/promptInt/promptHidden — shared by config.cpp's wizard and build.cpp's missing-token prompt)

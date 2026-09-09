@@ -24,6 +24,7 @@ const COMMANDS = [
   { cmd: "ebl build [path]", body: "Builds an Expo project. Works completely standalone — no setup/config/start required." },
   { cmd: "ebl update", body: "Force-refreshes the runner/orchestrator/web images right now — build/start already pull on every run, but this rebuilds the runner from scratch (no cache) if it can't pull one at all." },
   { cmd: "ebl clean [--all]", body: "Removes stopped build containers. With --all, also clears the shared cache volumes and the runner/orchestrator/web images." },
+  { cmd: "ebl completion <shell>", body: "Prints a shell completion script to stdout - bash, zsh, fish, or powershell." },
 ];
 
 const ENGINES = [

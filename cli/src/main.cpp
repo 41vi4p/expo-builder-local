@@ -11,6 +11,7 @@
 //                rebuilding the runner from scratch (no cache) if it can't pull
 //   ebl clean    remove ebl's own stopped build containers (--all: also cache
 //                volumes and pulled images) to reclaim disk space
+//   ebl completion   print a shell completion script (bash/zsh/fish/powershell)
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -22,6 +23,7 @@
 
 #include "commands/build.hpp"
 #include "commands/clean.hpp"
+#include "commands/completion.hpp"
 #include "commands/config.hpp"
 #include "commands/setup.hpp"
 #include "commands/start.hpp"
@@ -101,6 +103,7 @@ Commands:
   build     Build a project — works standalone, no setup/config/start required
   update    Force-refresh the runner/orchestrator/web images right now
   clean     Remove stopped build containers (--all: also cache volumes/images)
+  completion   Print a shell completion script (bash/zsh/fish/powershell)
 
 Run `ebl <command> --help` for command-specific options. `ebl build .` is the most
 common starting point if you just want a build right now.
@@ -169,6 +172,7 @@ int main(int argc, char** argv) {
   if (command == "stop") return ebl::commands::runStop(subArgc, subArgv);
   if (command == "update") return ebl::commands::runUpdate(subArgc, subArgv);
   if (command == "clean") return ebl::commands::runClean(subArgc, subArgv);
+  if (command == "completion") return ebl::commands::runCompletion(subArgc, subArgv);
 
   std::cerr << "Unknown command: " << command << "\n\n";
   printTopLevelUsage();

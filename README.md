@@ -32,6 +32,7 @@ remote-managed credentials, that's supported too (see [Build engines](#build-eng
 - [Why this exists](#why-this-exists)
 - [Architecture](#architecture)
 - [Command reference](#command-reference)
+- [Shell completions](#shell-completions)
 - [Using the GUI](#using-the-gui)
 - [Build engines](#build-engines)
 - [Multiple Expo accounts](#multiple-expo-accounts)
@@ -253,8 +254,25 @@ for why that matters.
 | `ebl build [path] [options]` | Builds an Expo project. Works completely standalone — see below. |
 | `ebl update` | Force-refreshes the runner/orchestrator/web images right now, unconditionally. `ebl build`/`ebl start` already pull on every run, but that only ever transfers layers that changed upstream — it can't fix an image whose published tag was itself built from a stale layer cache. `ebl update` always re-pulls all three, and for the runner image specifically, rebuilds it from scratch (Docker's build cache fully disabled) if pulling isn't possible at all. |
 | `ebl clean [--all]` | Removes ebl's own stopped build containers (leftovers from an interrupted/crashed build). With `--all`, also removes the shared Gradle/npm cache volumes and the runner/orchestrator/web images — the next `ebl build`/`ebl setup` just re-pulls/re-creates whatever it needs, so this is safe, just slower on the next run. Refuses `--all` while a build is currently running. |
+| `ebl completion <shell>` | Prints a shell completion script to stdout for `bash`, `zsh`, `fish`, or `powershell` — completes subcommands, flags, and the small enum-valued ones (`--artifact`, `--engine`). See [Shell completions](#shell-completions) below. |
 
 Run `ebl <command> --help` for the full option list of any command.
+
+### Shell completions
+
+```bash
+# Bash — add to ~/.bashrc
+echo 'source <(ebl completion bash)' >> ~/.bashrc
+
+# Zsh — add to ~/.zshrc
+echo 'source <(ebl completion zsh)' >> ~/.zshrc
+
+# Fish
+ebl completion fish > ~/.config/fish/completions/ebl.fish
+
+# PowerShell — add to $PROFILE
+ebl completion powershell >> $PROFILE
+```
 
 ### `ebl build`
 

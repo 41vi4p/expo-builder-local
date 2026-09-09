@@ -3,6 +3,43 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.21.0 - Shell completions: `ebl completion <bash|zsh|fish|powershell>`
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **New `ebl completion <shell>` subcommand** - prints a completion script to
+  stdout for `bash`, `zsh`, `fish`, or `powershell`, meant to be sourced/
+  redirected directly (`source <(ebl completion bash)`, etc. - see README's
+  new "Shell completions" section and `ebl completion -h` for the exact
+  one-liner per shell). Completes: the 8 top-level subcommands plus global
+  flags; each subcommand's own flags; and the small enum-valued ones
+  (`--artifact`: `apk`/`aab`, `--engine`: `auto`/`gradle`/`eas`) with their
+  actual valid values instead of just the flag name. `ebl build`'s positional
+  project-path argument gets real directory completion (bash: `compgen -d`;
+  zsh: `_files -/`; fish: default file completion; PowerShell: not attempted,
+  its native-command completer has no easy directory-completion hook).
+- **New `cli/src/commands/completion.{hpp,cpp}`** - all four scripts are
+  hand-written raw string literals (not generated from a shared machine-
+  readable flag table, since one doesn't exist yet) against each
+  subcommand's actual `printUsage()` flags - keep them in sync by hand if a
+  subcommand's flags ever change, same caveat as the existing "update all
+  three build-marker consumers" note in `../CLAUDE.md`.
+- **Actually verified, not just written and hoped**: the bash script was
+  functionally exercised (sourced, `_ebl_completions` called directly with
+  mocked `COMP_WORDS`/`COMP_CWORD`, confirmed correct `COMPREPLY` for several
+  cases including directory completion and enum-value completion); the zsh
+  and fish scripts were syntax-checked for real (`zsh -n`, `fish -n`) inside
+  a throwaway Alpine container, since neither shell is installed on the
+  machine this was written on.
+
+**Files modified:** `cli/src/commands/completion.hpp` (new),
+`cli/src/commands/completion.cpp` (new), `cli/src/main.cpp`,
+`cli/CMakeLists.txt`, `README.md`, `ebl_landing_page/app/docs/page.tsx`,
+`../CLAUDE.md`, `orchestrator/package.json`, `expo-builder-gui/package.json`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.20.0 - The CLI finally has a test suite, and CI actually builds it on Linux
 
 **Date:** 2026-09-09
