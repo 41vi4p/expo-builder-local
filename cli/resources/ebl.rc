@@ -1,0 +1,14 @@
+// Windows resource script - embeds the app icon into ebl.exe (Explorer, taskbar,
+// Add/Remove Programs via windows/installer/ebl.iss's UninstallDisplayIcon).
+// ebl.ico is a multi-resolution (16/32/48/64/128/256) icon generated from
+// ../../docs/assets/ebl_logo.png (square-cropped, transparent background) - the
+// same source ebl_landing_page/app/favicon.ico is generated from, so this project
+// shows one consistent mark everywhere. Regenerate both by hand (not wired up to
+// auto-sync) if docs/assets/ebl_logo.png ever changes.
+//
+// A single ICON resource with the lowest ID is what Windows Explorer shows as the
+// .exe's own icon - only one is needed here, no VERSIONINFO block (CMake's own
+// VersionInfoVersion/ProductVersion in ebl.iss already covers the installer's
+// Add/Remove Programs version; the .exe itself has no separate version dialog).
+#define IDI_APP_ICON 101
+IDI_APP_ICON ICON "ebl.ico"

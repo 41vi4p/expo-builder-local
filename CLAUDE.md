@@ -63,6 +63,12 @@ expo-builder-local/
 │   │                         this one source tree (platform branches via CMake +
 │   │                         `#ifdef _WIN32`, not a fork)
 │   ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator, Linux-only)
+│   ├── resources/
+│   │   ├── ebl.ico          (multi-res icon generated from ../docs/assets/ebl_logo.png
+│   │   │                     — same source ebl_landing_page/app/favicon.ico uses;
+│   │   │                     regenerate both by hand if that logo ever changes, not
+│   │   │                     auto-synced)
+│   │   └── ebl.rc           (Windows-only — embeds ebl.ico as ebl.exe's own icon)
 │   └── src/
 │       ├── main.cpp                    (subcommand dispatch only)
 │       ├── commands/                  (build, setup, config, start+stop — one file per subcommand)

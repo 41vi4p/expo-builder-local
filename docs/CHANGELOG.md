@@ -3,6 +3,39 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.19.3 - ebl.exe (and the installer, and the landing page) now share one real icon
+
+**Date:** 2026-09-09
+**Type:** Enhancement
+
+- **`ebl.exe` now embeds a real app icon** instead of the linker's bare default
+  - new `cli/resources/ebl.rc` (Windows-only, added to `EBL_PLATFORM_SOURCES`
+    in `cli/CMakeLists.txt` - CMake's MSVC generator invokes `rc.exe`
+    automatically for a `.rc` source, no extra config needed) embeds
+    `cli/resources/ebl.ico`, a proper multi-resolution icon (16/32/48/64/128/256,
+    PNG-compressed frames) generated from `docs/assets/ebl_logo.png` (the
+    project's own container-cube mark) - square-cropped to its tight bounding
+    box with a small margin, centered on a transparent canvas, via Pillow's
+    `Image.save(..., sizes=[...])`.
+  - `windows/installer/ebl.iss` gets a matching `SetupIconFile` pointing at the
+    same `.ico`, so `ebl-setup-*.exe` itself isn't just Inno Setup's generic
+    default icon before it's even run. Its existing
+    `UninstallDisplayIcon={app}\bin\ebl.exe` (Add/Remove Programs entry) now
+    automatically picks up the real icon too, for free, once `ebl.exe` embeds
+    one.
+- **Also fixed the landing page's own favicon while at it** (same
+  `docs/assets/ebl_logo.png` source, regenerated the same way) -
+  `ebl_landing_page/app/favicon.ico` was a different, separately-generated
+  file; both now come from the one canonical logo asset instead of two
+  independently-maintained copies that could silently drift apart. Verified
+  with a full `npm run build` afterward.
+
+**Files modified:** `cli/resources/ebl.ico` (new), `cli/resources/ebl.rc` (new),
+`cli/CMakeLists.txt`, `windows/installer/ebl.iss`,
+`ebl_landing_page/app/favicon.ico`, `../CLAUDE.md`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.19.2 - Patched a high-severity js-yaml CVE in the landing page's dev deps
 
 **Date:** 2026-09-09

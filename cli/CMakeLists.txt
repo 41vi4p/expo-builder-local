@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # This VERSION is the single source of truth for the CLI's version (see main.cpp's
 # --version output) — kept in step with orchestrator/package.json and
 # expo-builder-gui/package.json per ../CLAUDE.md's version-management rule.
-project(expo-builder-local-cli VERSION 0.19.2 LANGUAGES CXX)
+project(expo-builder-local-cli VERSION 0.19.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,8 +27,15 @@ find_package(Threads REQUIRED)
 # transport (Unix socket via libcurl vs. Docker Desktop's named pipe, hand-rolled —
 # see src/http_client.hpp). winpath.cpp is the identity function on non-Windows, so
 # it's built everywhere unconditionally rather than split per-platform.
+#
+# resources/ebl.rc: Windows-only - embeds resources/ebl.ico (generated from
+# ../docs/assets/ebl_logo.png, same source ebl_landing_page/app/favicon.ico uses) as
+# ebl.exe's own icon, so it's not just a bare default .exe icon in
+# Explorer/taskbar/Add-Remove-Programs. CMake's MSVC generator invokes rc.exe on a
+# .rc source automatically, no extra config needed - a no-op on non-Windows, where
+# it's never added to the sources list at all.
 if(WIN32)
-  set(EBL_PLATFORM_SOURCES src/http_client_win.cpp)
+  set(EBL_PLATFORM_SOURCES src/http_client_win.cpp resources/ebl.rc)
 else()
   set(EBL_PLATFORM_SOURCES src/http_client_unix.cpp)
 endif()

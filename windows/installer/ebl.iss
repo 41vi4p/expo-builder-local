@@ -16,7 +16,7 @@
 ; job for the `cmake --install` step that produces them).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.19.2"
+#define MyAppVersion "0.19.3"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"
@@ -50,6 +50,10 @@ OutputBaseFilename=ebl-setup-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+; Same icon ebl.exe itself embeds (see ../../cli/resources/ebl.rc) - generated from
+; ../../docs/assets/ebl_logo.png - so the installer .exe isn't just Inno Setup's
+; generic default icon before it's even run.
+SetupIconFile=..\..\cli\resources\ebl.ico
 UninstallDisplayIcon={app}\bin\{#MyAppExeName}
 ; The installer .exe's own Win32 version resource (Explorer → Properties → Details) —
 ; distinct from AppVersion above, which only sets the *installed application's*
