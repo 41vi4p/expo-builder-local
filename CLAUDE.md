@@ -74,9 +74,14 @@ expo-builder-local/
 │   ├── tests/               (unit tests, OFF by default — cmake -DEBL_BUILD_TESTS=ON
 │   │                          then ctest; hand-rolled harness (test_framework.hpp),
 │   │                          not a vendored framework — see its own comment for why.
-│   │                          Only json.cpp/detect.cpp are covered so far — pure
-│   │                          logic, no libcurl/OpenSSL/Docker needed. Grow this as
-│   │                          more of src/ becomes unit-testable, not just left as-is)
+│   │                          json.cpp/detect.cpp/version_compare.cpp are covered so
+│   │                          far — pure logic, no libcurl/OpenSSL/Docker needed
+│   │                          (update_check.cpp itself deliberately isn't linked in
+│   │                          here — it needs curl/config_store.cpp's crypto chain,
+│   │                          which is why isVersionNewer lives in its own
+│   │                          dependency-free version_compare.* instead). Grow this
+│   │                          as more of src/ becomes unit-testable, not just left
+│   │                          as-is)
 │   └── src/
 │       ├── main.cpp                    (subcommand dispatch only)
 │       ├── commands/                  (build, setup, config, start+stop, update, clean,
@@ -97,7 +102,12 @@ expo-builder-local/
 │       ├── http_client_common.cpp      (httpGetTcp/urlEncode — plain TCP, shared by both)
 │       ├── winpath.*                   (Windows-only path→Docker-bind-mount translation,
 │       │                                 e.g. "D:\App" → "//d/App"; identity elsewhere)
-│       └── {docker_client,json,tar_writer,detect,metrics,host_info,runner_context,color}.{hpp,cpp}
+│       ├── update_check.*              (checkForNewerVersion() — GitHub releases-API
+│       │                                 check on `ebl --version`, rate-limited to
+│       │                                 once/24h via configDir()/update-check.json;
+│       │                                 version comparison itself lives in
+│       │                                 version_compare.* for unit-testability)
+│       └── {docker_client,json,tar_writer,detect,metrics,host_info,version_compare,runner_context,color}.{hpp,cpp}
 └── windows/               ← Windows-specific packaging only — ebl.exe itself is just
                               `cli/` built for Windows (see above), not a separate binary
     ├── install.ps1         (one-line installer: Docker Desktop presence check,

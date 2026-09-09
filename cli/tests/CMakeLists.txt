@@ -5,8 +5,10 @@ add_executable(ebl_tests
   test_main.cpp
   test_json.cpp
   test_detect.cpp
+  test_version_compare.cpp
   ../src/json.cpp
   ../src/detect.cpp
+  ../src/version_compare.cpp
 )
 target_include_directories(ebl_tests PRIVATE ../src)
 if(NOT MSVC)

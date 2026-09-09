@@ -3,6 +3,49 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.23.0 - `ebl --version` now checks for a newer release
+
+**Date:** 2026-09-09
+**Type:** Feature
+
+- **`ebl -v`/`--version` now checks GitHub's releases API for a newer `ebl`**
+  and prints a short notice below the usual version/build/host block if one
+  exists - `A newer ebl is available: v0.23.1 (you have 0.23.0)` plus the
+  releases URL. Rate-limited to at most one real network check per 24h via a
+  small cache (`configDir()/update-check.json`, e.g.
+  `~/.config/ebl/update-check.json`) - a fresh cache is reused with zero
+  network activity; `--version` is exactly the moment a user is already
+  asking about versions, so a short (2.5s timeout), best-effort check there
+  is expected, not a surprise background call on every other command. Never
+  a hard dependency - any failure (offline, GitHub unreachable, rate limited,
+  malformed response) is silently treated as "nothing to report," and a
+  failed check still advances the rate-limit window so an extended offline
+  stretch or a GitHub outage doesn't mean every single invocation keeps
+  retrying and eating the timeout.
+- **New `cli/src/update_check.{hpp,cpp}`** (the network/caching logic) and
+  **`cli/src/version_compare.{hpp,cpp}`** (just the dotted-integer version
+  comparison - `"0.10.0"` must sort newer than `"0.9.0"`, which a raw string
+  compare gets backwards - split into its own dependency-free module
+  specifically so `cli/tests/` can unit-test it without pulling in
+  `update_check.cpp`'s curl/`config_store.cpp` (and therefore OpenSSL) chain,
+  preserving this test suite's existing "pure logic only" property). 6 new
+  test cases in `cli/tests/test_version_compare.cpp` (renamed from
+  `test_update_check.cpp` to match), verified `ebl_tests` still links with
+  zero curl/OpenSSL/crypto symbols (`ldd` checked directly).
+- Verified the real network path against the actual GitHub API (not just
+  mocked), confirmed the 24h cache genuinely skips the network on a second
+  call (0.37s → 0.006s), and confirmed the "newer version" notice itself
+  renders correctly via a forged cache entry.
+
+**Files modified:** `cli/src/update_check.hpp` (new),
+`cli/src/update_check.cpp` (new), `cli/src/version_compare.hpp` (new),
+`cli/src/version_compare.cpp` (new),
+`cli/tests/test_version_compare.cpp` (new, renamed from
+`test_update_check.cpp`), `cli/tests/CMakeLists.txt`, `cli/src/main.cpp`,
+`cli/CMakeLists.txt`, `../CLAUDE.md`, `orchestrator/package.json`,
+`expo-builder-gui/package.json`, `windows/installer/ebl.iss`,
+`packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`
+
 ## v0.22.0 - `ebl build --json` for scripting/CI
 
 **Date:** 2026-09-09

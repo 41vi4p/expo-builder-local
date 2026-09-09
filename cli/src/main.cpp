@@ -28,7 +28,9 @@
 #include "commands/setup.hpp"
 #include "commands/start.hpp"
 #include "commands/update.hpp"
+#include "color.hpp"
 #include "host_info.hpp"
+#include "update_check.hpp"
 
 namespace {
 
@@ -121,6 +123,16 @@ void printVersion() {
   std::cout << "Built:    " << __DATE__ << " " << __TIME__ << " (" << compilerString() << ")\n";
   std::cout << "Platform: " << platformString() << " " << archString() << "\n";
   std::cout << "Host:     " << ebl::hostOsVersion() << "\n";
+
+  // Rate-limited to at most one real network check per 24h (see update_check.cpp) -
+  // `--version` is exactly the moment a user is already asking about versions, so a
+  // short (<=2.5s), best-effort check here is expected rather than a surprise
+  // background network call on every other command.
+  if (auto latest = ebl::checkForNewerVersion(kVersion)) {
+    std::cout << "\n"
+              << ebl::color::yellow("A newer ebl is available: " + *latest + " (you have " + kVersion + ")") << "\n"
+              << ebl::color::dim("  https://github.com/41vi4p/expo-builder-local/releases/latest") << "\n";
+  }
 }
 
 void printAbout() {
