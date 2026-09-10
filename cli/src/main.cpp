@@ -5,6 +5,9 @@
 //   ebl config   interactive wizard: projects folder, Expo token, ports
 //   ebl start    run the orchestrator + web GUI as Docker containers
 //   ebl stop     stop them
+//   ebl create   scaffold a brand-new Expo app via `npx create-expo-app`,
+//                directly on the host (no Docker) - the starting point before
+//                `ebl build` ever comes into play
 //   ebl build    build a project into a signed APK/AAB (works standalone — no
 //                setup/config/start required at all)
 //   ebl update   force-refresh the runner/orchestrator/web images right now,
@@ -25,6 +28,7 @@
 #include "commands/clean.hpp"
 #include "commands/completion.hpp"
 #include "commands/config.hpp"
+#include "commands/create.hpp"
 #include "commands/setup.hpp"
 #include "commands/start.hpp"
 #include "commands/update.hpp"
@@ -98,6 +102,7 @@ expo-local-builder — build managed Expo projects into signed Android APK/AABs 
 disposable Docker container, with an optional web GUI.
 
 Commands:
+  create    Scaffold a brand-new Expo app (npx create-expo-app, on this machine)
   setup     One-time: check/install Docker, pull images
   config    Interactive wizard: projects folder, Expo token, ports
   start     Run the orchestrator + web GUI (as Docker containers)
@@ -107,8 +112,8 @@ Commands:
   clean     Remove stopped build containers (--all: also cache volumes/images)
   completion   Print a shell completion script (bash/zsh/fish/powershell)
 
-Run `ebl <command> --help` for command-specific options. `ebl build .` is the most
-common starting point if you just want a build right now.
+Run `ebl <command> --help` for command-specific options. `ebl create . myapp` to
+scaffold a new app, or `ebl build .` if you just want a build right now.
 
   -h, --help      Show this help
   -v, --version   Show version
@@ -139,9 +144,10 @@ void printAbout() {
   std::cout << R"(ebl (expo-local-builder) v)"
             << kVersion << R"(
 
-expo-builder-local — build managed Expo (SDK 56+) projects into signed Android
-APK/AABs entirely on your own machine, via a disposable Docker container, with
-an optional web GUI. Not affiliated with Expo/Google.
+expo-builder-local — scaffold, build, and manage Expo (SDK 56+) projects end to
+end: `ebl create` to start a new app, `ebl build` to turn it into a signed
+Android APK/AAB entirely on your own machine via a disposable Docker container,
+with an optional web GUI. Not affiliated with Expo/Google.
 
 Developer:    41vi4p
 License:      GNU General Public License v3.0 (GPL-3.0)
@@ -177,6 +183,7 @@ int main(int argc, char** argv) {
   int subArgc = argc - 2;
   char** subArgv = argv + 2;
 
+  if (command == "create") return ebl::commands::runCreate(subArgc, subArgv);
   if (command == "build") return ebl::commands::runBuild(subArgc, subArgv);
   if (command == "setup") return ebl::commands::runSetup(subArgc, subArgv);
   if (command == "config") return ebl::commands::runConfig(subArgc, subArgv);

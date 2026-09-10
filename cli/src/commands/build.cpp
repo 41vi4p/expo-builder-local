@@ -24,6 +24,7 @@
 #include <string>
 #include <thread>
 
+#include "../build_progress_tracker.hpp"
 #include "../build_status_view.hpp"
 #include "../color.hpp"
 #include "../config_store.hpp"
@@ -137,29 +138,31 @@ Options:
                                   ignored on Windows, which always talks to Docker
                                   Desktop's \\.\pipe\docker_engine)
       --json                     Print the final result as a single JSON object on
-                                  stdout instead of the colored summary - everything
-                                  else (the live build log, status lines) moves to
+                                  stdout instead of the live dashboard - everything
+                                  else (the build log, status lines) moves to
                                   stderr, so stdout carries only that one JSON line.
                                   Exit code is still 0/1/130 as normal either way.
-      --status                   Replace the raw streamed build log with a live,
-                                  redrawing dashboard: current phase + progress,
-                                  elapsed time, and the build container's CPU/memory
-                                  usage (current value + a short sparkline history),
-                                  plus a short tail of recent log lines. Needs a real
-                                  terminal (falls back to normal output otherwise) -
-                                  can't be combined with --json. On failure, the last
-                                  buffered log lines are still printed afterward so
-                                  nothing is lost for debugging.
+      --logs                     Show the full raw build log instead of the live
+                                  dashboard (which is the default - see below).
+                                  Useful for CI logs or when you want to see every
+                                  line as it happens rather than a summary view.
       --tui                      Interactive setup: pick artifact/profile/engine/
                                   signing from arrow-key menus (Up/Down, Enter,
                                   Escape to cancel) instead of passing flags, then
-                                  builds with --status's live dashboard automatically.
-                                  Needs a real terminal on both stdin and stdout -
-                                  fails outright otherwise (unlike --status, there's
+                                  builds normally (the live dashboard, unless you
+                                  also passed --logs). Needs a real terminal on both
+                                  stdin and stdout - fails outright otherwise (there's
                                   no sensible non-interactive fallback for a menu).
                                   Any --artifact/--profile/--engine/--release you did
                                   pass become that menu's pre-selected default.
   -h, --help                     Show this help
+
+By default (no --logs/--json), `ebl build` shows a live, redrawing dashboard
+instead of the raw build log: current phase + progress, elapsed time, and the
+build container's CPU/memory usage. Falls back to the raw log automatically if
+stdout isn't a real terminal (e.g. piped to a file or a CI log) - no need to pass
+--logs yourself in that case. On failure, the last buffered log lines are still
+printed afterward even in dashboard mode, so nothing is lost for debugging.
 )";
 }
 
@@ -180,7 +183,7 @@ struct Options {
   std::string npmCacheVolume = "expo-builder-local_npm-cache";
   std::string dockerSocket = "/var/run/docker.sock";
   bool json = false;
-  bool status = false;
+  bool logs = false;
   bool tui = false;
 };
 
@@ -218,7 +221,13 @@ bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
       if (arg == "--npm-cache-volume") { opts.npmCacheVolume = needValue(i, "--npm-cache-volume"); continue; }
       if (arg == "--docker-socket") { opts.dockerSocket = needValue(i, "--docker-socket"); continue; }
       if (arg == "--json") { opts.json = true; continue; }
-      if (arg == "--status") { opts.status = true; continue; }
+      if (arg == "--logs") { opts.logs = true; continue; }
+      // Deprecated, kept as a silent no-op: v0.24.0/v0.25.0's --status flag used to
+      // be how you opted INTO the live dashboard - it's the default now, so there's
+      // nothing left for this flag to actually do. Accepting it (rather than
+      // "Unknown option") means anyone who already has --status in a script/alias
+      // doesn't suddenly start seeing an error.
+      if (arg == "--status") { continue; }
       if (arg == "--tui") { opts.tui = true; continue; }
       if (!arg.empty() && arg[0] == '-') {
         std::cerr << ebl::color::red("Unknown option: " + arg) << "\n";
@@ -422,23 +431,23 @@ int runBuild(int argc, char** argv) {
     return fail("--tui and --json can't be used together - both need exclusive control of stdout.", 2);
   }
   if (opts.tui && (!ebl::color::enabled() || !ebl::color::stdinIsTty())) {
-    // Unlike --status, there's no sensible fallback for a menu-driven wizard with
-    // nowhere to read a keypress from (or nowhere to draw it) - hard error instead
-    // of silently degrading to something the user didn't ask for.
+    // Unlike the dashboard, there's no sensible fallback for a menu-driven wizard
+    // with nowhere to read a keypress from (or nowhere to draw it) - hard error
+    // instead of silently degrading to something the user didn't ask for.
     return fail("--tui needs a real terminal on both stdin and stdout - neither is piped/redirected.", 2);
   }
-  if (opts.status && opts.json) {
-    return fail("--status and --json can't be used together - both need exclusive control of stdout.", 2);
-  }
-  if (opts.status && !ebl::color::enabled()) {
-    // color::enabled() is exactly the isatty(stdout) check this also needs - a
-    // redrawing dashboard can't work when stdout is piped/redirected (nowhere to
-    // move the cursor back up to), so fall back to the normal streamed log instead
-    // of hard-failing.
-    std::cerr << ebl::color::yellow("--status needs a real terminal (stdout isn't one here) - continuing without it.")
-              << "\n";
-    opts.status = false;
-  }
+
+  // The live dashboard is the default view - --logs and --json both opt out of it
+  // (in opposite directions: --logs wants the full raw text log, --json wants
+  // clean machine-readable stdout, which already gets the raw log on stderr
+  // regardless, making --logs redundant rather than conflicting when both are
+  // passed). Falls back to the raw log automatically - silently, no warning -
+  // when stdout isn't a real terminal (piped/redirected): unlike the old
+  // explicit-opt-in --status flag, this is now the default, so a build running in
+  // CI or redirected to a file not getting a redrawing dashboard is the ordinary,
+  // expected outcome, not a feature quietly failing. Same silent-degrade
+  // convention color.hpp's own enabled() already uses for ANSI colors.
+  bool wantDashboard = !opts.logs && !opts.json && ebl::color::enabled();
 
   fs::path appPath = fs::absolute(opts.path).lexically_normal();
   if (!fs::exists(appPath) || !fs::is_directory(appPath)) {
@@ -455,7 +464,8 @@ int runBuild(int argc, char** argv) {
       log << "\n" << ebl::color::dim("Cancelled - nothing was built.") << "\n";
       return 130;  // 128 + SIGINT, same convention the Ctrl-C build-cancellation path already uses
     }
-    opts.status = true;  // --tui always shows the live dashboard once the build starts
+    // No forcing needed here anymore - the dashboard is already the default
+    // outcome unless the user explicitly passed --logs, same as any other build.
   }
 
   // --prod is sugar for the production defaults, but explicit --artifact/--profile
@@ -640,7 +650,7 @@ int runBuild(int argc, char** argv) {
     std::string buildNumber;
     std::string residual;
 
-    // --status-only state: onChunk (running on attachThread) is the sole writer;
+    // Dashboard-only state: onChunk (running on attachThread) is the sole writer;
     // statusMutex protects statusState specifically because the status-polling
     // thread below also writes to it (CPU/memory samples) and reads it (to render).
     // fullLogBuffer needs no lock - only ever touched here, and only ever read
@@ -650,64 +660,66 @@ int runBuild(int argc, char** argv) {
     std::mutex statusMutex;
     ebl::BuildStatusState statusState;
     std::deque<std::string> fullLogBuffer;
+    ebl::BuildProgressTracker progressTracker;
 
+    // Line-buffered rather than byte-immediate: every line is scanned for ebl's
+    // own @@-prefixed markers regardless of mode, so --logs's raw passthrough can
+    // now skip printing them (they used to leak through as literal text) instead
+    // of writing raw bytes straight through before they're even parsed.
     auto onChunk = [&](const char* data, size_t len) {
-      if (!opts.status) {
-        // Unchanged from before --status existed: raw, immediate passthrough
-        // (marker lines included - a separate, pre-existing cosmetic wart, not
-        // touched here to avoid any behavior change to this already-shipped
-        // default path). --status suppresses this entirely instead, since a raw
-        // scrolling log and a redrawing-in-place dashboard can't share a terminal.
-        log.write(data, static_cast<std::streamsize>(len));
-        log.flush();
-      }
-
       residual.append(data, len);
       size_t pos;
       while ((pos = residual.find_first_of("\r\n")) != std::string::npos) {
         std::string line = residual.substr(0, pos);
         residual.erase(0, pos + 1);
 
-        if (line.rfind("@@ENGINE:", 0) == 0) { resolvedEngine = line.substr(9); continue; }
-        if (line.rfind("@@ARTIFACT:", 0) == 0) {
+        bool isMarker = line.rfind("@@", 0) == 0;
+
+        if (line.rfind("@@ENGINE:", 0) == 0) {
+          resolvedEngine = line.substr(9);
+          progressTracker.setEngine(resolvedEngine);
+        } else if (line.rfind("@@ARTIFACT:", 0) == 0) {
           artifactPath = toHostArtifactPath(params.appPath, line.substr(11));
-          continue;
-        }
-        if (line.rfind("@@ERROR:", 0) == 0) { errorMessage = line.substr(8); continue; }
-        if (line.rfind("@@BUILD_NUMBER:", 0) == 0) { buildNumber = line.substr(15); continue; }
-        if (line.rfind("@@PHASE:", 0) == 0) {
+        } else if (line.rfind("@@ERROR:", 0) == 0) {
+          errorMessage = line.substr(8);
+        } else if (line.rfind("@@BUILD_NUMBER:", 0) == 0) {
+          buildNumber = line.substr(15);
+        } else if (line.rfind("@@PHASE:", 0) == 0) {
           // Format: @@PHASE:<id>:<label> - split on the first colon only, in case
-          // a label itself ever contains one.
-          if (opts.status) {
+          // a label itself ever contains one. Just the display text here - the
+          // percent itself comes from progressTracker below, fed this same line.
+          if (wantDashboard) {
             std::string rest = line.substr(8);
             size_t sep = rest.find(':');
             std::lock_guard<std::mutex> lock(statusMutex);
             statusState.phaseId = sep == std::string::npos ? rest : rest.substr(0, sep);
             statusState.phaseLabel = sep == std::string::npos ? "" : rest.substr(sep + 1);
-            statusState.progressPercent = 0;
           }
-          continue;
-        }
-        if (line.rfind("@@PROGRESS:", 0) == 0) {
-          if (opts.status) {
-            try {
-              int pct = std::stoi(line.substr(11));
-              std::lock_guard<std::mutex> lock(statusMutex);
-              statusState.progressPercent = pct;
-            } catch (const std::exception&) {
-              // Malformed - just skip this update, keep whatever was there.
-            }
-          }
-          continue;
         }
 
-        // Not one of ebl's own markers - genuine build-tool output.
-        if (opts.status && !line.empty()) {
-          std::lock_guard<std::mutex> lock(statusMutex);
-          statusState.recentLogLines.push_back(line);
-          if (statusState.recentLogLines.size() > kRecentLogLineCap) statusState.recentLogLines.pop_front();
-          fullLogBuffer.push_back(line);
-          if (fullLogBuffer.size() > kFullLogLineCap) fullLogBuffer.pop_front();
+        // Feed every line (marker or not) through the progress tracker - its
+        // Gradle/EAS live-output regex matching needs to see real build-tool
+        // output, not just @@PROGRESS: markers (see build_progress_tracker.hpp).
+        if (wantDashboard) {
+          if (auto pct = progressTracker.handleLine(line)) {
+            std::lock_guard<std::mutex> lock(statusMutex);
+            statusState.progressPercent = *pct;
+          }
+        }
+
+        if (isMarker) continue;  // never shown as content, dashboard or --logs
+
+        if (wantDashboard) {
+          if (!line.empty()) {
+            std::lock_guard<std::mutex> lock(statusMutex);
+            statusState.recentLogLines.push_back(line);
+            if (statusState.recentLogLines.size() > kRecentLogLineCap) statusState.recentLogLines.pop_front();
+            fullLogBuffer.push_back(line);
+            if (fullLogBuffer.size() > kFullLogLineCap) fullLogBuffer.pop_front();
+          }
+        } else {
+          log << line << "\n";
+          log.flush();
         }
       }
     };
@@ -736,9 +748,8 @@ int runBuild(int argc, char** argv) {
     // container just throws, caught per-tick, and that tick is skipped.
     ebl::BuildStatusView statusView(appPath.string());
     std::thread statusThread;
-    if (opts.status) {
+    if (wantDashboard) {
       statusThread = std::thread([&]() {
-        constexpr size_t kHistoryCap = 60;  // ~60s at 1Hz - plenty for a 40-wide sparkline
         while (!buildFinished.load()) {
           try {
             ebl::ContainerStats stats = docker.getContainerStats(containerId);
@@ -746,10 +757,6 @@ int runBuild(int argc, char** argv) {
             statusState.cpuPercent = stats.cpuPercent;
             statusState.memUsedMb = stats.memUsedMb;
             statusState.memLimitMb = stats.memLimitMb;
-            statusState.cpuHistory.push_back(stats.cpuPercent);
-            if (statusState.cpuHistory.size() > kHistoryCap) statusState.cpuHistory.pop_front();
-            statusState.memPercentHistory.push_back(stats.memPercent);
-            if (statusState.memPercentHistory.size() > kHistoryCap) statusState.memPercentHistory.pop_front();
           } catch (const std::exception&) {
             // One missed sample isn't fatal - the dashboard just keeps showing
             // the last known values until the next tick succeeds.
@@ -774,7 +781,7 @@ int runBuild(int argc, char** argv) {
 
     attachThread.join();
 
-    if (opts.status) {
+    if (wantDashboard) {
       // One last render with the truly final state (attachThread has now drained
       // every marker, including @@PHASE:done/@@PROGRESS:100) - the status thread's
       // own last tick could otherwise have raced ahead of the final markers and
@@ -860,12 +867,12 @@ int runBuild(int argc, char** argv) {
       } else {
         log << "\n" << ebl::color::red(ebl::color::bold("Build failed after " + formatDuration(durationSeconds))) << "\n";
         log << "  " << finalError << "\n\n";
-        // --status never showed the raw build log at all (that's the whole
+        // The dashboard never shows the raw build log at all (that's the whole
         // point) - on failure specifically, dump what was buffered so a failure
         // doesn't leave the user with nothing to diagnose it from. Not needed on
-        // the success path (nothing to debug) or in --json mode (mutually
-        // exclusive with --status anyway).
-        if (opts.status && !fullLogBuffer.empty()) {
+        // the success path (nothing to debug) or in --json mode (which doesn't
+        // show a dashboard either, so there's nothing buffered to dump here).
+        if (wantDashboard && !fullLogBuffer.empty()) {
           log << ebl::color::dim("Last " + std::to_string(fullLogBuffer.size()) + " build log line(s):") << "\n";
           for (const auto& l : fullLogBuffer) log << "  " << l << "\n";
           log << "\n";

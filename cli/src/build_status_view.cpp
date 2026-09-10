@@ -30,29 +30,6 @@ std::string renderProgressBar(int percent, int width) {
   return bar;
 }
 
-// 8-level plain-ASCII intensity ramp, auto-scaled against the max value currently
-// in `values` - so this reads sensibly whether it's CPU% (0-100, or higher with
-// multiple cores) or memory% (0-100), without the caller needing to know which.
-std::string renderSparkline(const std::deque<double>& values, size_t width) {
-  static constexpr char kLevels[] = " .:-=+*#";
-  constexpr int kLevelCount = 8;
-  if (values.empty()) return std::string(width, ' ');
-
-  double maxV = 0.0;
-  for (double v : values) maxV = std::max(maxV, v);
-  if (maxV <= 0.0) maxV = 1.0;
-
-  size_t start = values.size() > width ? values.size() - width : 0;
-  std::string out;
-  out.reserve(width);
-  for (size_t i = start; i < values.size(); i++) {
-    int level = static_cast<int>((values[i] / maxV) * (kLevelCount - 1) + 0.5);
-    level = std::max(0, std::min(kLevelCount - 1, level));
-    out += kLevels[level];
-  }
-  return out;
-}
-
 std::string truncate(const std::string& s, size_t maxLen) {
   return s.size() > maxLen ? s.substr(0, maxLen) + "..." : s;
 }
@@ -75,7 +52,6 @@ std::string formatMemory(double mb) {
 BuildStatusView::BuildStatusView(std::string appLabel) : appLabel_(std::move(appLabel)) {}
 
 void BuildStatusView::render(const BuildStatusState& state) {
-  constexpr size_t kSparklineWidth = 40;
   constexpr size_t kMaxLogLineLen = 100;
 
   std::ostringstream out;
@@ -86,15 +62,13 @@ void BuildStatusView::render(const BuildStatusState& state) {
 
   char cpuBuf[16];
   std::snprintf(cpuBuf, sizeof(cpuBuf), "%5.1f%%", state.cpuPercent);
-  out << "  " << ebl::color::dim("CPU     ") << "  " << cpuBuf << "  "
-      << renderSparkline(state.cpuHistory, kSparklineWidth) << "\n";
+  out << "  " << ebl::color::dim("CPU     ") << "  " << cpuBuf << "\n";
 
   double memPercent = state.memLimitMb > 0 ? (state.memUsedMb / state.memLimitMb) * 100.0 : 0.0;
   char memPctBuf[16];
   std::snprintf(memPctBuf, sizeof(memPctBuf), "%.1f%%", memPercent);
   out << "  " << ebl::color::dim("Memory  ") << "  " << formatMemory(state.memUsedMb) << " / "
-      << formatMemory(state.memLimitMb) << " (" << memPctBuf << ")  "
-      << renderSparkline(state.memPercentHistory, kSparklineWidth) << "\n";
+      << formatMemory(state.memLimitMb) << " (" << memPctBuf << ")\n";
 
   if (!state.recentLogLines.empty()) {
     out << "\n";

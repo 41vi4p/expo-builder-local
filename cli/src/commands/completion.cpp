@@ -40,7 +40,7 @@ _ebl_completions() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  local commands="build setup config start stop update clean completion"
+  local commands="create build setup config start stop update clean completion"
   local global_opts="-h --help -v --version --about"
 
   if [[ ${COMP_CWORD} -eq 1 ]]; then
@@ -50,6 +50,16 @@ _ebl_completions() {
 
   local subcommand="${COMP_WORDS[1]}"
   case "${subcommand}" in
+    create)
+      case "${prev}" in
+        --template) return ;;
+      esac
+      if [[ "${cur}" == -* ]]; then
+        COMPREPLY=($(compgen -W "--template -h --help" -- "${cur}"))
+      else
+        COMPREPLY=($(compgen -d -- "${cur}"))
+      fi
+      ;;
     build)
       case "${prev}" in
         -a|--artifact) COMPREPLY=($(compgen -W "apk aab" -- "${cur}")); return ;;
@@ -59,7 +69,7 @@ _ebl_completions() {
           return ;;
       esac
       if [[ "${cur}" == -* ]]; then
-        COMPREPLY=($(compgen -W "--prod -a --artifact -p --profile -e --engine --release --keystore --store-password --key-alias --key-password --expo-token --runner-image --gradle-cache-volume --npm-cache-volume --docker-socket --json --status --tui -h --help" -- "${cur}"))
+        COMPREPLY=($(compgen -W "--prod -a --artifact -p --profile -e --engine --release --keystore --store-password --key-alias --key-password --expo-token --runner-image --gradle-cache-volume --npm-cache-volume --docker-socket --json --logs --tui -h --help" -- "${cur}"))
       else
         COMPREPLY=($(compgen -d -- "${cur}"))
       fi
@@ -95,6 +105,7 @@ const char* zshScript() {
 _ebl() {
   local -a commands
   commands=(
+    'create:Scaffold a brand-new Expo app (npx create-expo-app)'
     'build:Build a project into a signed APK/AAB'
     'setup:One-time - check/install Docker, pull images'
     'config:Interactive wizard - projects folder, Expo token, ports'
@@ -113,6 +124,13 @@ _ebl() {
   local subcommand="${words[2]}"
 
   case "${subcommand}" in
+    create)
+      _arguments \
+        '--template[create-expo-app template name or npm package]:template:' \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '1:directory:_files -/' \
+        '2:app name:'
+      ;;
     build)
       _arguments \
         '--prod[shortcut for --artifact aab --profile production]' \
@@ -130,8 +148,8 @@ _ebl() {
         '--npm-cache-volume[Docker volume for the npm cache]:volume:' \
         '--docker-socket[Docker socket path]:path:_files' \
         '--json[print the final result as JSON on stdout instead of the colored summary]' \
-        '--status[live redrawing dashboard - phase/progress/elapsed/CPU/memory]' \
-        '--tui[interactive arrow-key setup, then --status automatically]' \
+        '--logs[show the full raw build log instead of the live dashboard (the default)]' \
+        '--tui[interactive arrow-key setup, then the live dashboard automatically]' \
         '(-h --help)'{-h,--help}'[show help]' \
         '1:project path:_files -/'
       ;;
@@ -167,8 +185,9 @@ _ebl "$@"
 const char* fishScript() {
   return R"FISH(# ebl fish completion - see: ebl completion -h
 
-set -l ebl_commands build setup config start stop update clean completion
+set -l ebl_commands create build setup config start stop update clean completion
 
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a create -d "Scaffold a brand-new Expo app (npx create-expo-app)"
 complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a build -d "Build a project into a signed APK/AAB"
 complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a setup -d "One-time - check/install Docker, pull images"
 complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a config -d "Interactive wizard - projects folder, Expo token, ports"
@@ -196,9 +215,12 @@ complete -c ebl -n "__fish_seen_subcommand_from build" -l gradle-cache-volume -d
 complete -c ebl -n "__fish_seen_subcommand_from build" -l npm-cache-volume -d "Docker volume for the npm cache"
 complete -c ebl -n "__fish_seen_subcommand_from build" -l docker-socket -r -F -d "Docker socket path"
 complete -c ebl -n "__fish_seen_subcommand_from build" -l json -d "Print the final result as JSON on stdout"
-complete -c ebl -n "__fish_seen_subcommand_from build" -l status -d "Live redrawing dashboard - phase/progress/elapsed/CPU/memory"
-complete -c ebl -n "__fish_seen_subcommand_from build" -l tui -d "Interactive arrow-key setup, then --status automatically"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l logs -d "Show the full raw build log instead of the live dashboard (the default)"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l tui -d "Interactive arrow-key setup, then the live dashboard automatically"
 complete -c ebl -n "__fish_seen_subcommand_from build" -s h -l help -d "Show help"
+
+complete -c ebl -n "__fish_seen_subcommand_from create" -l template -d "create-expo-app template name or npm package"
+complete -c ebl -n "__fish_seen_subcommand_from create" -s h -l help -d "Show help"
 
 complete -c ebl -n "__fish_seen_subcommand_from setup config start stop" -s h -l help -d "Show help"
 
@@ -223,7 +245,7 @@ const char* powershellScript() {
 Register-ArgumentCompleter -Native -CommandName ebl -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    $commands = @('build', 'setup', 'config', 'start', 'stop', 'update', 'clean', 'completion')
+    $commands = @('create', 'build', 'setup', 'config', 'start', 'stop', 'update', 'clean', 'completion')
     $globalOpts = @('-h', '--help', '-v', '--version', '--about')
 
     $tokens = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
@@ -234,13 +256,16 @@ Register-ArgumentCompleter -Native -CommandName ebl -ScriptBlock {
         $subcommand = $tokens[1]
         $prev = $tokens[$tokens.Count - 1]
         switch ($subcommand) {
+            'create' {
+                $candidates = @('--template', '-h', '--help')
+            }
             'build' {
                 if ($prev -eq '-a' -or $prev -eq '--artifact') {
                     $candidates = @('apk', 'aab')
                 } elseif ($prev -eq '-e' -or $prev -eq '--engine') {
                     $candidates = @('auto', 'gradle', 'eas')
                 } else {
-                    $candidates = @('--prod', '-a', '--artifact', '-p', '--profile', '-e', '--engine', '--release', '--keystore', '--store-password', '--key-alias', '--key-password', '--expo-token', '--runner-image', '--gradle-cache-volume', '--npm-cache-volume', '--docker-socket', '--json', '--status', '--tui', '-h', '--help')
+                    $candidates = @('--prod', '-a', '--artifact', '-p', '--profile', '-e', '--engine', '--release', '--keystore', '--store-password', '--key-alias', '--key-password', '--expo-token', '--runner-image', '--gradle-cache-volume', '--npm-cache-volume', '--docker-socket', '--json', '--logs', '--tui', '-h', '--help')
                 }
             }
             { $_ -in @('setup', 'config', 'start', 'stop') } {

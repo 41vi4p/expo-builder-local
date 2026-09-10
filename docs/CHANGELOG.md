@@ -3,6 +3,117 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.27.0 - New: `ebl create` scaffolds a new Expo app
+
+**Date:** 2026-09-10
+**Type:** Feature
+
+- **New `ebl create <path> <name> [--template <name>]`** - scaffolds a
+  brand-new Expo app via `npx create-expo-app`, so the CLI now covers the
+  whole lifecycle from a blank folder through to a signed build, not just
+  building an app that already exists. `ebl create . myapp` creates
+  `./myapp`, matching `npx create-expo-app`'s own convention.
+- **Runs directly on the host, never inside Docker** - a deliberate design
+  decision: scaffolding doesn't need anything a disposable build container
+  provides (Android SDK, JDK, Gradle), so there's no reason to pull/start one
+  just to run `npx`. Only `ebl build` actually needs a container.
+- Validates `<path>` exists and `<path>/<name>` doesn't already exist before
+  running anything, streams `create-expo-app`'s own output live rather than
+  buffering it, and gives a clear "install Node.js from https://nodejs.org"
+  message instead of a raw exit code if `npx` isn't on `PATH` (detected via
+  the same exit-127 "command not found" convention every POSIX shell uses).
+  Prints next-step guidance (`cd`, `ebl setup`, `ebl build .`) on success.
+- New `cli/src/host_process.{hpp,cpp}` - a streaming host-subprocess runner
+  extending `metrics.cpp`'s existing `runCommandCapture` fork/execvp/pipe
+  (POSIX) and CreateProcess/CreatePipe (Windows) skeleton, but streaming
+  combined stdout+stderr live via a callback instead of buffering until exit.
+- Wired into `main.cpp`, shell completions (all four scripts), and the
+  README's command reference/quick-start.
+
+**Files modified:** `cli/src/host_process.hpp` (new), `cli/src/host_process.cpp`
+(new), `cli/src/commands/create.hpp` (new), `cli/src/commands/create.cpp` (new),
+`cli/src/main.cpp`, `cli/src/commands/completion.cpp`, `cli/CMakeLists.txt`,
+`README.md`
+
+## v0.26.1 - Fix: `ebl build` dashboard's progress bar stuck at 0% during gradle/eas
+
+**Date:** 2026-09-10
+**Type:** Fix
+
+- **Root cause**: `build-entrypoint.sh` only ever emits `@@PROGRESS:` once, right
+  as a phase finishes, for `setup`/`install`/`prebuild`/`collect` - it never
+  emits it at all during `gradle` or `eas`, the two phases that actually take
+  minutes. The dashboard's old handler also unconditionally zeroed
+  `progressPercent` on every `@@PHASE:` change, with nothing to bring it back up
+  until a `@@PROGRESS:` line arrived - which, for those two phases, never
+  happened. Net effect: the progress bar sat at 0% for the entire gradle/eas
+  phase, then jumped straight to 100%.
+- **Fix**: new `BuildProgressTracker` (`cli/src/build_progress_tracker.{hpp,cpp}`),
+  a direct C++ port of the GUI path's already-working
+  `orchestrator/src/build/progress.ts`. Blends three signals into one
+  monotonic 0-100 percent: fixed per-phase weights driven by `@@PHASE:`/
+  `@@PROGRESS:` markers, Gradle's own live `NN% EXECUTING/CONFIGURING/
+  INITIALIZING` console line (available because the build container gets a
+  real TTY and Gradle runs with `--console=rich` - both already true, just
+  never parsed), and a short list of recognizable milestone strings in
+  `eas build --local`'s own output (eas-cli never prints a live percentage the
+  way Gradle does). ETA is explicitly out of scope - `progress.ts`'s `eta()`
+  needs a local build-history SQLite lookup the CLI has no equivalent of.
+- Wired into `build.cpp`'s `onChunk`: every line (marker or not) is fed through
+  `handleLine()`, so the Gradle/EAS regex matching actually sees real
+  build-tool output, not just markers.
+- New `cli/tests/test_build_progress_tracker.cpp` (13 cases): phase
+  transitions land on the right base percent, `@@PROGRESS:` blends correctly
+  within a phase's budget, the Gradle regex advances the needle, EAS
+  milestones step forward in order and never backward, percent never
+  decreases even if a line implies a lower value, and unrelated/malformed
+  lines are ignored rather than guessed at.
+
+**Files modified:** `cli/src/build_progress_tracker.hpp` (new),
+`cli/src/build_progress_tracker.cpp` (new),
+`cli/tests/test_build_progress_tracker.cpp` (new), `cli/src/commands/build.cpp`,
+`cli/CMakeLists.txt`, `cli/tests/CMakeLists.txt`
+
+## v0.26.0 - Live dashboard is now the default; `--status` replaced by `--logs`
+
+**Date:** 2026-09-10
+**Type:** Feature
+
+- **`ebl build` now shows the live, redrawing dashboard by default** - no flag
+  needed. Plain `ebl build .` or `ebl build . --prod` both get current phase,
+  progress bar, elapsed time, and CPU/memory usage automatically, based on
+  direct user feedback that the dashboard was the view people wanted to see
+  every time, not just when they remembered to ask for it.
+- **New `--logs` flag** is the explicit opt-out, restoring the full raw
+  streamed build log (what `ebl build` always showed before `--status`
+  existed). `--json` already implies raw log output on stderr regardless, so
+  `--logs` is redundant rather than conflicting when combined with it.
+- **`--status` is now a silent no-op**, kept only so scripts/aliases that
+  already adopted it in v0.24.0/v0.25.0 don't start erroring - it's not
+  advertised in `--help` or shell completions going forward.
+- **Silent, warning-free fallback**: when stdout isn't a real terminal (piped
+  to a file, redirected in CI), the dashboard silently falls back to the raw
+  log - no warning text, since this is now the ordinary/expected case rather
+  than a requested feature quietly failing. Matches `color.hpp`'s own
+  existing convention for disabling ANSI output on a non-TTY.
+- **Removed the CPU/Memory sparkline graphs** from the dashboard (explicitly
+  requested) - the CPU/Memory lines now show only the current value, no
+  trailing ASCII history graph. `BuildStatusState`'s `cpuHistory`/
+  `memPercentHistory` deques and `render()`'s `renderSparkline()` helper are
+  both gone; the status-polling thread no longer records any history either.
+- **`--logs` also fixes a longstanding cosmetic wart**: `@@PHASE:`/
+  `@@PROGRESS:`/etc. marker lines used to leak through into the raw log as
+  literal text (the raw passthrough used to write bytes immediately, before
+  they were even scanned for markers). The passthrough is now line-buffered
+  and marker lines are filtered out either way, dashboard or `--logs`.
+- **Confirmed, no code change needed**: multiple flags together (e.g.
+  `ebl build . --status --prod`) already worked correctly - `parseArgs` is a
+  flat loop with independent per-flag branches and no shared state to
+  interfere.
+
+**Files modified:** `cli/src/commands/build.cpp`, `cli/src/build_status_view.hpp`,
+`cli/src/build_status_view.cpp`, `cli/src/commands/completion.cpp`, `README.md`
+
 ## v0.25.0 - `ebl build --tui`: arrow-key interactive setup
 
 **Date:** 2026-09-10

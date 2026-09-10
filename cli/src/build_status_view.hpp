@@ -6,10 +6,8 @@ namespace ebl {
 
 /** Everything BuildStatusView needs for one frame - the caller (build.cpp) owns
  * this, updates it as markers/stats/log lines arrive, and passes it to render()
- * on each tick. History deques are oldest-first; only the most recent samples
- * that actually fit the sparkline width are shown, so callers are free to just
- * keep appending without capping length themselves (though build.cpp does cap it
- * anyway, to keep a long build's memory footprint bounded). */
+ * on each tick. `recentLogLines` is oldest-first; build.cpp caps its length
+ * itself, to keep a long build's memory footprint bounded. */
 struct BuildStatusState {
   std::string phaseId = "setup";
   std::string phaseLabel = "Starting...";
@@ -18,15 +16,13 @@ struct BuildStatusState {
   double cpuPercent = 0.0;
   double memUsedMb = 0.0;
   double memLimitMb = 0.0;
-  std::deque<double> cpuHistory;
-  std::deque<double> memPercentHistory;
   std::deque<std::string> recentLogLines;
 };
 
 /** Renders a live, redraw-in-place build-status dashboard to stdout: current
- * phase, a progress bar, elapsed time, CPU/memory current values with a small
- * auto-scaling ASCII sparkline of recent history, and a short tail of recent
- * build-tool log lines. Plain ASCII only (no Unicode block characters) -
+ * phase, a progress bar, elapsed time, CPU/memory current values, and a short
+ * tail of recent build-tool log lines. Plain ASCII only (no Unicode block
+ * characters) -
  * deliberately, so this renders correctly on a legacy Windows console codepage
  * without needing a global UTF-8 console-output change (see main.cpp's own
  * enableAnsiOnWindowsConsole() for the equivalent reasoning around ANSI escapes

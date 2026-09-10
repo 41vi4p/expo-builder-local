@@ -6,7 +6,7 @@
 </p>
 
 <h1 align="center">expo-builder-local</h1>
-<p align="center"><em>ebl</em> &mdash; build a managed Expo project into a signed Android APK/AAB entirely on your own machine.</p>
+<p align="center"><em>ebl</em> &mdash; scaffold a new Expo app, then build it into a signed Android APK/AAB, entirely on your own machine.</p>
 
 <p align="center">
   <a href="https://github.com/41vi4p/expo-builder-local/releases/latest"><img src="https://img.shields.io/github/v/release/41vi4p/expo-builder-local?label=version&color=e8944a" alt="Latest release"></a>
@@ -152,6 +152,8 @@ file), reclaim it any time with `ebl clean --all` — see
 ### Then
 
 ```bash
+ebl create . myapp    # (optional) scaffold a brand-new Expo app, on this machine
+
 ebl setup     # checks/installs Docker, pulls the runner/orchestrator/web images
 ebl config    # interactive: your projects folder, Expo token, ports
 ebl start     # runs the orchestrator + web GUI as containers, prints the GUI link
@@ -247,6 +249,7 @@ for why that matters.
 
 | Command | What it does |
 |---|---|
+| `ebl create <path> <name>` | Scaffolds a brand-new Expo app via `npx create-expo-app`, directly on this machine (no Docker) — see below. |
 | `ebl setup` | One-time: checks Docker is installed and running (offers to install it via the official convenience script if not — asks first, needs sudo), then pulls the runner/orchestrator/web images. |
 | `ebl config` | Interactive wizard: projects folder (for the GUI's directory browser), a default Expo access token plus optional per-account tokens (see [Multiple Expo accounts](#multiple-expo-accounts) below), orchestrator/web ports. Saved to `~/.config/ebl/config.json`; secrets encrypted at rest (see [Security notes](#security-notes)). Re-run any time to change a value. |
 | `ebl start` | Runs the orchestrator + web GUI as Docker containers (pulling images if needed), waits for both to report healthy, prints the GUI URL. No docker-compose.yml or git checkout needed. |
@@ -274,6 +277,19 @@ ebl completion fish > ~/.config/fish/completions/ebl.fish
 ebl completion powershell >> $PROFILE
 ```
 
+### `ebl create`
+
+```bash
+ebl create . myapp                       # scaffolds ./myapp via npx create-expo-app
+ebl create . myapp --template blank-ts   # passed straight through to create-expo-app
+```
+
+Runs directly on your own machine (never inside a Docker container — scaffolding
+doesn't need anything a disposable build container provides). Requires Node.js
+(for `npx`) on `PATH`; if it's missing you'll get a clear message pointing at
+https://nodejs.org rather than a raw exit code. On success it prints the next
+steps (`cd myapp`, `ebl setup` the first time, then `ebl build .`).
+
 ### `ebl build`
 
 ```bash
@@ -283,8 +299,8 @@ ebl build . --engine eas --expo-token "$EXPO_TOKEN"
 ebl build . --release --keystore ./release.jks --key-alias upload \
   --store-password "$STORE_PW" --key-password "$KEY_PW"
 ebl build . --json > result.json   # scripting/CI — see below
-ebl build . --status               # live dashboard instead of the raw log — see below
-ebl build . --tui                  # arrow-key menus, then --status automatically — see below
+ebl build . --logs                 # full raw build log instead of the default live dashboard — see below
+ebl build . --tui                  # arrow-key menus, then the live dashboard automatically — see below
 ```
 
 Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
@@ -303,26 +319,34 @@ prompts for a missing Expo token (there's no clean way to prompt without corrupt
 the JSON on stdout) — pass `--expo-token`/set `EXPO_TOKEN` up front, or it fails fast
 with a clear error instead of hanging.
 
-**`--status`** — replaces the raw streamed build log with a live, redrawing
-dashboard: current phase + a progress bar, elapsed time, the build container's
-CPU/memory usage (current value plus a short ASCII sparkline of recent history),
-and a short tail of recent log lines. Polls the container's stats once a second.
-Needs a real terminal — falls back to the normal streamed log (with a warning) if
-stdout isn't one — and can't be combined with `--json` (both need exclusive
-control of stdout). On failure, the buffered log lines are still printed
-afterward so nothing is lost for debugging even though the raw log wasn't shown
-live.
+**Live dashboard (default)** — instead of the raw streamed build log, `ebl build`
+shows a live, redrawing dashboard by default: current phase + a progress bar
+(weighted across phases, and live-updated during the long `gradle`/`eas` phases
+from Gradle's own `--console=rich` percentage output or eas-cli's own milestone
+lines — it doesn't just sit at 0% until the phase ends), elapsed time, the build
+container's current CPU/memory usage, and a short tail of recent log lines.
+Polls the container's stats once a second. Falls back to the normal streamed log
+automatically — silently, no warning — if stdout isn't a real terminal (piped to
+a file, redirected in CI); that's the ordinary case there, not a feature quietly
+failing. On failure, the buffered log lines are still printed afterward so
+nothing is lost for debugging even though the raw log wasn't shown live.
+
+**`--logs`** — opts out of the dashboard, showing the full raw build log instead
+(this was the default before the dashboard existed). Useful for CI logs or
+whenever you want to see every line as it happens. **`--json`** also implies raw
+log output (on stderr, since stdout is reserved for the final JSON line), making
+`--logs` redundant rather than conflicting if you pass both.
 
 **`--tui`** — interactive setup: arrow-key menus (Up/Down to move, Enter to
 select, Esc to cancel) for artifact type, build profile (pulled from `eas.json`
 if present), engine, and signing mode - then a confirmation screen before it
 actually builds. Any `--artifact`/`--profile`/`--engine`/`--release` you also
-passed become that menu's pre-selected default rather than being ignored.
-Automatically turns on `--status`'s live dashboard once the build itself starts
-- you don't need to also pass `--status`. Needs a real terminal on *both* stdin
-and stdout (there's no sensible fallback for a menu with nowhere to read a
-keypress from), so unlike `--status` this fails outright rather than degrading
-if either is piped or redirected; can't be combined with `--json` either.
+passed become that menu's pre-selected default rather than being ignored. Then
+builds normally — the live dashboard by default, unless you also passed
+`--logs`. Needs a real terminal on *both* stdin and stdout (there's no sensible
+fallback for a menu with nowhere to read a keypress from), so unlike the
+dashboard's own fallback, `--tui` fails outright rather than degrading if either
+is piped or redirected; can't be combined with `--json` either.
 Works the same way on Windows as on Linux/macOS (arrow-key reading is
 implemented for both), though the Windows path is less battle-tested - report
 anything that doesn't work.

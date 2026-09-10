@@ -17,11 +17,12 @@ const NAV = [
 ];
 
 const COMMANDS = [
+  { cmd: "ebl create <path> <name>", body: "Scaffolds a brand-new Expo app via npx create-expo-app, directly on this machine — no Docker involved. Optional --template flag." },
   { cmd: "ebl setup", body: "One-time: checks Docker is installed and running (offers to install it if not), then pulls the runner/orchestrator/web images." },
   { cmd: "ebl config", body: "Interactive wizard: projects folder, a default Expo token plus optional per-account tokens, orchestrator/web ports." },
   { cmd: "ebl start", body: "Runs the orchestrator + web GUI as Docker containers, waits for both to report healthy, prints the GUI URL." },
   { cmd: "ebl stop", body: "Stops and removes those two containers. Build history/keystores live in a separate volume and are preserved." },
-  { cmd: "ebl build [path]", body: "Builds an Expo project. Works completely standalone — no setup/config/start required." },
+  { cmd: "ebl build [path]", body: "Builds an Expo project — a live dashboard (phase, progress, CPU/memory) by default, or --logs for the full raw build log. Works completely standalone — no setup/config/start required." },
   { cmd: "ebl update", body: "Force-refreshes the runner/orchestrator/web images right now — build/start already pull on every run, but this rebuilds the runner from scratch (no cache) if it can't pull one at all." },
   { cmd: "ebl clean [--all]", body: "Removes stopped build containers. With --all, also clears the shared cache volumes and the runner/orchestrator/web images." },
   { cmd: "ebl completion <shell>", body: "Prints a shell completion script to stdout - bash, zsh, fish, or powershell." },
@@ -100,18 +101,22 @@ sudo apt update && sudo apt install ebl`}
             <p>Then:</p>
             <CodeBlock
               label="bash"
-              code={`ebl setup     # checks/installs Docker, pulls the runner/orchestrator/web images
+              code={`ebl create . myapp   # (optional) scaffold a brand-new Expo app, on this machine
+
+ebl setup     # checks/installs Docker, pulls the runner/orchestrator/web images
 ebl config    # interactive: your projects folder, Expo token, ports
 ebl start     # runs the orchestrator + web GUI as containers, prints the GUI link
 
 cd /path/to/your/expo/app
-ebl build .              # signed APK, auto engine
+ebl build .              # signed APK, auto engine, live dashboard by default
 ebl build . --prod       # shortcut for --artifact aab --profile production`}
             />
             <p>
-              <code>ebl build</code> never needs <code>setup</code>/<code>config</code>/<code>start</code> — it works
-              standalone, from anywhere, against any Expo project, talking to Docker directly. Those three commands are
-              only for the optional web GUI (live dashboard, build history, keystore manager).
+              <code>ebl create</code> and <code>ebl build</code> never need <code>setup</code>/<code>config</code>/
+              <code>start</code> — both work standalone, from anywhere, against any Expo project.{" "}
+              <code>ebl create</code> runs directly on your machine (no Docker); <code>ebl build</code> talks to
+              Docker directly. <code>setup</code>/<code>config</code>/<code>start</code> are only for the optional
+              web GUI (live dashboard, build history, keystore manager).
             </p>
           </Section>
 

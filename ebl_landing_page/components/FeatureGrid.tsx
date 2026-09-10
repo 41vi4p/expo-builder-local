@@ -5,7 +5,7 @@ const FEATURES = [
   },
   {
     title: "CLI or GUI, your call",
-    body: "ebl build . works standalone from any terminal. Prefer a dashboard? ebl start runs a live web GUI with logs and charts.",
+    body: "ebl build . works standalone from any terminal, with its own live dashboard by default (phase, progress, CPU/memory). Prefer a browser? ebl start runs a full web GUI with logs and charts.",
   },
   {
     title: "Disposable containers",
