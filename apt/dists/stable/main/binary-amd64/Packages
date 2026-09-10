@@ -1,13 +1,13 @@
 Package: ebl
-Version: 0.28.1
+Version: 0.28.2
 Architecture: amd64
 Maintainer: expo-builder-local maintainers <noreply@example.com>
-Installed-Size: 8444
-Filename: pool/main/e/ebl/ebl_0.28.1_amd64.deb
-Size: 4979210
-MD5sum: 52f11a9c70bfe8f41f1b5b2d9e785380
-SHA1: 3c2973a18a21faf4b7e876c25e0a3d228b58fbcb
-SHA256: 81115492408db81e3b1385d80db286bf9a29177b2b7b9641329d6c7e69799bec
+Installed-Size: 8447
+Filename: pool/main/e/ebl/ebl_0.28.2_amd64.deb
+Size: 4981302
+MD5sum: befb875dc0d9cc01911d2adb29af8f17
+SHA1: 8835eec29e07424c94d9560c6d66ea06f61442c1
+SHA256: f2ea9c571a87042e228420b781223bbd0e0f3cf363666748160d24c86d242b68
 Section: devel
 Priority: optional
 Homepage: https://github.com/41vi4p/expo-builder-local
