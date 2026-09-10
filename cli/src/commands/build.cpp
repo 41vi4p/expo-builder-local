@@ -34,6 +34,7 @@
 #include "../prompt.hpp"
 #include "../pull_progress.hpp"
 #include "../runner_context.hpp"
+#include "../tui_menu.hpp"
 
 namespace fs = std::filesystem;
 using ebl::BuildParams;
@@ -149,6 +150,15 @@ Options:
                                   can't be combined with --json. On failure, the last
                                   buffered log lines are still printed afterward so
                                   nothing is lost for debugging.
+      --tui                      Interactive setup: pick artifact/profile/engine/
+                                  signing from arrow-key menus (Up/Down, Enter,
+                                  Escape to cancel) instead of passing flags, then
+                                  builds with --status's live dashboard automatically.
+                                  Needs a real terminal on both stdin and stdout -
+                                  fails outright otherwise (unlike --status, there's
+                                  no sensible non-interactive fallback for a menu).
+                                  Any --artifact/--profile/--engine/--release you did
+                                  pass become that menu's pre-selected default.
   -h, --help                     Show this help
 )";
 }
@@ -171,6 +181,7 @@ struct Options {
   std::string dockerSocket = "/var/run/docker.sock";
   bool json = false;
   bool status = false;
+  bool tui = false;
 };
 
 bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
@@ -208,6 +219,7 @@ bool parseArgs(int argc, char** argv, Options& opts, int& exitCode) {
       if (arg == "--docker-socket") { opts.dockerSocket = needValue(i, "--docker-socket"); continue; }
       if (arg == "--json") { opts.json = true; continue; }
       if (arg == "--status") { opts.status = true; continue; }
+      if (arg == "--tui") { opts.tui = true; continue; }
       if (!arg.empty() && arg[0] == '-') {
         std::cerr << ebl::color::red("Unknown option: " + arg) << "\n";
         exitCode = 2;
@@ -263,6 +275,85 @@ std::string formatDuration(long seconds) {
     std::snprintf(buf, sizeof(buf), "%llds", static_cast<long long>(s));
   }
   return buf;
+}
+
+/** `--tui`'s interactive setup: arrow-key menus for artifact/profile/engine/signing,
+ * pre-selected from whatever `opts` already has (flags, or their defaults) so
+ * `--tui --engine gradle` starts with Gradle highlighted rather than ignoring it.
+ * Mutates `opts` in place with the final choices; the caller then continues
+ * straight into the same validation/build path a flag-driven invocation would hit,
+ * completely unchanged. Returns false if the user cancelled at any step (Escape/
+ * Ctrl-C, or answering no to the final confirmation) - the caller is expected to
+ * just exit in that case, nothing has started yet. */
+bool runBuildWizard(Options& opts, const ebl::ExpoProjectInfo& project, std::ostream& log) {
+  log << "\n"
+      << ebl::color::bold("Interactive build setup")
+      << ebl::color::dim(" - Up/Down to move, Enter to select, Esc to cancel") << "\n";
+
+  std::string defaultArtifact = opts.artifact.value_or(opts.prod ? "aab" : "apk");
+  int artifactChoice = ebl::selectFromMenu(
+      "Artifact type",
+      {"APK  - installs directly on a device", "AAB  - Play Store bundle"},
+      defaultArtifact == "aab" ? 1 : 0);
+  if (artifactChoice < 0) return false;
+  opts.artifact = artifactChoice == 1 ? "aab" : "apk";
+
+  std::string defaultProfile = opts.profile.value_or(opts.prod ? "production" : "preview");
+  if (!project.easProfiles.empty()) {
+    int profileDefault = 0;
+    for (size_t i = 0; i < project.easProfiles.size(); i++) {
+      if (project.easProfiles[i] == defaultProfile) profileDefault = static_cast<int>(i);
+    }
+    int profileChoice = ebl::selectFromMenu("Build profile (from eas.json)", project.easProfiles, profileDefault);
+    if (profileChoice < 0) return false;
+    opts.profile = project.easProfiles[static_cast<size_t>(profileChoice)];
+  } else {
+    std::string entered = ebl::promptString("Build profile", defaultProfile);
+    opts.profile = entered.empty() ? defaultProfile : entered;
+  }
+
+  static const std::vector<std::string> kEngineValues = {"auto", "gradle", "eas"};
+  int engineDefault = 0;
+  for (size_t i = 0; i < kEngineValues.size(); i++) {
+    if (kEngineValues[i] == opts.engine) engineDefault = static_cast<int>(i);
+  }
+  int engineChoice = ebl::selectFromMenu(
+      "Build engine",
+      {"Auto (recommended) - eas if the project's configured for it, else gradle",
+       "Gradle - local, fully offline", "EAS - local, needs an Expo access token"},
+      engineDefault);
+  if (engineChoice < 0) return false;
+  opts.engine = kEngineValues[static_cast<size_t>(engineChoice)];
+
+  int signChoice = ebl::selectFromMenu(
+      "Signing", {"Debug - fast, not for the Play Store", "Release - sign with a real keystore"},
+      opts.release ? 1 : 0);
+  if (signChoice < 0) return false;
+  opts.release = signChoice == 1;
+
+  if (opts.release) {
+    std::string keystorePath = ebl::promptString("Path to .jks/.keystore file", opts.keystore.value_or(""));
+    if (keystorePath.empty()) {
+      log << ebl::color::red("A keystore path is required for release signing.") << "\n";
+      return false;
+    }
+    opts.keystore = keystorePath;
+    std::string storePw = ebl::promptHidden("Keystore password");
+    if (!storePw.empty()) opts.storePassword = storePw;
+    std::string alias = ebl::promptString("Key alias", opts.keyAlias.value_or(""));
+    if (!alias.empty()) opts.keyAlias = alias;
+    std::string keyPw = ebl::promptHidden("Key password (blank = same as store password)");
+    if (!keyPw.empty()) opts.keyPassword = keyPw;
+  }
+
+  log << "\n" << ebl::color::bold("Ready:") << "\n";
+  log << "  " << ebl::color::dim("Artifact:") << " " << *opts.artifact << "\n";
+  log << "  " << ebl::color::dim("Profile: ") << " " << *opts.profile << "\n";
+  log << "  " << ebl::color::dim("Engine:  ") << " " << opts.engine << "\n";
+  log << "  " << ebl::color::dim("Signing: ") << " " << (opts.release ? "release" : "debug") << "\n\n";
+
+  std::string proceed = ebl::promptString("Start the build? [Y/n]", "Y");
+  return !proceed.empty() && (proceed[0] == 'y' || proceed[0] == 'Y');
 }
 
 /** Always tries to pull first, whether or not the image already exists locally —
@@ -327,6 +418,15 @@ int runBuild(int argc, char** argv) {
     return code;
   };
 
+  if (opts.tui && opts.json) {
+    return fail("--tui and --json can't be used together - both need exclusive control of stdout.", 2);
+  }
+  if (opts.tui && (!ebl::color::enabled() || !ebl::color::stdinIsTty())) {
+    // Unlike --status, there's no sensible fallback for a menu-driven wizard with
+    // nowhere to read a keypress from (or nowhere to draw it) - hard error instead
+    // of silently degrading to something the user didn't ask for.
+    return fail("--tui needs a real terminal on both stdin and stdout - neither is piped/redirected.", 2);
+  }
   if (opts.status && opts.json) {
     return fail("--status and --json can't be used together - both need exclusive control of stdout.", 2);
   }
@@ -340,10 +440,6 @@ int runBuild(int argc, char** argv) {
     opts.status = false;
   }
 
-  // --prod is sugar for the production defaults, but explicit --artifact/--profile
-  // (if the user passed them too) always win.
-  std::string artifact = opts.artifact.value_or(opts.prod ? "aab" : "apk");
-
   fs::path appPath = fs::absolute(opts.path).lexically_normal();
   if (!fs::exists(appPath) || !fs::is_directory(appPath)) {
     return fail("Not a directory: " + appPath.string(), 2);
@@ -353,6 +449,19 @@ int runBuild(int argc, char** argv) {
   if (!project.isExpoProject) {
     return fail(appPath.string() + " doesn't look like an Expo project: " + project.reason, 2);
   }
+
+  if (opts.tui) {
+    if (!runBuildWizard(opts, project, log)) {
+      log << "\n" << ebl::color::dim("Cancelled - nothing was built.") << "\n";
+      return 130;  // 128 + SIGINT, same convention the Ctrl-C build-cancellation path already uses
+    }
+    opts.status = true;  // --tui always shows the live dashboard once the build starts
+  }
+
+  // --prod is sugar for the production defaults, but explicit --artifact/--profile
+  // (if the user passed them too) always win - or, if --tui ran, this is simply
+  // whatever the wizard already resolved opts.artifact to.
+  std::string artifact = opts.artifact.value_or(opts.prod ? "aab" : "apk");
 
   if (artifact != "apk" && artifact != "aab") {
     return fail("--artifact must be \"apk\" or \"aab\", got \"" + artifact + "\"", 2);

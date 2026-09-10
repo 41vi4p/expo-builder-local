@@ -284,6 +284,7 @@ ebl build . --release --keystore ./release.jks --key-alias upload \
   --store-password "$STORE_PW" --key-password "$KEY_PW"
 ebl build . --json > result.json   # scripting/CI — see below
 ebl build . --status               # live dashboard instead of the raw log — see below
+ebl build . --tui                  # arrow-key menus, then --status automatically — see below
 ```
 
 Prefer `EXPO_BUILDER_STORE_PASSWORD` / `EXPO_BUILDER_KEY_PASSWORD` / `EXPO_TOKEN`
@@ -311,6 +312,20 @@ stdout isn't one — and can't be combined with `--json` (both need exclusive
 control of stdout). On failure, the buffered log lines are still printed
 afterward so nothing is lost for debugging even though the raw log wasn't shown
 live.
+
+**`--tui`** — interactive setup: arrow-key menus (Up/Down to move, Enter to
+select, Esc to cancel) for artifact type, build profile (pulled from `eas.json`
+if present), engine, and signing mode - then a confirmation screen before it
+actually builds. Any `--artifact`/`--profile`/`--engine`/`--release` you also
+passed become that menu's pre-selected default rather than being ignored.
+Automatically turns on `--status`'s live dashboard once the build itself starts
+- you don't need to also pass `--status`. Needs a real terminal on *both* stdin
+and stdout (there's no sensible fallback for a menu with nowhere to read a
+keypress from), so unlike `--status` this fails outright rather than degrading
+if either is piped or redirected; can't be combined with `--json` either.
+Works the same way on Windows as on Linux/macOS (arrow-key reading is
+implemented for both), though the Windows path is less battle-tested - report
+anything that doesn't work.
 
 Every successful build lands in `<project>/ebl_builds/v<app-version>-build<n>/` — `n`
 is a simple counter local to that project (see `ebl_builds/.build-counter`), so

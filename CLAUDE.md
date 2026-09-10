@@ -125,6 +125,28 @@ expo-builder-local/
 │       │                                 block characters, so this renders correctly
 │       │                                 on a legacy Windows console codepage with no
 │       │                                 global UTF-8 console-output change needed)
+│       ├── tui_input.*                 (readKey() - single raw keypress, normalized
+│       │                                 to Up/Down/Enter/Escape/Other. POSIX: raw
+│       │                                 termios mode + a real read() straight off
+│       │                                 the fd (NOT std::getchar()/stdio - mixing
+│       │                                 buffered stdio with select() on the same fd
+│       │                                 is unsafe, confirmed: it made every arrow
+│       │                                 key misread as a bare Escape until fixed -
+│       │                                 see the file's own comment), with a 50ms
+│       │                                 select() to tell an arrow-key escape
+│       │                                 sequence apart from a real bare Escape
+│       │                                 press without ever blocking on one. Windows:
+│       │                                 _getch() - unambiguous by construction, no
+│       │                                 timeout needed. UNVERIFIED ON REAL WINDOWS
+│       │                                 HARDWARE, same caveat as the rest of this
+│       │                                 project's Windows-specific code)
+│       ├── tui_menu.*                  (selectFromMenu() - `ebl build --tui`'s
+│       │                                 arrow-key single-select menu, built on
+│       │                                 tui_input.hpp + the same redraw-in-place
+│       │                                 technique as build_status_view.*. Verified
+│       │                                 for real via a pty-driven test - simulated
+│       │                                 actual key bytes, not just visual
+│       │                                 inspection - see docs/CHANGELOG.md)
 │       └── {docker_client,json,tar_writer,detect,metrics,host_info,version_compare,runner_context,color}.{hpp,cpp}
 └── windows/               ← Windows-specific packaging only — ebl.exe itself is just
                               `cli/` built for Windows (see above), not a separate binary

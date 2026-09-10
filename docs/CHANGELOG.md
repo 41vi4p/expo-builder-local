@@ -3,6 +3,63 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.25.0 - `ebl build --tui`: arrow-key interactive setup
+
+**Date:** 2026-09-10
+**Type:** Feature
+
+- **New `--tui` flag on `ebl build`** - an interactive, arrow-key-driven
+  setup wizard: pick artifact type, build profile (from `eas.json`'s profile
+  list when present, free text otherwise), engine, and signing mode from
+  navigable menus (Up/Down to move, Enter to select, Escape/Ctrl-C to
+  cancel), then (if release signing) prompts for the keystore path and
+  passwords, shows a confirmation summary, and builds - with `--status`'s
+  live dashboard turned on automatically, so the flag combination "interactive
+  setup, then a nice view of the build itself" doesn't need two flags. Any
+  `--artifact`/`--profile`/`--engine`/`--release` also passed on the command
+  line become that menu's pre-selected default rather than being ignored.
+  Needs a real terminal on *both* stdin and stdout - unlike `--status`, there
+  is no sensible fallback for a menu with nowhere to read a keypress from, so
+  this fails outright (not silently) if either is piped/redirected. Can't be
+  combined with `--json`.
+- **Genuinely cross-platform, not Linux-only** - new `tui_input.{hpp,cpp}`
+  reads a single raw keypress with a POSIX branch (raw `termios` mode) and a
+  Windows branch (`_getch()`), the exact same platform-split pattern
+  `prompt.cpp`'s hidden-password input already uses. The Windows branch is
+  written from documented Win32 console API behavior but is **unverified on
+  real Windows hardware** - same caveat this project already applies to every
+  other Windows-specific branch (see `../CLAUDE.md`).
+- **A real bug found and fixed via an actual pty-driven test, not just visual
+  inspection**: the first version of `tui_input.cpp`'s POSIX path mixed
+  buffered `std::getchar()` with a raw `select()` call on the same file
+  descriptor to distinguish a real arrow-key escape sequence from a bare
+  Escape keypress. This is unsafe - a single `getchar()` call can trigger a
+  `read()` syscall that slurps every currently-available byte (the *entire*
+  3-byte arrow-key sequence) into stdio's own internal buffer at once,
+  leaving nothing at the kernel level for the following `select()` to see -
+  so `select()` wrongly reported "nothing more is coming" and every arrow key
+  got misread as a bare Escape (confirmed with a Python `pty`-driven
+  reproduction: simulated real `\x1b[B` byte sequences down a pseudo-terminal
+  and watched the menu return "cancelled" instead of navigating). Fixed by
+  switching to raw `read(STDIN_FILENO, ...)` throughout, removing the stdio
+  buffering layer entirely. Re-verified with the same pty harness across 5
+  scenarios (down/down/enter, down/up/enter, bare enter, bare escape,
+  up-wraps-to-last-item/enter) - all now correct.
+- **New `cli/src/tui_menu.{hpp,cpp}`** (`selectFromMenu()`) - the actual
+  navigable menu, built on `tui_input.hpp` and the same redraw-in-place ANSI
+  technique `build_status_view.cpp`/`pull_progress.cpp` already use.
+- **New `ebl::color::stdinIsTty()`** alongside the existing `enabled()`
+  (stdout) - `--tui` needs both checked independently, since a menu can't
+  function with either end piped/redirected even if the other one is fine.
+
+**Files modified:** `cli/src/tui_input.hpp` (new), `cli/src/tui_input.cpp`
+(new), `cli/src/tui_menu.hpp` (new), `cli/src/tui_menu.cpp` (new),
+`cli/src/color.hpp`, `cli/src/commands/build.cpp`,
+`cli/src/commands/completion.cpp`, `cli/CMakeLists.txt`, `README.md`,
+`../CLAUDE.md`, `orchestrator/package.json`, `expo-builder-gui/package.json`,
+`windows/installer/ebl.iss`, `packaging/arch/PKGBUILD`,
+`packaging/arch/.SRCINFO`
+
 ## v0.24.1 - CI fixed (unrelated flaky apt mirror), --status memory now shows GB
 
 **Date:** 2026-09-09

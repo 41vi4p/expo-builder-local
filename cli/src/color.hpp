@@ -21,6 +21,19 @@ inline bool enabled() {
   return value;
 }
 
+/** Same idea as enabled(), but checks stdin - needed by anything that reads
+ * interactive input (e.g. `ebl build --tui`'s menu), since that can't work at all
+ * if stdin is piped/redirected (no arrow-key presses will ever arrive), separately
+ * from whether stdout happens to be a real terminal. */
+inline bool stdinIsTty() {
+#ifdef _WIN32
+  static bool value = _isatty(_fileno(stdin)) != 0;
+#else
+  static bool value = isatty(fileno(stdin)) != 0;
+#endif
+  return value;
+}
+
 inline std::string wrap(const std::string& code, const std::string& text) {
   if (!enabled()) return text;
   return "\x1b[" + code + "m" + text + "\x1b[0m";
