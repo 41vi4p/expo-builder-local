@@ -1,3 +1,7 @@
 module github.com/41vi4p/expo-builder-local/cli
 
-go 1.22.2
+go 1.22
+
+require github.com/Microsoft/go-winio v0.6.2
+
+require golang.org/x/sys v0.10.0 // indirect
