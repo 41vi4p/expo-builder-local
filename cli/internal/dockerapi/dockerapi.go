@@ -216,6 +216,25 @@ func (c *Client) Ping(ctx context.Context) bool {
 	return err == nil && status == 200
 }
 
+// DaemonOS returns the daemon's container OS ("linux" or "windows") from
+// /info's OSType field, or "" if it can't be determined. Docker Desktop on
+// Windows can run in either Linux-container or Windows-container mode; code
+// that needs Linux images (every one this project pulls) can use this to
+// tell the two apart, since a plain Ping succeeds in both.
+func (c *Client) DaemonOS(ctx context.Context) string {
+	status, body, err := c.do(ctx, http.MethodGet, "/info", nil, nil, defaultTimeout)
+	if err != nil || status != 200 {
+		return ""
+	}
+	var info struct {
+		OSType string `json:"OSType"`
+	}
+	if err := json.Unmarshal(body, &info); err != nil {
+		return ""
+	}
+	return info.OSType
+}
+
 // ImageExists reports whether an image with this exact tag is present
 // locally.
 func (c *Client) ImageExists(ctx context.Context, tag string) (bool, error) {

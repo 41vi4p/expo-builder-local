@@ -28,6 +28,9 @@ func requireDockerAndFakeRunner(t *testing.T) {
 	if !docker.Ping(context.Background()) {
 		t.Skip("no Docker daemon reachable - skipping build integration test")
 	}
+	if os := docker.DaemonOS(context.Background()); os != "" && os != "linux" {
+		t.Skipf("Docker daemon is in %s-container mode - this test needs Linux images", os)
+	}
 	if exists, err := docker.ImageExists(context.Background(), fakeRunnerImage); err != nil || !exists {
 		build := exec.Command("docker", "build", "-t", fakeRunnerImage, "./testdata/fakerunner")
 		if out, err := build.CombinedOutput(); err != nil {

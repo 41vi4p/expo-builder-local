@@ -8,5 +8,6 @@ Building smoke-test-app
   CPU       233.4%
   Memory    2.80GB / 4.00GB (70.0%)
 
+  ─ Build Log ─
   > Task :app:compileDebugKotlin
   > Task :app:mergeDebugResources

@@ -3,6 +3,43 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.28.4 - Fix: CI test suite on Windows and byte-for-byte fixtures
+
+**Date:** 2026-09-10
+**Type:** Fix
+
+The `CI` workflow's `linux-cli-build` and `windows-cli-build` jobs had both been
+failing since the Go migration (v0.28.0); this makes `go test ./...` green on
+both runners.
+
+- **`TestMatchesCppOutputByteForByte` (Linux + Windows)**: the v0.28.3 "─ Build
+  Log ─" header made the dashboard's output diverge from the checked-in fixture.
+  Updated `cli/internal/buildstatusview/testdata/cpp_render_output.txt` to match.
+- **CRLF-translated fixtures (Windows)**: `TestMatchesCppOutputByteForByte` and
+  `TestCompletionScriptsMatchCppByteForByte` compare generated `\n` output against
+  checked-in fixtures; on the Windows runner git's default `core.autocrlf=true`
+  rewrote those fixtures to `\r\n` on checkout, so the byte-for-byte comparison
+  failed. Added a repo-root `.gitattributes` (`* text=auto eol=lf`) so every text
+  file stays LF on all platforms - also protects the runner image's shell scripts.
+- **Docker integration tests (Windows)**: `dockerapi`/`commands` integration tests
+  pull `alpine:3.20`, which the Windows runner's Docker daemon (Windows-container
+  mode) can't resolve (`no matching manifest for windows/amd64`). Added a
+  `dockerapi.Client.DaemonOS()` helper (reads `/info`'s `OSType`) and made the
+  three `requireDocker*` test helpers `t.Skip` when the daemon isn't Linux - a
+  plain `Ping` succeeds in both modes, which is why they didn't skip before.
+- **`hostprocess` tests (Windows)**: hard-coded `/bin/sh` invocations returned exit
+  127 (and one hung until the 10-minute test timeout). Replaced with small
+  `runtime.GOOS`-aware helpers (`cmd /c` on Windows, `/bin/sh -c` elsewhere; `ping`
+  as the Windows sleep since `timeout` aborts under redirected stdin). Made the
+  working-directory assertion resolve symlinks and compare case-insensitively.
+
+**Files modified:** `cli/internal/dockerapi/dockerapi.go`,
+`cli/internal/dockerapi/dockerapi_integration_test.go`,
+`cli/internal/commands/build_integration_test.go`,
+`cli/internal/commands/start_test.go`,
+`cli/internal/hostprocess/hostprocess_test.go`,
+`cli/internal/buildstatusview/testdata/cpp_render_output.txt`, `.gitattributes`
+
 ## v0.28.3 - Fix: TUI dashboard terminal clearing
 
 **Date:** 2026-09-10

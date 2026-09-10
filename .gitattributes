@@ -1,0 +1,14 @@
+# This project is developed and built on Linux (Docker images, shell scripts,
+# Go with `\n`-literal output that byte-for-byte tests assert against). Force
+# LF on every text file so a Windows checkout (where git otherwise defaults
+# core.autocrlf=true) doesn't rewrite line endings and break those tests or
+# the runner image's shell scripts.
+* text=auto eol=lf
+
+# Binary files: never touch, never diff as text.
+*.syso binary
+*.ico binary
+*.png binary
+*.gpg binary
+*.jks binary
+*.keystore binary

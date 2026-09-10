@@ -23,6 +23,9 @@ func requireDocker(t *testing.T) *Client {
 	if !c.Ping(context.Background()) {
 		t.Skip("no Docker daemon reachable at /var/run/docker.sock - skipping integration test")
 	}
+	if os := c.DaemonOS(context.Background()); os != "" && os != "linux" {
+		t.Skipf("Docker daemon is in %s-container mode - these tests need Linux images", os)
+	}
 	return c
 }
 
