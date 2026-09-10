@@ -3,6 +3,34 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.28.1 - Fix: Windows CI/release jobs failed to build ebl.exe
+
+**Date:** 2026-09-10
+**Type:** Fix
+
+- **Root cause**: `.github/workflows/ci.yml`'s `windows-cli-build` job and
+  `release.yml`'s `windows-build-and-publish` job both ran `goversioninfo`
+  from the `cli/` directory, passing `cmd/ebl/versioninfo.json` as the
+  config path. `goversioninfo` resolves that file's `IconPath` field
+  (`"ebl.ico"`) relative to its own *working directory*, not relative to
+  the json file's location - so it looked for `cli/ebl.ico` (which doesn't
+  exist) instead of `cli/cmd/ebl/ebl.ico`, and failed with `error writing
+  syso: ebl.ico: open ebl.ico: The system cannot find the file specified.`
+  Caught on the real `v0.28.0` tag push: the Windows job of both `ci.yml`
+  and `release.yml` failed at the "Build ebl.exe"/icon-generation step,
+  while every Linux job passed.
+- **Fix**: both workflows now run the `goversioninfo` command from
+  `cli/cmd/ebl/` with bare filenames, matching what `cmd/ebl/main.go`'s own
+  `//go:generate` comment specified correctly all along - the workflow
+  steps were just written to invoke it differently.
+- Also fixed a secondary, non-fatal but noisy issue on every job: all four
+  `actions/setup-go` steps logged `Restore cache failed: Dependencies file
+  is not found ... Supported file pattern: go.sum`, since `go.sum` lives at
+  `cli/go.sum`, not the repo root the action defaults to. Added
+  `cache-dependency-path: expo-builder-local/cli/go.sum` to each.
+
+**Files modified:** `.github/workflows/ci.yml`, `.github/workflows/release.yml`
+
 ## v0.28.0 - The `ebl` CLI is now Go, not C++
 
 **Date:** 2026-09-10

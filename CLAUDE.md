@@ -51,6 +51,9 @@ expo-builder-local/
 │                              locally-built ebl.exe — deliberately still no orchestrator build
 │                              check, no macOS job
 ├── scripts/
+│   ├── bump-version.sh    ← bumps the one shared version number everywhere it lives
+│   │                         in one shot (see Version management below) — use this,
+│   │                         don't hand-edit the version fields
 │   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images by hand
 ├── docker/runner/         ← Android toolchain image (Node 22 LTS + JDK 17 + SDK + eas-cli)
 │   ├── Dockerfile
@@ -288,29 +291,38 @@ is `cli/` compiled for Windows, not a separate binary) **always ship together** 
 one product and share **one version number** — a build only works when all of them
 are compatible, so tracking them separately would just invite drift.
 
-- **Canonical source:** `orchestrator/package.json`'s `version`,
+- **Use `scripts/bump-version.sh` to bump the version — don't hand-edit the version
+  fields.** It's the single source of truth for *how* to bump; don't re-derive the
+  mechanics below by reading each target file.
+  ```bash
+  scripts/bump-version.sh patch   # or: minor | major | an explicit X.Y.Z
+  ```
+  In one shot it updates `orchestrator/package.json`'s `version`,
   `expo-builder-gui/package.json`'s `version`, `cli/VERSION`,
-  `windows/installer/ebl.iss`'s `MyAppVersion`, and `packaging/arch/PKGBUILD`'s
-  `pkgver` — **always bump all five to the same value in the same change**, even if
-  a given change only touched one of them. (`PKGBUILD`'s `pkgrel` is separate — see
-  below. `cli/cmd/ebl/versioninfo.json`'s version fields should also be kept in step
-  by hand when bumping, though it only affects the Windows exe's embedded version
-  resource, not `ebl --version`'s own output.)
+  `windows/installer/ebl.iss`'s `MyAppVersion`, `packaging/arch/PKGBUILD`'s `pkgver`
+  (and resets `pkgrel` to `1`), `cli/cmd/ebl/versioninfo.json`'s version fields, and
+  regenerates both `cli/cmd/ebl/resource_windows_amd64.syso` (needs `go` + network —
+  warns and skips if unavailable, regenerate by hand later) and
+  `packaging/arch/.SRCINFO` (via local `makepkg` if present, else a throwaway
+  `archlinux:latest` Docker container — warns and skips if neither is available).
+  It refuses to run if the requested version equals the current one.
+  **It does not touch `docs/CHANGELOG.md`** (that entry's content can't be
+  generated) or `packaging/arch/PKGBUILD`'s `sha256sums` (a real checksum of the
+  tagged source archive, only computable after tagging — see
+  `docs/RELEASING.md`'s "Arch Linux packaging" section) - do both by hand.
 - **Bump rule (SemVer), applied automatically for every change, however small:**
   - `fix:` / `style:` / `refactor:` / docs/config-only change → **PATCH** (+0.0.1)
   - `feat:` / new endpoint / new component / new capability → **MINOR** (+0.1.0, reset PATCH)
   - Breaking change (API shape, WS message shape, env var rename, DB schema change
     requiring a fresh volume) → **MAJOR** (+1.0.0)
   - A change that only touches `packaging/arch/PKGBUILD` itself (e.g. a `depends=`
-    fix) and doesn't otherwise change what gets built → bump `pkgrel` instead of
-    `pkgver`, same as any other PKGBUILD.
+    fix) and doesn't otherwise change what gets built → bump `pkgrel` by hand instead
+    of running the script (`pkgver` doesn't move, so re-running `.SRCINFO`'s
+    generation is the only other step needed).
 - **After every code change to anything under `expo-builder-local/`:**
   1. Make the change.
-  2. Bump all five version fields (they must always match).
-  3. Regenerate `packaging/arch/.SRCINFO` (`makepkg --printsrcinfo > .SRCINFO` from
-     `packaging/arch/`) — it's derived from `PKGBUILD` and goes stale the moment
-     `pkgver`/`pkgrel`/deps change; never hand-edit it.
-  4. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
+  2. Run `scripts/bump-version.sh <patch|minor|major|X.Y.Z>` per the SemVer rule above.
+  3. Add a new entry **at the top** of `docs/CHANGELOG.md` (format below).
 - This is not optional busywork — do it as part of the same commit/turn as the code
   change, not as a follow-up.
 - Do **not** add entries to the repo root's `/CHANGELOG.md` for expo-builder-local

@@ -45,13 +45,15 @@ git tag v0.3.1
 git push origin v0.3.1
 ```
 
-Bump `orchestrator/package.json`, `expo-builder-gui/package.json`, `cli/VERSION`,
-`windows/installer/ebl.iss`'s `MyAppVersion`, and `packaging/arch/PKGBUILD`'s
-`pkgver` to match *before* tagging — see `../CLAUDE.md`'s version-management
-section. The tag itself is what's authoritative for the GitHub Release name; keep it
-in step with `cli/VERSION` so `ebl --version` and the release tag never disagree on
-every platform — `ebl.exe` is the same `cli/` Go module as Linux/macOS, just
-compiled for Windows, so there's no separate launcher version to track anymore.
+Run `scripts/bump-version.sh <patch|minor|major|X.Y.Z>` *before* tagging — it bumps
+every canonical version field in one shot; see `../CLAUDE.md`'s version-management
+section for what it covers and what's still manual (the `docs/CHANGELOG.md` entry,
+and `packaging/arch/PKGBUILD`'s `sha256sums`, computed after tagging - see "Arch
+Linux packaging" below). The tag itself is what's authoritative for the GitHub
+Release name; keep it in step with `cli/VERSION` so `ebl --version` and the release
+tag never disagree on every platform — `ebl.exe` is the same `cli/` Go module as
+Linux/macOS, just compiled for Windows, so there's no separate launcher version to
+track anymore.
 
 You can also trigger the workflow manually (`workflow_dispatch`, e.g. from the
 Actions tab) to republish the current `main` without cutting a new tag — useful for
@@ -64,29 +66,36 @@ is **not built by this workflow** — it builds `cli/` from source with the
 installing machine's own Go toolchain at install time (via `makepkg`, either
 directly or through `install.sh`'s pacman-detection path; `CGO_ENABLED=0` still
 makes the result fully static, no runtime deps), so there's no separate binary
-artifact to publish or sign. Its `pkgver` is bumped by hand alongside the
-other four version fields (see `../CLAUDE.md`#-version-management), but there's
-nothing else to do here at release time — `pkgver` pointing at a tag that doesn't
-exist yet just means that tag needs to be pushed (this same `git tag`/`git push`
-step) before `makepkg` can fetch it.
+artifact to publish or sign. Its `pkgver` is bumped by `scripts/bump-version.sh`
+alongside the other version fields (see `../CLAUDE.md`#-version-management), but
+there's nothing else to do here at release time — `pkgver` pointing at a tag that
+doesn't exist yet just means that tag needs to be pushed (this same `git tag`/
+`git push` step) before `makepkg` can fetch it.
 
 `sha256sums` is a **real, pinned checksum** of the tagged source archive, not
 `SKIP` — there's no per-release AUR-publishing step to keep it in sync
 automatically the way the .deb's dpkg-shlibdeps/GPG signing is, so after tagging,
-recompute it by hand and update both `PKGBUILD` and `.SRCINFO`:
+recompute it by hand and update `PKGBUILD`:
 
 ```bash
 curl -fsSL -o /tmp/ebl-src.tar.gz "https://github.com/41vi4p/expo-builder-local/archive/refs/tags/v<version>.tar.gz"
 sha256sum /tmp/ebl-src.tar.gz   # or: updpkgsums (from pacman-contrib), run from packaging/arch/
 ```
 
+then regenerate `.SRCINFO` from it (`makepkg --printsrcinfo > .SRCINFO` from
+`packaging/arch/`, or `scripts/bump-version.sh`'s docker fallback if `makepkg` isn't
+installed locally — see its own comment) since the checksum change isn't something
+`scripts/bump-version.sh` does for you (it only runs at version-bump time, not after
+a checksum-only edit).
+
 If this step gets missed on a given release, set `sha256sums` back to `('SKIP')`
 rather than ship a stale/wrong checksum — a mismatched pin makes `makepkg` refuse to
 build entirely, whereas `SKIP` just means no integrity check.
 
-`packaging/arch/.SRCINFO` is generated from `PKGBUILD` — regenerate it (`makepkg
---printsrcinfo > .SRCINFO` from `packaging/arch/`) any time `PKGBUILD` changes; it
-doesn't need network access or a real tag to exist, since it just parses the script.
+`packaging/arch/.SRCINFO` is generated from `PKGBUILD` — regenerate it any time
+`PKGBUILD` changes (`scripts/bump-version.sh` does this automatically when it bumps
+`pkgver`); it doesn't need network access or a real tag to exist, since it just
+parses the script.
 
 **Not AUR-submission-ready yet:**
 - `# Maintainer:` in `PKGBUILD` is a placeholder (GitHub profile link, not a real
