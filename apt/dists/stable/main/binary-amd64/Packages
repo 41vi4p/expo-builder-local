@@ -1,16 +1,16 @@
 Package: ebl
-Version: 0.27.1
+Version: 0.28.0
 Architecture: amd64
 Maintainer: expo-builder-local maintainers <noreply@example.com>
-Installed-Size: 764
-Depends: libc6 (>= 2.38), libcurl4t64 (>= 7.16.2), libgcc-s1 (>= 3.0), libssl3t64 (>= 3.0.0), libstdc++6 (>= 13.1)
-Filename: pool/main/e/ebl/ebl_0.27.1_amd64.deb
-Size: 298638
-MD5sum: bb53e7845a2cb8f26b5adf0e78c82a63
-SHA1: c9b624a7d2c280e0a75bac25c550b0a017d18530
-SHA256: ea74664e76a13fd72a4dd463c8d93b64e5107a994339f40bfa603277f62a52f5
+Installed-Size: 8444
+Filename: pool/main/e/ebl/ebl_0.28.0_amd64.deb
+Size: 4979204
+MD5sum: 93c6b3a0165f6f85381975efccaa7d3e
+SHA1: c10b4086084a2d67d267f3fcc6fe6d0cb6a45eb9
+SHA256: 5adbddac7d2647021e896c405f7908c381405714ae5928d9a471f5a8d7a35766
 Section: devel
 Priority: optional
 Homepage: https://github.com/41vi4p/expo-builder-local
 Description: Build managed Expo projects into signed Android APK/AABs in a disposable Docker container
+License: GPL-3.0
 
