@@ -1,0 +1,12 @@
+
+Building smoke-test-app
+
+  Phase     gradle - Running Gradle build
+  Progress  [==================------------] 63%
+  Elapsed   02:05
+
+  CPU       233.4%
+  Memory    2.80GB / 4.00GB (70.0%)
+
+  > Task :app:compileDebugKotlin
+  > Task :app:mergeDebugResources
