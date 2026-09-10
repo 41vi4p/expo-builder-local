@@ -3,6 +3,33 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.27.1 - Fix: build-tool spinners were corrupting the live dashboard's log tail
+
+**Date:** 2026-09-10
+**Type:** Fix
+
+- **Root cause**: some build-tool spinners (npm's own included) animate by
+  writing raw cursor-reposition/erase codes (`ESC[1G`/`ESC[0K`) between frames
+  instead of `\r`/`\n` - so a whole burst of spinner frames arrives in
+  `onChunk` as one single "line" packed with those control codes. The
+  dashboard's recent-log-lines tail printed that unmodified as part of its own
+  redraw-in-place frame, which means those codes executed for real: they moved
+  the cursor and erased text *inside the frame we'd just painted*, so the log
+  tail appeared to show nothing at all rather than garbled text - reported as
+  "I can't see any logs" while watching a real build hang in `npm install`.
+- **Fix**: new `stripAnsiEscapes()` helper in `build.cpp` - strips CSI
+  sequences (`ESC [ ... final-byte`), OSC sequences (`ESC ] ... BEL/ST`), and
+  stray C0 control bytes (tabs kept) before a line is pushed into
+  `recentLogLines`/`fullLogBuffer`. A line that's pure spinner noise strips
+  down to nothing and is skipped rather than shown as a blank line; a line
+  with real text alongside spinner/color codes (e.g. an `npm warn` line
+  printed right after a spinner burst) now shows its actual readable content.
+  Raw `--logs` passthrough is untouched by this - spinners are supposed to
+  animate normally there, since that's a real terminal stream, not a
+  cursor-managed dashboard frame.
+
+**Files modified:** `cli/src/commands/build.cpp`
+
 ## v0.27.0 - New: `ebl create` scaffolds a new Expo app
 
 **Date:** 2026-09-10

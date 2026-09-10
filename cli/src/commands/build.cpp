@@ -264,6 +264,64 @@ std::string toHostArtifactPath(const std::string& appPath, const std::string& co
   return (fs::path(appPath) / containerPath.substr(prefix.size())).string();
 }
 
+/** Strips ANSI/terminal control sequences (CSI - `ESC [ ... final-byte`, OSC -
+ * `ESC ] ... BEL/ST`, and any other C0 control byte except tab) out of a line
+ * before it goes into the dashboard's own recent-log-lines tail or the
+ * failure-path log dump. Needed because build-tool spinners (npm's own among
+ * them) draw their animation with raw cursor-reposition/erase codes
+ * (`ESC[1G`/`ESC[0K`) rather than `\r`/`\n` between frames - a whole burst of
+ * spinner frames lands in `onChunk` as one single "line" packed with those
+ * codes, and printing that unmodified as part of our own redraw-in-place
+ * dashboard frame means those codes execute for real: they move the cursor and
+ * erase text *within our own just-painted frame*, silently wiping out
+ * whatever we'd already drawn instead of just looking like garbled text. Raw
+ * `--logs` passthrough deliberately does NOT go through this - spinners are
+ * supposed to animate normally there, since that mode is a real terminal
+ * stream, not a redraw-in-place frame with its own cursor bookkeeping. */
+std::string stripAnsiEscapes(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  for (size_t i = 0; i < s.size();) {
+    unsigned char c = static_cast<unsigned char>(s[i]);
+    if (c == 0x1b && i + 1 < s.size()) {
+      char next = s[i + 1];
+      if (next == '[') {
+        // CSI: ESC '[' <params/intermediates> <final byte in 0x40-0x7E>
+        size_t j = i + 2;
+        while (j < s.size() && !(static_cast<unsigned char>(s[j]) >= 0x40 && static_cast<unsigned char>(s[j]) <= 0x7e)) {
+          j++;
+        }
+        i = j < s.size() ? j + 1 : s.size();
+        continue;
+      }
+      if (next == ']') {
+        // OSC: ESC ']' ... terminated by BEL or ESC '\' (ST)
+        size_t j = i + 2;
+        while (j < s.size() && s[j] != '\a' && !(s[j] == '\x1b' && j + 1 < s.size() && s[j + 1] == '\\')) {
+          j++;
+        }
+        if (j < s.size() && s[j] == '\a') {
+          i = j + 1;
+        } else if (j + 1 < s.size()) {
+          i = j + 2;
+        } else {
+          i = s.size();
+        }
+        continue;
+      }
+      i += 2;  // some other two-byte escape - just drop it
+      continue;
+    }
+    if (c < 0x20 && c != '\t') {
+      i++;  // stray C0 control byte (e.g. a lone backspace) - drop, keep tabs
+      continue;
+    }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
+
 std::string formatBytes(uint64_t bytes) {
   char buf[64];
   if (bytes < 1024ULL * 1024) {
@@ -710,11 +768,19 @@ int runBuild(int argc, char** argv) {
         if (isMarker) continue;  // never shown as content, dashboard or --logs
 
         if (wantDashboard) {
-          if (!line.empty()) {
+          // Stripped, not raw: a spinner's own cursor-reposition/erase codes
+          // would otherwise execute for real inside our redraw-in-place frame
+          // (see stripAnsiEscapes's own comment) - a burst of pure spinner
+          // noise strips down to nothing and is skipped rather than shown as
+          // a blank line.
+          std::string clean = stripAnsiEscapes(line);
+          size_t first = clean.find_first_not_of(" \t");
+          clean = first == std::string::npos ? "" : clean.substr(first, clean.find_last_not_of(" \t") - first + 1);
+          if (!clean.empty()) {
             std::lock_guard<std::mutex> lock(statusMutex);
-            statusState.recentLogLines.push_back(line);
+            statusState.recentLogLines.push_back(clean);
             if (statusState.recentLogLines.size() > kRecentLogLineCap) statusState.recentLogLines.pop_front();
-            fullLogBuffer.push_back(line);
+            fullLogBuffer.push_back(clean);
             if (fullLogBuffer.size() > kFullLogLineCap) fullLogBuffer.pop_front();
           }
         } else {
