@@ -1,0 +1,49 @@
+# ebl PowerShell completion - see: ebl completion -h
+Register-ArgumentCompleter -Native -CommandName ebl -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+
+    $commands = @('create', 'build', 'setup', 'config', 'start', 'stop', 'update', 'clean', 'completion')
+    $globalOpts = @('-h', '--help', '-v', '--version', '--about')
+
+    $tokens = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
+
+    if ($tokens.Count -le 1) {
+        $candidates = $commands + $globalOpts
+    } else {
+        $subcommand = $tokens[1]
+        $prev = $tokens[$tokens.Count - 1]
+        switch ($subcommand) {
+            'create' {
+                $candidates = @('--template', '-h', '--help')
+            }
+            'build' {
+                if ($prev -eq '-a' -or $prev -eq '--artifact') {
+                    $candidates = @('apk', 'aab')
+                } elseif ($prev -eq '-e' -or $prev -eq '--engine') {
+                    $candidates = @('auto', 'gradle', 'eas')
+                } else {
+                    $candidates = @('--prod', '-a', '--artifact', '-p', '--profile', '-e', '--engine', '--release', '--keystore', '--store-password', '--key-alias', '--key-password', '--expo-token', '--runner-image', '--gradle-cache-volume', '--npm-cache-volume', '--docker-socket', '--json', '--logs', '--tui', '-h', '--help')
+                }
+            }
+            { $_ -in @('setup', 'config', 'start', 'stop') } {
+                $candidates = @('-h', '--help')
+            }
+            'update' {
+                $candidates = @('--runner-image', '--orchestrator-image', '--web-image', '--docker-socket', '-h', '--help')
+            }
+            'clean' {
+                $candidates = @('--all', '--gradle-cache-volume', '--npm-cache-volume', '--docker-socket', '-h', '--help')
+            }
+            'completion' {
+                $candidates = @('bash', 'zsh', 'fish', 'powershell')
+            }
+            default {
+                $candidates = @()
+            }
+        }
+    }
+
+    $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }
+}

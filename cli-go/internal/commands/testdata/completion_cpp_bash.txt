@@ -1,0 +1,61 @@
+# ebl bash completion - see: ebl completion -h
+_ebl_completions() {
+  local cur prev
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  local commands="create build setup config start stop update clean completion"
+  local global_opts="-h --help -v --version --about"
+
+  if [[ ${COMP_CWORD} -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "${commands} ${global_opts}" -- "${cur}"))
+    return
+  fi
+
+  local subcommand="${COMP_WORDS[1]}"
+  case "${subcommand}" in
+    create)
+      case "${prev}" in
+        --template) return ;;
+      esac
+      if [[ "${cur}" == -* ]]; then
+        COMPREPLY=($(compgen -W "--template -h --help" -- "${cur}"))
+      else
+        COMPREPLY=($(compgen -d -- "${cur}"))
+      fi
+      ;;
+    build)
+      case "${prev}" in
+        -a|--artifact) COMPREPLY=($(compgen -W "apk aab" -- "${cur}")); return ;;
+        -e|--engine) COMPREPLY=($(compgen -W "auto gradle eas" -- "${cur}")); return ;;
+        --keystore|--docker-socket) COMPREPLY=($(compgen -f -- "${cur}")); return ;;
+        -p|--profile|--store-password|--key-alias|--key-password|--expo-token|--runner-image|--gradle-cache-volume|--npm-cache-volume)
+          return ;;
+      esac
+      if [[ "${cur}" == -* ]]; then
+        COMPREPLY=($(compgen -W "--prod -a --artifact -p --profile -e --engine --release --keystore --store-password --key-alias --key-password --expo-token --runner-image --gradle-cache-volume --npm-cache-volume --docker-socket --json --logs --tui -h --help" -- "${cur}"))
+      else
+        COMPREPLY=($(compgen -d -- "${cur}"))
+      fi
+      ;;
+    setup|config|start|stop)
+      COMPREPLY=($(compgen -W "-h --help" -- "${cur}"))
+      ;;
+    update)
+      case "${prev}" in
+        --runner-image|--orchestrator-image|--web-image|--docker-socket) return ;;
+      esac
+      COMPREPLY=($(compgen -W "--runner-image --orchestrator-image --web-image --docker-socket -h --help" -- "${cur}"))
+      ;;
+    clean)
+      case "${prev}" in
+        --gradle-cache-volume|--npm-cache-volume|--docker-socket) return ;;
+      esac
+      COMPREPLY=($(compgen -W "--all --gradle-cache-volume --npm-cache-volume --docker-socket -h --help" -- "${cur}"))
+      ;;
+    completion)
+      COMPREPLY=($(compgen -W "bash zsh fish powershell" -- "${cur}"))
+      ;;
+  esac
+}
+complete -F _ebl_completions ebl

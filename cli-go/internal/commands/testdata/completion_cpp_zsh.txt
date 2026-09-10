@@ -1,0 +1,80 @@
+#compdef ebl
+# ebl zsh completion - see: ebl completion -h
+
+_ebl() {
+  local -a commands
+  commands=(
+    'create:Scaffold a brand-new Expo app (npx create-expo-app)'
+    'build:Build a project into a signed APK/AAB'
+    'setup:One-time - check/install Docker, pull images'
+    'config:Interactive wizard - projects folder, Expo token, ports'
+    'start:Run the orchestrator + web GUI'
+    'stop:Stop the orchestrator + web GUI'
+    'update:Force-refresh the runner/orchestrator/web images'
+    'clean:Remove stopped build containers'
+    'completion:Print a shell completion script'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'command' commands
+    return
+  fi
+
+  local subcommand="${words[2]}"
+
+  case "${subcommand}" in
+    create)
+      _arguments \
+        '--template[create-expo-app template name or npm package]:template:' \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '1:directory:_files -/' \
+        '2:app name:'
+      ;;
+    build)
+      _arguments \
+        '--prod[shortcut for --artifact aab --profile production]' \
+        '(-a --artifact)'{-a,--artifact}'[apk or aab]:type:(apk aab)' \
+        '(-p --profile)'{-p,--profile}'[eas.json build profile]:profile:' \
+        '(-e --engine)'{-e,--engine}'[build engine]:engine:(auto gradle eas)' \
+        '--release[sign with a real keystore instead of the debug keystore]' \
+        '--keystore[path to a .jks/.keystore file]:file:_files' \
+        '--store-password[keystore password]:password:' \
+        '--key-alias[key alias]:alias:' \
+        '--key-password[key password]:password:' \
+        '--expo-token[Expo access token]:token:' \
+        '--runner-image[runner image tag]:tag:' \
+        '--gradle-cache-volume[Docker volume for the Gradle cache]:volume:' \
+        '--npm-cache-volume[Docker volume for the npm cache]:volume:' \
+        '--docker-socket[Docker socket path]:path:_files' \
+        '--json[print the final result as JSON on stdout instead of the colored summary]' \
+        '--logs[show the full raw build log instead of the live dashboard (the default)]' \
+        '--tui[interactive arrow-key setup, then the live dashboard automatically]' \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '1:project path:_files -/'
+      ;;
+    setup|config|start|stop)
+      _arguments '(-h --help)'{-h,--help}'[show help]'
+      ;;
+    update)
+      _arguments \
+        '--runner-image[runner image tag]:tag:' \
+        '--orchestrator-image[orchestrator image tag]:tag:' \
+        '--web-image[web image tag]:tag:' \
+        '--docker-socket[Docker socket path]:path:_files' \
+        '(-h --help)'{-h,--help}'[show help]'
+      ;;
+    clean)
+      _arguments \
+        '--all[also remove cache volumes and pulled images]' \
+        '--gradle-cache-volume[Gradle cache volume name]:volume:' \
+        '--npm-cache-volume[npm cache volume name]:volume:' \
+        '--docker-socket[Docker socket path]:path:_files' \
+        '(-h --help)'{-h,--help}'[show help]'
+      ;;
+    completion)
+      _values 'shell' bash zsh fish powershell
+      ;;
+  esac
+}
+
+_ebl "$@"

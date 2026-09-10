@@ -1,0 +1,54 @@
+# ebl fish completion - see: ebl completion -h
+
+set -l ebl_commands create build setup config start stop update clean completion
+
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a create -d "Scaffold a brand-new Expo app (npx create-expo-app)"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a build -d "Build a project into a signed APK/AAB"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a setup -d "One-time - check/install Docker, pull images"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a config -d "Interactive wizard - projects folder, Expo token, ports"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a start -d "Run the orchestrator + web GUI"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a stop -d "Stop the orchestrator + web GUI"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a update -d "Force-refresh the runner/orchestrator/web images"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a clean -d "Remove stopped build containers"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -a completion -d "Print a shell completion script"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -s h -l help -d "Show help"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -s v -l version -d "Show version"
+complete -c ebl -n "not __fish_seen_subcommand_from $ebl_commands" -l about -d "Show project/developer/license/repository info"
+
+complete -c ebl -n "__fish_seen_subcommand_from build" -l prod -d "Shortcut for --artifact aab --profile production"
+complete -c ebl -n "__fish_seen_subcommand_from build" -s a -l artifact -xa "apk aab" -d "Artifact type"
+complete -c ebl -n "__fish_seen_subcommand_from build" -s p -l profile -d "eas.json build profile"
+complete -c ebl -n "__fish_seen_subcommand_from build" -s e -l engine -xa "auto gradle eas" -d "Build engine"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l release -d "Sign with a real keystore"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l keystore -r -F -d "Path to .jks/.keystore file"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l store-password -d "Keystore password"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l key-alias -d "Key alias"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l key-password -d "Key password"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l expo-token -d "Expo access token"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l runner-image -d "Runner image tag"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l gradle-cache-volume -d "Docker volume for the Gradle cache"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l npm-cache-volume -d "Docker volume for the npm cache"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l docker-socket -r -F -d "Docker socket path"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l json -d "Print the final result as JSON on stdout"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l logs -d "Show the full raw build log instead of the live dashboard (the default)"
+complete -c ebl -n "__fish_seen_subcommand_from build" -l tui -d "Interactive arrow-key setup, then the live dashboard automatically"
+complete -c ebl -n "__fish_seen_subcommand_from build" -s h -l help -d "Show help"
+
+complete -c ebl -n "__fish_seen_subcommand_from create" -l template -d "create-expo-app template name or npm package"
+complete -c ebl -n "__fish_seen_subcommand_from create" -s h -l help -d "Show help"
+
+complete -c ebl -n "__fish_seen_subcommand_from setup config start stop" -s h -l help -d "Show help"
+
+complete -c ebl -n "__fish_seen_subcommand_from update" -l runner-image -d "Runner image tag"
+complete -c ebl -n "__fish_seen_subcommand_from update" -l orchestrator-image -d "Orchestrator image tag"
+complete -c ebl -n "__fish_seen_subcommand_from update" -l web-image -d "Web image tag"
+complete -c ebl -n "__fish_seen_subcommand_from update" -l docker-socket -r -F -d "Docker socket path"
+complete -c ebl -n "__fish_seen_subcommand_from update" -s h -l help -d "Show help"
+
+complete -c ebl -n "__fish_seen_subcommand_from clean" -l all -d "Also remove cache volumes and pulled images"
+complete -c ebl -n "__fish_seen_subcommand_from clean" -l gradle-cache-volume -d "Gradle cache volume name"
+complete -c ebl -n "__fish_seen_subcommand_from clean" -l npm-cache-volume -d "npm cache volume name"
+complete -c ebl -n "__fish_seen_subcommand_from clean" -l docker-socket -r -F -d "Docker socket path"
+complete -c ebl -n "__fish_seen_subcommand_from clean" -s h -l help -d "Show help"
+
+complete -c ebl -n "__fish_seen_subcommand_from completion" -xa "bash zsh fish powershell"
