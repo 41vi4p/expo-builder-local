@@ -3,6 +3,17 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.28.3 - Fix: TUI dashboard terminal clearing
+
+**Date:** 2026-09-10
+**Type:** Fix
+
+- **Root cause**: The initial screen clear happened before `ensureRunnerImage` (docker pull), so the pull progress output would fill the screen after the clear. When the dashboard started rendering, it didn't know how many lines were on screen from the pull, causing subsequent redraws to add new lines instead of replacing in-place.
+- **Fix**: Added a second clear screen right before the dashboard starts (after `ensureRunnerImage` completes but before the first render), ensuring a completely clean slate. Initial status messages now also suppress in dashboard mode so they don't duplicate.
+- **Log display**: Adjusted visible log lines to 8 (down from 15) for a more compact, professional appearance while still showing meaningful build context.
+
+**Files modified:** `cli/internal/commands/build_run.go`
+
 ## v0.28.2 - Enhancement: Professional TUI dashboard
 
 **Date:** 2026-09-10

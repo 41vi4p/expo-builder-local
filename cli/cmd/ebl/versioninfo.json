@@ -3,13 +3,13 @@
     "FileVersion": {
       "Major": 0,
       "Minor": 28,
-      "Patch": 2,
+      "Patch": 3,
       "Build": 0
     },
     "ProductVersion": {
       "Major": 0,
       "Minor": 28,
-      "Patch": 2,
+      "Patch": 3,
       "Build": 0
     },
     "FileFlagsMask": "3f",
@@ -21,12 +21,12 @@
   "StringFileInfo": {
     "CompanyName": "41vi4p",
     "FileDescription": "ebl (expo-local-builder) - build managed Expo projects into signed Android APK/AABs",
-    "FileVersion": "0.28.2",
+    "FileVersion": "0.28.3",
     "InternalName": "ebl",
     "LegalCopyright": "GNU General Public License v3.0 (GPL-3.0)",
     "OriginalFilename": "ebl.exe",
     "ProductName": "expo-builder-local",
-    "ProductVersion": "0.28.2"
+    "ProductVersion": "0.28.3"
   },
   "VarFileInfo": {
     "Translation": {

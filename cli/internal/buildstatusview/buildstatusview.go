@@ -85,22 +85,15 @@ func formatMemory(mb float64) string {
 type View struct {
 	appLabel      string
 	linesRendered int
-	isFirstRender bool
 }
 
 // New returns a View. appLabel is shown once in the header (e.g. the
 // project path being built).
-func New(appLabel string) *View { return &View{appLabel: appLabel, isFirstRender: true} }
+func New(appLabel string) *View { return &View{appLabel: appLabel} }
 
 // Render paints one frame of the dashboard for state.
 func (v *View) Render(state State) {
 	var out strings.Builder
-
-	// Initial clear screen on first render to provide a clean slate
-	if v.isFirstRender {
-		out.WriteString("\x1b[2J\x1b[H") // Clear screen and move cursor to home
-		v.isFirstRender = false
-	}
 
 	out.WriteString("\n" + color.Bold("Building "+color.Cyan(v.appLabel)) + "\n\n")
 	out.WriteString("  " + color.Dim("Phase   ") + "  " + state.PhaseID + " - " + state.PhaseLabel + "\n")

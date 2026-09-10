@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	recentLogLineCap = 15
+	recentLogLineCap = 8
 	fullLogLineCap   = 200
 )
 
@@ -32,6 +32,12 @@ func runBuildContainer(opts buildOptions, params dockerapi.BuildParams, appPath,
 	project detect.ProjectInfo, wantDashboard bool, log io.Writer, logFile *os.File) int {
 	ctx := context.Background()
 	docker := dockerapi.New(opts.dockerSocket)
+
+	// Clear screen immediately if dashboard mode - do this before any output so
+	// there's no clutter from earlier phases (docker pull, ensureRunnerImage, etc)
+	if wantDashboard {
+		fmt.Print("\x1b[2J\x1b[H")
+	}
 
 	fail := func(message string) int {
 		if opts.jsonOut {
@@ -65,18 +71,29 @@ func runBuildContainer(opts buildOptions, params dockerapi.BuildParams, appPath,
 		return fail(err.Error())
 	}
 
-	fmt.Fprintln(log)
-	fmt.Fprintln(log, color.Bold("Building "+color.Cyan(appPath)))
-	fmt.Fprintln(log, color.Dim("  profile="+profile+" artifact="+artifact+" engine="+opts.engine+" signing="+params.SigningMode))
-	fmt.Fprintln(log)
+	// Only print initial status in non-dashboard modes - dashboard will render these
+	if !wantDashboard {
+		fmt.Fprintln(log)
+		fmt.Fprintln(log, color.Bold("Building "+color.Cyan(appPath)))
+		fmt.Fprintln(log, color.Dim("  profile="+profile+" artifact="+artifact+" engine="+opts.engine+" signing="+params.SigningMode))
+		fmt.Fprintln(log)
+	}
 
 	buildUID, buildGID := buildUIDGID()
 	containerID, err := docker.CreateContainer(ctx, params, runnerImage, opts.gradleCacheVolume, opts.npmCacheVolume, buildUID, buildGID)
 	if err != nil {
 		return fail(err.Error())
 	}
-	fmt.Fprintln(log, color.Dim("Container: "+containerID))
-	fmt.Fprintln(log, color.Dim("Press Ctrl-C to cancel - the container will be stopped and removed."))
+
+	// Only print container info in non-dashboard modes
+	if !wantDashboard {
+		fmt.Fprintln(log, color.Dim("Container: "+containerID))
+		fmt.Fprintln(log, color.Dim("Press Ctrl-C to cancel - the container will be stopped and removed."))
+	} else {
+		// Clear screen again right before dashboard starts - ensures a clean slate
+		// after ensureRunnerImage (docker pull) has printed many lines of output
+		fmt.Print("\x1b[2J\x1b[H")
+	}
 
 	// Ctrl-C (SIGINT) or a `kill` (SIGTERM) is watched here; this goroutine
 	// notices it and force-removes the container, which is what unblocks
