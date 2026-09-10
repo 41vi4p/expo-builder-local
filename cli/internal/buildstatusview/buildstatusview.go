@@ -85,15 +85,23 @@ func formatMemory(mb float64) string {
 type View struct {
 	appLabel      string
 	linesRendered int
+	isFirstRender bool
 }
 
 // New returns a View. appLabel is shown once in the header (e.g. the
 // project path being built).
-func New(appLabel string) *View { return &View{appLabel: appLabel} }
+func New(appLabel string) *View { return &View{appLabel: appLabel, isFirstRender: true} }
 
 // Render paints one frame of the dashboard for state.
 func (v *View) Render(state State) {
 	var out strings.Builder
+
+	// Initial clear screen on first render to provide a clean slate
+	if v.isFirstRender {
+		out.WriteString("\x1b[2J\x1b[H") // Clear screen and move cursor to home
+		v.isFirstRender = false
+	}
+
 	out.WriteString("\n" + color.Bold("Building "+color.Cyan(v.appLabel)) + "\n\n")
 	out.WriteString("  " + color.Dim("Phase   ") + "  " + state.PhaseID + " - " + state.PhaseLabel + "\n")
 	out.WriteString("  " + color.Dim("Progress") + "  " + renderProgressBar(state.ProgressPercent, 30) + "\n")
@@ -109,7 +117,7 @@ func (v *View) Render(state State) {
 		formatMemory(state.MemLimitMB) + fmt.Sprintf(" (%.1f%%)\n", memPercent))
 
 	if len(state.RecentLogLines) > 0 {
-		out.WriteString("\n")
+		out.WriteString("\n  " + color.Dim("─ Build Log ─") + "\n")
 		for _, line := range state.RecentLogLines {
 			out.WriteString("  " + color.Dim(truncate(line, maxLogLineLen)) + "\n")
 		}

@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	recentLogLineCap = 6
+	recentLogLineCap = 15
 	fullLogLineCap   = 200
 )
 
@@ -96,9 +96,13 @@ func runBuildContainer(opts buildOptions, params dockerapi.BuildParams, appPath,
 			wasCancelled = true
 			fmt.Fprintln(os.Stderr)
 			fmt.Fprintln(os.Stderr, color.Yellow("Cancelling - stopping and removing the build container..."))
-			if err := docker.RemoveContainer(context.Background(), containerID); err != nil {
+			killCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := docker.RemoveContainer(killCtx, containerID); err != nil {
 				fmt.Fprintln(os.Stderr, color.Red("Failed to remove container: "+err.Error()))
 				fmt.Fprintln(os.Stderr, color.Dim("Clean it up manually with: docker rm -f "+containerID))
+			} else {
+				fmt.Fprintln(os.Stderr, color.Green("Container stopped and removed."))
 			}
 		case <-buildFinished:
 		}

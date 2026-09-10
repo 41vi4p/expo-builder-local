@@ -3,6 +3,18 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.28.2 - Enhancement: Professional TUI dashboard
+
+**Date:** 2026-09-10
+**Type:** Enhancement
+
+- **Initial screen clear**: Default `ebl build` now clears the terminal on start, eliminating clutter from the `docker pull` output and image check phase (before, old output stayed visible and new dashboard frames redrawed over it).
+- **More log context**: Increased visible build log lines in the dashboard from 6 → 15, so users see more build history without logs scrolling away instantly. Logs still continue to feed through in real-time as the build progresses.
+- **Ctrl-C cleanup**: Improved cancellation handling with a 10-second timeout for graceful container removal, plus explicit feedback when the container is successfully stopped and removed (instead of silent cleanup that left users unsure if Ctrl-C worked).
+- **Visual polish**: Added "Build Log" section header for better visual separation between stats and logs, matching professional developer TUI conventions.
+
+**Files modified:** `cli/internal/buildstatusview/buildstatusview.go`, `cli/internal/commands/build_run.go`
+
 ## v0.28.1 - Fix: Windows CI/release jobs failed to build ebl.exe
 
 **Date:** 2026-09-10
