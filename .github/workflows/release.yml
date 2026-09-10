@@ -49,6 +49,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: expo-builder-local/cli/go.mod
+          cache-dependency-path: expo-builder-local/cli/go.sum
 
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.40.0
@@ -199,6 +200,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: expo-builder-local/cli/go.mod
+          cache-dependency-path: expo-builder-local/cli/go.sum
 
       - name: Sync docker/runner assets for //go:embed
         shell: bash
@@ -207,8 +209,11 @@ jobs:
 
       - name: Generate the Windows icon/version resource
         shell: bash
-        run: go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -o cmd/ebl/resource_windows_amd64.syso cmd/ebl/versioninfo.json
-        working-directory: expo-builder-local/cli
+        # goversioninfo resolves versioninfo.json's IconPath relative to the
+        # process's cwd, not the json file's own location - must run from
+        # cmd/ebl/ itself (matches main.go's own //go:generate comment).
+        run: go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -o resource_windows_amd64.syso versioninfo.json
+        working-directory: expo-builder-local/cli/cmd/ebl
 
       - name: Build ebl.exe
         shell: bash

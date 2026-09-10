@@ -13,7 +13,7 @@
 # Remember to regenerate .SRCINFO (`makepkg --printsrcinfo > .SRCINFO`) any time
 # this file changes.
 pkgname=ebl
-pkgver=0.28.0
+pkgver=0.28.1
 pkgrel=1
 pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
 # Matches every other release artifact in this repo (CI, the .deb, the Windows

@@ -17,7 +17,7 @@
 ; ci.yml's windows-cli-build job, for the `go build` step that produces it).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.28.0"
+#define MyAppVersion "0.28.1"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"

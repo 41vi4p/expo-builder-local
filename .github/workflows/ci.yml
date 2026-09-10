@@ -48,6 +48,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: expo-builder-local/cli/go.mod
+          cache-dependency-path: expo-builder-local/cli/go.sum
 
       # See cli/scripts/sync-runner-assets.sh's own comment - //go:embed can't
       # reference ../docker/runner directly, so this copies it in first. Required
@@ -77,6 +78,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: expo-builder-local/cli/go.mod
+          cache-dependency-path: expo-builder-local/cli/go.sum
 
       - name: Sync docker/runner assets for //go:embed
         shell: bash
@@ -98,7 +100,10 @@ jobs:
         run: |
           set -e
           VERSION="$(cat VERSION)"
-          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -o cmd/ebl/resource_windows_amd64.syso cmd/ebl/versioninfo.json
+          # goversioninfo resolves versioninfo.json's IconPath relative to the
+          # process's cwd, not the json file's own location - must run from
+          # cmd/ebl/ itself (matches main.go's own //go:generate comment).
+          (cd cmd/ebl && go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -o resource_windows_amd64.syso versioninfo.json)
           go build -ldflags "-X main.version=$VERSION" -o build/install/bin/ebl.exe ./cmd/ebl
         working-directory: expo-builder-local/cli
 
