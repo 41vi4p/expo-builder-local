@@ -36,18 +36,20 @@ expo-builder-local/
 │   ├── DOCKER.md                 ← one-time: Docker Hub access token + repo secrets for docker-publish.yml
 │   └── apt/pubkey.gpg            ← committed once APT_REPO_SETUP_GUIDE.md is done (public key only)
 ├── .github/workflows/
-│   ├── release.yml        ← "Build and publish APT repository": tag-triggered, builds the .deb
-│   │                         inside a pinned ubuntu:24.04, assembles + GPG-signs a real APT repo
-│   │                         tree, publishes it to gh-pages/apt, also attaches the .deb to a
-│   │                         GitHub Release as a direct-download fallback
+│   ├── release.yml        ← "Build and publish APT repository": tag-triggered, builds a static
+│   │                         (CGO_ENABLED=0) `ebl` with go build + nfpm, assembles + GPG-signs a
+│   │                         real APT repo tree, publishes it to gh-pages/apt, also attaches the
+│   │                         .deb to a GitHub Release as a direct-download fallback; a second job
+│   │                         builds ebl.exe for Windows and the Inno Setup installer
 │   ├── docker-publish.yml ← "Build and publish Docker images": tag-triggered, matrix over the 3
 │   │                         images (runner/orchestrator/web), linux/amd64 only (no QEMU/multi-arch
 │   │                         — the runner's Android SDK download would be slow+untested under
 │   │                         emulation), pushed via docker/build-push-action
-│   └── ci.yml              ← push/PR: `npm run build` in expo-builder-gui, `cli/` builds +
-│                              cli/tests/ (ebl_tests) natively on both Linux and Windows, and
-│                              windows/installer/ebl.iss compiles — deliberately still no
-│                              orchestrator build check, no macOS job
+│   └── ci.yml              ← push/PR: `npm run build` in expo-builder-gui, `cli/` builds + vets +
+│                              tests (`go build`/`go vet`/`go test ./...`) natively on both Linux
+│                              and Windows, and windows/installer/ebl.iss compiles against a
+│                              locally-built ebl.exe — deliberately still no orchestrator build
+│                              check, no macOS job
 ├── scripts/
 │   └── publish-images.sh  ← build (and optionally push) the 3 Docker Hub images by hand
 ├── docker/runner/         ← Android toolchain image (Node 22 LTS + JDK 17 + SDK + eas-cli)
@@ -60,177 +62,214 @@ expo-builder-local/
 ├── expo-builder-gui/      ← frontend: Next.js 16 (App Router, Tailwind v4)
 │   ├── docker-entrypoint.sh   (substitutes ORCHESTRATOR_URL into the compiled bundle at container start)
 │   └── {app,components,lib}/
-├── cli/                   ← standalone `ebl` C++ CLI (no orchestrator/GUI/Node needed) —
+├── cli/                   ← standalone `ebl` Go CLI (no orchestrator/GUI/Node needed) —
 │   │                         builds natively for both Linux/macOS and Windows from
-│   │                         this one source tree (platform branches via CMake +
-│   │                         `#ifdef _WIN32`, not a fork)
-│   ├── CMakeLists.txt      (also defines the .deb package — CPack DEB generator, Linux-only)
-│   ├── resources/
-│   │   ├── ebl.ico          (multi-res icon generated from ../docs/assets/ebl_logo.png
-│   │   │                     — same source ebl_landing_page/app/favicon.ico uses;
-│   │   │                     regenerate both by hand if that logo ever changes, not
-│   │   │                     auto-synced)
-│   │   └── ebl.rc           (Windows-only — embeds ebl.ico as ebl.exe's own icon)
-│   ├── tests/               (unit tests, OFF by default — cmake -DEBL_BUILD_TESTS=ON
-│   │                          then ctest; hand-rolled harness (test_framework.hpp),
-│   │                          not a vendored framework — see its own comment for why.
-│   │                          json.cpp/detect.cpp/version_compare.cpp/docker_stats.cpp
-│   │                          are covered so far — pure logic, no libcurl/OpenSSL/
-│   │                          Docker needed (update_check.cpp/docker_client.cpp
-│   │                          themselves deliberately aren't linked in here — they
-│   │                          need curl/config_store.cpp's crypto chain or a real
-│   │                          Docker daemon, which is why isVersionNewer/
-│   │                          parseDockerStats each live in their own dependency-free
-│   │                          module instead). Grow this
-│   │                          as more of src/ becomes unit-testable, not just left
-│   │                          as-is)
-│   └── src/
-│       ├── main.cpp                    (subcommand dispatch only)
-│       ├── commands/                  (build, setup, config, start+stop, update, clean,
-│       │                                completion — one file per subcommand. completion.cpp's
-│       │                                four shell scripts are hand-written against each other
-│       │                                subcommand's actual flags, not generated from a shared
+│   │                         this one module (platform branches via Go build tags/
+│   │                         `_unix.go`/`_windows.go` files, not a fork)
+│   ├── go.mod / go.sum      (module github.com/41vi4p/expo-builder-local/cli — 3 deps
+│   │                         total: golang.org/x/term, golang.org/x/sys,
+│   │                         github.com/Microsoft/go-winio; everything else is stdlib)
+│   ├── VERSION              (canonical version source — see Version management below;
+│   │                         read via `-ldflags -X main.version=$(cat VERSION)` at
+│   │                         build time, cmd/ebl/main.go's `var version` is just the
+│   │                         dev-build fallback)
+│   ├── scripts/
+│   │   └── sync-runner-assets.sh   (copies ../docker/runner/ into
+│   │                                 internal/runnerctx/assets/runner/ so //go:embed
+│   │                                 can bundle it — Go embed can't reference paths
+│   │                                 outside its own package dir. Run before every
+│   │                                 build/test/release; that assets/ dir is gitignored)
+│   ├── cmd/ebl/
+│   │   ├── main.go          (subcommand dispatch only — direct port of the old main.cpp)
+│   │   ├── versioninfo.json (goversioninfo config — FixedFileInfo/StringFileInfo the
+│   │   │                     Windows exe embeds)
+│   │   ├── ebl.ico           (multi-res icon generated from ../../docs/assets/ebl_logo.png
+│   │   │                      — same source ebl_landing_page/app/favicon.ico uses;
+│   │   │                      regenerate both by hand if that logo ever changes, not
+│   │   │                      auto-synced)
+│   │   └── resource_windows_amd64.syso   (generated, not hand-written — regenerate via
+│   │                                       main.go's `//go:generate goversioninfo`
+│   │                                       comment after editing versioninfo.json/ebl.ico)
+│   └── internal/            (one package per concern, unit-tested with `go test ./...`)
+│       ├── commands/                  (build, create, setup, config, start+stop, update,
+│       │                                clean, completion — one file per subcommand.
+│       │                                completion.go's four shell scripts are
+│       │                                hand-written against each other subcommand's
+│       │                                actual flags, not generated from a shared
 │       │                                table — update them by hand if flags ever change)
-│       ├── config_store.*, crypto.*, base64.*   (encrypted config.json — ~/.config/ebl/ on
-│       │                                          Linux/macOS, %APPDATA%\ebl\ on Windows)
-│       ├── prompt.*                    (promptString/promptInt/promptHidden — shared by config.cpp's wizard and build.cpp's missing-token prompt)
-│       ├── http_client.hpp             (shared HttpClient interface — talks to the Docker
-│       │                                 Engine API over its local transport)
-│       ├── http_client_unix.cpp        (Linux/macOS: libcurl's CURLOPT_UNIX_SOCKET_PATH
-│       │                                 against /var/run/docker.sock)
-│       ├── http_client_win.cpp         (Windows: hand-rolled HTTP/1.1 framing over
-│       │                                 Docker Desktop's \\.\pipe\docker_engine named
-│       │                                 pipe — libcurl has no Windows-npipe transport)
-│       ├── http_client_common.cpp      (httpGetTcp/urlEncode — plain TCP, shared by both)
-│       ├── winpath.*                   (Windows-only path→Docker-bind-mount translation,
-│       │                                 e.g. "D:\App" → "//d/App"; identity elsewhere)
-│       ├── update_check.*              (checkForNewerVersion() — GitHub releases-API
-│       │                                 check on `ebl --version`, rate-limited to
-│       │                                 once/24h via configDir()/update-check.json;
-│       │                                 version comparison itself lives in
-│       │                                 version_compare.* for unit-testability)
-│       ├── docker_stats.*              (parseDockerStats() — CPU%/memory from a raw
-│       │                                 /containers/{id}/stats frame, same formula
-│       │                                 orchestrator/src/docker/stats.ts uses; pure
-│       │                                 logic, split out for unit-testability, same
-│       │                                 as version_compare.*. docker_client.cpp's
-│       │                                 getContainerStats() is the one-shot HTTP
-│       │                                 fetch wrapping it)
-│       ├── build_status_view.*         (BuildStatusView — commands/build.cpp's
-│       │                                 `--status` live dashboard: redraw-in-place
-│       │                                 via ANSI cursor movement, same technique
-│       │                                 pull_progress.cpp uses for one line,
-│       │                                 extended to a whole block. Plain ASCII
-│       │                                 sparklines only, deliberately - no Unicode
-│       │                                 block characters, so this renders correctly
-│       │                                 on a legacy Windows console codepage with no
-│       │                                 global UTF-8 console-output change needed)
-│       ├── tui_input.*                 (readKey() - single raw keypress, normalized
-│       │                                 to Up/Down/Enter/Escape/Other. POSIX: raw
-│       │                                 termios mode + a real read() straight off
-│       │                                 the fd (NOT std::getchar()/stdio - mixing
-│       │                                 buffered stdio with select() on the same fd
-│       │                                 is unsafe, confirmed: it made every arrow
-│       │                                 key misread as a bare Escape until fixed -
-│       │                                 see the file's own comment), with a 50ms
-│       │                                 select() to tell an arrow-key escape
-│       │                                 sequence apart from a real bare Escape
-│       │                                 press without ever blocking on one. Windows:
-│       │                                 _getch() - unambiguous by construction, no
-│       │                                 timeout needed. UNVERIFIED ON REAL WINDOWS
-│       │                                 HARDWARE, same caveat as the rest of this
-│       │                                 project's Windows-specific code)
-│       ├── tui_menu.*                  (selectFromMenu() - `ebl build --tui`'s
-│       │                                 arrow-key single-select menu, built on
-│       │                                 tui_input.hpp + the same redraw-in-place
-│       │                                 technique as build_status_view.*. Verified
-│       │                                 for real via a pty-driven test - simulated
-│       │                                 actual key bytes, not just visual
-│       │                                 inspection - see docs/CHANGELOG.md)
-│       └── {docker_client,json,tar_writer,detect,metrics,host_info,version_compare,runner_context,color}.{hpp,cpp}
+│       ├── config/                    (encrypted config.json — ~/.config/ebl/ on
+│       │                                Linux/macOS, %APPDATA%\ebl\ on Windows, via
+│       │                                os.UserConfigDir())
+│       ├── cryptoutil/                 (AES-256-GCM via crypto/aes+cipher, encrypts
+│       │                                config's secret fields using a machine-local
+│       │                                key next to it — machine.key, generated on
+│       │                                first use)
+│       ├── prompt/                    (promptString/promptInt/promptHidden — shared by
+│       │                                config's wizard and build's missing-token
+│       │                                prompt; hidden input via golang.org/x/term)
+│       ├── dockertransport/           (net/http.Transport with a Unix-socket dialer
+│       │                                — transport_unix.go — and, transport_windows.go,
+│       │                                a go-winio named-pipe dialer for
+│       │                                \\.\pipe\docker_engine; one http.Client either way)
+│       ├── dockerapi/                  (containers.go: one-shot build containers, image
+│       │                                list/build/pull, volumes, attach/start/wait/
+│       │                                remove; service.go: long-running service
+│       │                                containers for `ebl start`/`stop` — network
+│       │                                create, find-by-name, running-check;
+│       │                                dockerapi.go: ping/ContainerStats poller for
+│       │                                `ebl build --status`'s dashboard — see
+│       │                                dockerstats/ for the actual frame-parsing)
+│       ├── winpath/                    (Windows-only path→Docker-bind-mount translation,
+│       │                                e.g. "D:\App" → "//d/App"; identity elsewhere)
+│       ├── updatecheck/                (GitHub releases-API check on `ebl --version`,
+│       │                                rate-limited to once/24h via a cached
+│       │                                update-check.json next to config; version
+│       │                                comparison itself lives in versioncompare/ for
+│       │                                unit-testability)
+│       ├── dockerstats/                (parses a raw /containers/{id}/stats frame into
+│       │                                CPU%/memory — same formula
+│       │                                orchestrator/src/docker/stats.ts uses; pure
+│       │                                logic, unit-tested, same as versioncompare/)
+│       ├── buildstatusview/             (`ebl build --status`'s live dashboard:
+│       │                                redraw-in-place via ANSI cursor movement, same
+│       │                                technique pullprogress/ uses for one line,
+│       │                                extended to a whole block. Plain ASCII
+│       │                                sparklines only, deliberately - no Unicode
+│       │                                block characters, so this renders correctly on
+│       │                                a legacy Windows console codepage with no
+│       │                                global UTF-8 console-output change needed.
+│       │                                Verified against real pty output — see
+│       │                                testharness/)
+│       ├── tuiinput/                   (single raw keypress reads, normalized to
+│       │                                Up/Down/Enter/Escape/Other, built on
+│       │                                golang.org/x/term's raw mode on every
+│       │                                platform — no separate Windows _getch() path
+│       │                                needed anymore. Verified via a real pty-driven
+│       │                                test — tuiinput_pty_test.go — not just
+│       │                                synthetic byte-feeding)
+│       ├── tuimenu/                    (`ebl build --tui`'s arrow-key single-select
+│       │                                menu, built on tuiinput/ + the same
+│       │                                redraw-in-place technique as buildstatusview/.
+│       │                                Also verified via a real pty-driven test)
+│       ├── hostprocess/                (os/exec-based streaming subprocess runner —
+│       │                                a large simplification over the old manual
+│       │                                fork/exec/pipe and CreateProcess/CreatePipe
+│       │                                branches)
+│       ├── metrics/                    (reimplementation of metrics.ts's artifact
+│       │                                metrics — same rules, different language, keep
+│       │                                in sync by hand if either changes; its `git`
+│       │                                invocation for commit/branch metadata is a
+│       │                                plain os/exec call on every platform now)
+│       ├── detect/                     (reimplementation of detect.ts's project-type
+│       │                                detection — same rules, different language)
+│       ├── hostinfo/                   (OS version string — hostinfo_windows.go via
+│       │                                golang.org/x/sys/windows/registry,
+│       │                                hostinfo_unix.go via /etc/os-release + uname)
+│       ├── runnerctx/                  (bundled docker/runner/ via //go:embed — see
+│       │                                assets/ and scripts/sync-runner-assets.sh above;
+│       │                                replaces the old runtime self-exe-relative
+│       │                                lookup entirely, so an installed binary needs
+│       │                                nothing else present on disk)
+│       ├── tarctx/                     (builds an in-memory USTAR archive of
+│       │                                docker/runner/ via archive/tar, to POST as the
+│       │                                build context to /build so `ebl build`/`ebl
+│       │                                setup` can build the runner image itself when
+│       │                                it isn't published yet)
+│       ├── pullprogress/                (redraw-in-place single-line progress for
+│       │                                image pulls, same ANSI technique as
+│       │                                buildstatusview/ applied to one line)
+│       ├── color/                      (ANSI + TTY detection)
+│       └── versioncompare/             (isVersionNewer() — pure logic, used by
+│                                        updatecheck/)
 └── windows/               ← Windows-specific packaging only — ebl.exe itself is just
                               `cli/` built for Windows (see above), not a separate binary
     ├── install.ps1         (one-line installer: Docker Desktop presence check,
-    │                         downloads+extracts the ebl.exe + docker/runner/ release
-    │                         archive, puts ebl.exe's bin/ dir on PATH)
+    │                         downloads+extracts the ebl.exe release archive — a single
+    │                         static binary, docker/runner/ is embedded in it — puts
+    │                         ebl.exe's bin/ dir on PATH)
     ├── uninstall.ps1
     └── installer/
-        └── ebl.iss         (Inno Setup script → ebl-setup.exe; bundles the same
-                              `cmake --install`ed bin/+share/ tree plus the two .ps1
-                              files above, and just runs install.ps1
-                              -LocalInstallDir — no separate install logic of its own)
+        └── ebl.iss         (Inno Setup script → ebl-setup.exe; bundles the built
+                              ebl.exe plus the two .ps1 files above, and just runs
+                              install.ps1 -LocalInstallDir — no separate install
+                              logic of its own)
 ```
 
 ## 🖥️ CLI package (`cli/`)
 
-A standalone **C++17** binary — command name **`ebl`** (short for "expo-local-builder",
-deliberately distinct from the `expo-builder-local` project/repo name) — built with
-CMake, depending only on libcurl and OpenSSL, that talks to the Docker Engine API
+A standalone **Go** binary (module `github.com/41vi4p/expo-builder-local/cli`) —
+command name **`ebl`** (short for "expo-local-builder", deliberately distinct from
+the `expo-builder-local` project/repo name) — that talks to the Docker Engine API
 directly: over `/var/run/docker.sock` on Linux/macOS, or Docker Desktop's
 `\\.\pipe\docker_engine` named pipe on Windows. No orchestrator, no GUI, no Node.js
-runtime at all. Subcommands live under `commands/` (`build.*`, `setup.*`, `config.*`,
-`start.*` — the last of these also implements `stop`); `main.cpp` is just dispatch.
-Shared building blocks:
+runtime at all. Subcommands live under `internal/commands/` (`build.go`, `setup.go`,
+`config.go`, `start.go` — the last of these also implements `stop`); `cmd/ebl/main.go`
+is just dispatch. Only three non-stdlib dependencies, all effectively
+extensions-of-the-standard-library maintained by Go/Microsoft themselves:
+`golang.org/x/term` (raw terminal mode, hidden password input, TTY detection),
+`golang.org/x/sys` (Windows registry access, console mode), and
+`github.com/Microsoft/go-winio` (the Windows named-pipe dialer — used internally by
+Docker and Kubernetes for exactly this problem). Shared building blocks:
 
-- `http_client.hpp` / `http_client_unix.cpp` / `http_client_win.cpp` /
-  `http_client_common.cpp` — same `HttpClient` interface, platform-specific transport:
-  `http_client_unix.cpp` is a thin libcurl wrapper using `CURLOPT_UNIX_SOCKET_PATH`
-  (the same mechanism the real `docker` CLI uses on Linux/macOS); `http_client_win.cpp`
-  hand-rolls HTTP/1.1 request/response framing over `CreateFileW`/`ReadFile`/
-  `WriteFile` on the named pipe, since libcurl has no Windows-npipe transport —
-  supports both `Content-Length` and chunked bodies, since Docker streams `/build`/
-  `/containers/{id}/attach` chunked. `http_client_common.cpp` holds the
-  platform-independent `httpGetTcp` (used only for polling the orchestrator's health
-  endpoint) and `urlEncode`, compiled on every platform.
-- `winpath.*` — Windows-only host-path → Docker-bind-mount-path translation
+- `internal/dockertransport/` — one `http.Client`, platform-specific dialer:
+  `transport_unix.go` dials the Unix socket directly (`net.Dial("unix", ...)`, the
+  same mechanism the real `docker` CLI uses on Linux/macOS); `transport_windows.go`
+  plugs `go-winio`'s named-pipe dialer into `http.Transport.DialContext` for
+  `\\.\pipe\docker_engine` — `net/http` handles `Content-Length` and chunked bodies
+  either way, since Docker streams `/build`/`/containers/{id}/attach` chunked.
+- `internal/winpath/` — Windows-only host-path → Docker-bind-mount-path translation
   (`"D:\Projects\App"` → `"//d/Projects/App"`, the same client-side conversion the
   real `docker` CLI performs, since Docker Desktop's daemon runs inside its own Linux
   VM and a raw drive-letter path means nothing to it). Identity function on every
   other platform — call it unconditionally at bind-mount construction sites in
-  `docker_client.cpp`/`commands/start.cpp`, no `#ifdef` needed at the call site.
-- `json.*` — a small hand-written JSON value/parser/serializer (not a vendored
-  library — kept deliberately minimal, just enough for Docker API bodies and
-  package.json/eas.json reads).
-- `tar_writer.*` — builds an in-memory USTAR archive of `docker/runner/` to POST as
-  the build context to `/build`, so `ebl build`/`ebl setup` can build the runner image
-  itself when it isn't published yet.
-- `docker_client.*` — the actual Engine API calls: one-shot build containers (image
-  list/build/pull, volume create, container create/attach/start/wait/remove) *and*
-  long-running service containers (`ServiceContainerSpec`, network create, find-by-
-  name, running-check) used by `ebl start`/`stop`; also `getContainerStats()` (a
-  one-shot `GET /containers/{id}/stats?stream=false`, meant to be polled rather than
-  held open) for `ebl build --status`'s live CPU/memory dashboard — see
-  `docker_stats.*` for the actual frame-parsing logic.
-- `config_store.*` — `EblConfig` (projects folder, ports, Expo
-  token, generated orchestrator `MASTER_KEY`) persisted at `~/.config/ebl/config.json`
-  on Linux/macOS (0600) or `%APPDATA%\ebl\config.json` on Windows (no POSIX chmod
-  equivalent applied there — relies on per-user profile isolation instead); `crypto.*`
-  (AES-256-GCM via OpenSSL) encrypts the two secret fields using a machine-local key
-  next to it (`machine.key`, generated on first use) — `base64.*` is a small
-  hand-written codec used by both. Its atomic-save step uses `MoveFileExA` with
-  `MOVEFILE_REPLACE_EXISTING` on Windows, not `std::rename` — plain C `rename()`
-  fails there if the destination already exists, unlike POSIX `rename(2)`.
-- `detect.*` / `metrics.*` — reimplementations of `orchestrator/src/build/detect.ts`
-  and `metrics.ts` (same rules, different language) — keep them in sync by hand if
-  either changes. `metrics.cpp`'s `git` invocation (for commit/branch metadata) is a
-  `fork`/`exec`/`pipe` on Linux/macOS and a `CreateProcess` with a redirected pipe on
-  Windows — keep both branches in sync if the command or its argument list changes.
-- `runner_context.*` — locates the bundled `docker/runner/` copy at runtime via
-  `/proc/self/exe` (Linux/macOS) or `GetModuleFileNameA` (Windows), so a
-  compiled/installed binary works without the rest of this repo present (CMake copies
-  `docker/runner/` into the build dir at configure time; see `CMakeLists.txt`).
+  `dockerapi/`/`commands/start.go`, no build-tag branch needed at the call site.
+- JSON bodies (Docker API, package.json/eas.json reads) use `encoding/json` directly
+  — no hand-rolled parser to maintain anymore.
+- `internal/tarctx/` — builds an in-memory USTAR archive of `docker/runner/` via
+  `archive/tar` to POST as the build context to `/build`, so `ebl build`/`ebl setup`
+  can build the runner image itself when it isn't published yet.
+- `internal/dockerapi/` — the actual Engine API calls: `containers.go` for one-shot
+  build containers (image list/build/pull, volume create, container create/attach/
+  start/wait/remove), `service.go` for long-running service containers (network
+  create, find-by-name, running-check) used by `ebl start`/`stop`; also a one-shot
+  `GET /containers/{id}/stats?stream=false` poller for `ebl build --status`'s live
+  CPU/memory dashboard — see `internal/dockerstats/` for the actual frame-parsing logic.
+- `internal/config/` — the config struct (projects folder, ports, Expo token,
+  generated orchestrator `MASTER_KEY`) persisted at `~/.config/ebl/config.json` on
+  Linux/macOS (0600) or `%APPDATA%\ebl\config.json` on Windows (no POSIX chmod
+  equivalent applied there — relies on per-user profile isolation instead), via
+  `os.UserConfigDir()`; `internal/cryptoutil/` (AES-256-GCM via `crypto/aes`+
+  `crypto/cipher`) encrypts the two secret fields using a machine-local key next to it
+  (`machine.key`, generated on first use) — `encoding/base64` covers the codec need
+  directly, no hand-written wrapper. The atomic-save step is a plain `os.Rename()` on
+  every platform — it already does the `MOVEFILE_REPLACE_EXISTING` equivalent
+  internally on Windows, unlike C's `rename()`, so no platform branch is needed here
+  either.
+- `internal/detect/` / `internal/metrics/` — reimplementations of
+  `orchestrator/src/build/detect.ts` and `metrics.ts` (same rules, different
+  language) — keep them in sync by hand if either changes. `metrics.go`'s `git`
+  invocation (for commit/branch metadata) is a single `os/exec.Command` call on every
+  platform now — no separate fork/exec vs. CreateProcess branches needed.
+- `internal/runnerctx/` — bundles the `docker/runner/` copy directly into the binary
+  via `//go:embed` (see `internal/runnerctx/assets/`, populated by
+  `scripts/sync-runner-assets.sh` before every build since embed can't reference
+  `../docker/runner` outside the package dir), so a compiled/installed binary works
+  without the rest of this repo present at runtime — no self-exe-relative lookup
+  needed anymore.
 
-Windows-only placeholder pending real-hardware verification: `commands/start.cpp`'s
-`HOST_UID`/`HOST_GID` and `commands/build.cpp`'s build-container UID/GID both hardcode
-`1000`/`1000` on Windows (no POSIX uid/gid to report) — this is what
-`docker/runner/build-entrypoint.sh`'s UID/GID re-homing step consumes, and the actual
-value Docker Desktop's file-sharing layer presents bind-mounted host files under
-hasn't been confirmed against a real install yet.
+Windows-only placeholder pending real-hardware verification:
+`internal/commands/build_uidgid_windows.go`'s (and `start.go`'s) build-container
+UID/GID both hardcode `1000`/`1000` on Windows (no POSIX uid/gid to report) — this is
+what `docker/runner/build-entrypoint.sh`'s UID/GID re-homing step consumes, and the
+actual value Docker Desktop's file-sharing layer presents bind-mounted host files
+under hasn't been confirmed against a real install yet.
 
-`attachAndStream` blocks on a libcurl call until the container's output stream closes
-— it runs on its own `std::thread` while the main thread starts/waits on the
-container (see `commands/build.cpp`); don't collapse that back onto one thread, it'll
-deadlock (attach would never return control to let the container start).
+The container's attach stream blocks on an HTTP call until the container's output
+stream closes — it runs on its own goroutine while the main goroutine starts/waits on
+the container (see `internal/commands/build_run.go`); don't collapse that onto one
+goroutine, it'll deadlock (attach would never return control to let the container
+start). Cancellation (Ctrl-C) uses `os/signal.Notify` plus a `buildFinished` channel,
+replacing the old `volatile sig_atomic_t` + watcher-thread pattern.
 
 `ebl start` launches the orchestrator + web images **directly via the Docker API**
 (container names `ebl-orchestrator`/`ebl-web`, network `ebl-network`) — deliberately
@@ -250,11 +289,13 @@ one product and share **one version number** — a build only works when all of 
 are compatible, so tracking them separately would just invite drift.
 
 - **Canonical source:** `orchestrator/package.json`'s `version`,
-  `expo-builder-gui/package.json`'s `version`, `cli/CMakeLists.txt`'s
-  `project(... VERSION x.y.z ...)`, `windows/installer/ebl.iss`'s
-  `MyAppVersion`, and `packaging/arch/PKGBUILD`'s `pkgver` — **always bump all five
-  to the same value in the same change**, even if a given change only touched one
-  of them. (`PKGBUILD`'s `pkgrel` is separate — see below.)
+  `expo-builder-gui/package.json`'s `version`, `cli/VERSION`,
+  `windows/installer/ebl.iss`'s `MyAppVersion`, and `packaging/arch/PKGBUILD`'s
+  `pkgver` — **always bump all five to the same value in the same change**, even if
+  a given change only touched one of them. (`PKGBUILD`'s `pkgrel` is separate — see
+  below. `cli/cmd/ebl/versioninfo.json`'s version fields should also be kept in step
+  by hand when bumping, though it only affects the Windows exe's embedded version
+  resource, not `ebl --version`'s own output.)
 - **Bump rule (SemVer), applied automatically for every change, however small:**
   - `fix:` / `style:` / `refactor:` / docs/config-only change → **PATCH** (+0.0.1)
   - `feat:` / new endpoint / new component / new capability → **MINOR** (+0.1.0, reset PATCH)
@@ -299,7 +340,7 @@ are compatible, so tracking them separately would just invite drift.
 - `docker/runner/build-entrypoint.sh` emits a small marker protocol on stdout
   (`@@PHASE:`, `@@PROGRESS:`, `@@ENGINE:`, `@@BUILD_NUMBER:`, `@@ARTIFACT:`,
   `@@ERROR:`) that both `orchestrator/src/build/progress.ts`/`manager.ts` (GUI path)
-  and `cli/src/commands/build.cpp` (CLI path) parse independently — if you add a new
+  and `cli/internal/commands/build_run.go` (CLI path) parse independently — if you add a new
   build phase, marker, or change engine behavior, update **both** consumers, plus the
   phase weight tables in `progress.ts` and the phase sequence in
   `expo-builder-gui/components/BuildTimeline.tsx`. On the CLI side, `@@ENGINE:`/
@@ -331,8 +372,8 @@ are compatible, so tracking them separately would just invite drift.
   the Dockerfile's own comment). `.github/workflows/docker-publish.yml` and
   `scripts/publish-images.sh` both pass a fresh value on every run; local dev builds
   (`Makefile`, `docker-compose.yml`) deliberately don't, so they keep normal
-  layer-cache reuse. `cli/src/commands/update.cpp` (`ebl update`) sidesteps this arg
-  entirely instead, via `DockerClient::buildImage`'s `noCache` param (Docker's
+  layer-cache reuse. `internal/commands/update.go` (`ebl update`) sidesteps this arg
+  entirely instead, via `dockerapi.Client.BuildImage`'s `noCache` param (Docker's
   `nocache`+`pull` build options) — keep both mechanisms in mind if this ever needs
   changing, they solve the same staleness problem for two different callers (CI vs.
   a user's own machine).

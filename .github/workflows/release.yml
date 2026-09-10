@@ -1,15 +1,14 @@
 name: Build and publish APT repository
 
-# Builds the `ebl` .deb inside a pinned ubuntu:24.04 container (matching the host
-# this was validated against locally — see cli/CMakeLists.txt for the CPack DEB
-# config), assembles a signed APT repository tree, and publishes it to the gh-pages
-# branch under /apt so `apt install ebl` works from
+# Builds the `ebl` .deb with a static (CGO_ENABLED=0) `go build` + `nfpm` (see
+# packaging/deb/nfpm.yaml), assembles a signed APT repository tree, and publishes
+# it to the gh-pages branch under /apt so `apt install ebl` works from
 # https://41vi4p.github.io/expo-builder-local/apt. Also attaches the same .deb (plus
 # a plain tarball for install.sh) to a GitHub Release as a direct-download fallback.
 # A second job (windows-build-and-publish) then builds cli/ natively for Windows
-# (MSVC + vcpkg for curl/OpenSSL) and the Inno Setup installer (windows/installer),
-# and attaches both to the same release — see windows/install.ps1's header comment
-# for what those are.
+# (plain `go build`, no vcpkg/MSVC needed) and the Inno Setup installer
+# (windows/installer), and attaches both to the same release — see
+# windows/install.ps1's header comment for what those are.
 #
 # Requires (set up once via docs/APT_REPO_SETUP_GUIDE.md, not by this workflow):
 #   - repo secret APT_GPG_PRIVATE_KEY: the armored private signing key
@@ -47,36 +46,27 @@ jobs:
             exit 1
           fi
 
-      - name: Build .deb inside a pinned Ubuntu 24.04 container
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: expo-builder-local/cli/go.mod
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.40.0
+
+      - name: Build ebl (static) and package the .deb
         run: |
           set -e
-          # Bind-mounted at the SAME absolute path inside the container as outside it
-          # (not /repo) — CMake bakes absolute paths into the generated
-          # cmake_install.cmake at configure time, and the next step runs `cmake
-          # --install` on this same build/ directory *outside* the container, on the
-          # bare runner. A different mount path here would make that install script
-          # reference paths that don't exist outside the container.
-          # The container runs as root (needed for apt-get), so everything it writes
-          # into the bind-mounted build/ dir is root-owned on the host too — the next
-          # step (`cmake --install`) runs as the unprivileged runner user, so we chown
-          # the output back before the container exits, while we still can.
-          docker run --rm -v "$PWD":"$PWD" -w "$PWD/cli" \
-            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
-            ubuntu:24.04 bash -c '
-            set -e
-            apt-get update -qq
-            apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev dpkg-dev file
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-            cmake --build build -j"$(nproc)"
-            cd build && cpack -G DEB
-            chown -R "${HOST_UID}:${HOST_GID}" .
-          '
+          VERSION="$(cat cli/VERSION)"
+          ./cli/scripts/sync-runner-assets.sh
+          CGO_ENABLED=0 go build -C cli -ldflags "-X main.version=${VERSION}" -o build/ebl ./cmd/ebl
           mkdir -p build/packages/deb
-          cp cli/build/ebl_*_amd64.deb build/packages/deb/
+          VERSION="${VERSION}" nfpm package --config packaging/deb/nfpm.yaml --packager deb --target build/packages/deb/
+          file cli/build/ebl
 
       - name: Stage a plain install tree (for install.sh's fallback path)
         run: |
-          cmake --install cli/build --prefix stage
+          mkdir -p stage/bin
+          cp cli/build/ebl stage/bin/ebl
           tar -czf "ebl-${GITHUB_REF_NAME:-dev}-linux-amd64.tar.gz" -C stage .
 
       - name: Assemble APT repository tree
@@ -206,29 +196,27 @@ jobs:
         with:
           path: expo-builder-local
 
-      - name: Set up vcpkg
-        run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: expo-builder-local/cli/go.mod
 
-      - name: Install curl + OpenSSL (static, so ebl.exe ships as a single file)
-        run: C:\vcpkg\vcpkg.exe install curl:x64-windows-static openssl:x64-windows-static
+      - name: Sync docker/runner assets for //go:embed
+        shell: bash
+        run: ./scripts/sync-runner-assets.sh
+        working-directory: expo-builder-local/cli
 
-      - name: Configure
-        run: |
-          cmake -S cli -B cli\build `
-            -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+      - name: Generate the Windows icon/version resource
+        shell: bash
+        run: go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -o cmd/ebl/resource_windows_amd64.syso cmd/ebl/versioninfo.json
+        working-directory: expo-builder-local/cli
 
-      - name: Build
-        run: cmake --build cli\build --config Release
-
-      - name: Install (bin/ + share/ tree — same layout the .deb uses, see runner_context.cpp)
-        run: cmake --install cli\build --config Release --prefix cli\build\install
+      - name: Build ebl.exe
+        shell: bash
+        run: go build -ldflags "-X main.version=$(cat VERSION)" -o build/install/bin/ebl.exe ./cmd/ebl
+        working-directory: expo-builder-local/cli
 
       - name: Package the direct-download zip
-        run: Compress-Archive -Path cli\build\install\* -DestinationPath ebl-windows-amd64.zip
+        run: Compress-Archive -Path cli\build\install\bin -DestinationPath ebl-windows-amd64.zip
 
       - name: Build the Inno Setup installer
         run: |

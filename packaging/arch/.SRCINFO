@@ -1,15 +1,13 @@
 pkgbase = ebl
 	pkgdesc = Build managed Expo projects into signed Android APK/AABs in a disposable Docker container
-	pkgver = 0.27.1
+	pkgver = 0.28.0
 	pkgrel = 1
 	url = https://github.com/41vi4p/expo-builder-local
 	arch = x86_64
 	license = GPL3
-	makedepends = cmake
-	depends = curl
-	depends = openssl
+	makedepends = go
 	optdepends = docker: required at runtime to actually run builds
-	source = ebl-0.27.1.tar.gz::https://github.com/41vi4p/expo-builder-local/archive/refs/tags/v0.27.1.tar.gz
+	source = ebl-0.28.0.tar.gz::https://github.com/41vi4p/expo-builder-local/archive/refs/tags/v0.28.0.tar.gz
 	sha256sums = SKIP
 
 pkgname = ebl

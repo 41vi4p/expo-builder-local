@@ -102,5 +102,5 @@ git push origin v0.3.1
 ```
 
 Bump `orchestrator/package.json`, `expo-builder-gui/package.json`, and
-`cli/CMakeLists.txt`'s `project(... VERSION ...)` to match *before* tagging — see
-`../CLAUDE.md`'s version-management section.
+`cli/VERSION` to match *before* tagging — see `../CLAUDE.md`'s version-management
+section.

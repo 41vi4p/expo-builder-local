@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copies ../docker/runner/ (repo root, one level up from cli-go/) into
+# Copies ../docker/runner/ (repo root, one level up from cli/) into
 # internal/runnerctx/assets/runner/ so //go:embed can bundle it into the ebl
 # binary - Go's embed directive can't reference a path outside its own
 # package directory (no ".." allowed), the same reason cli/CMakeLists.txt has
@@ -16,7 +16,7 @@ SRC="../docker/runner"
 DEST="internal/runnerctx/assets/runner"
 
 if [ ! -d "$SRC" ]; then
-  echo "sync-runner-assets: $SRC not found (expected at the repo root, one level up from cli-go/)" >&2
+  echo "sync-runner-assets: $SRC not found (expected at the repo root, one level up from cli/)" >&2
   exit 1
 fi
 

@@ -67,7 +67,7 @@ fail()     { echo "@@ERROR:$1"; exit "${2:-1}"; }
 # exit status, so existing `||` fallback chains keep working unmodified.
 #
 # --foreground is required: this container is created with Tty:true (see
-# cli/src/docker_client.cpp's createContainer) so its stdout/stderr is a real pty —
+# cli/internal/dockerapi/containers.go's CreateContainer) so its stdout/stderr is a real pty —
 # but without --foreground, `timeout` puts "$@" in a *new* process group so
 # --kill-after can signal the whole subtree, and that new group is never made the
 # pty's foreground group. The pty's foreground pgrp stays whatever PID 1 started
@@ -104,7 +104,7 @@ run_with_timeout() {
 #
 # Deliberately does NOT redirect "$@"'s stdout/stderr (e.g. through `tee`, to watch
 # for output instead of polling CPU) — this container is created with Tty:true (see
-# cli/src/docker_client.cpp's createContainer) specifically so the direct-gradle
+# cli/internal/dockerapi/containers.go's CreateContainer) specifically so the direct-gradle
 # path's `--console=rich` can detect a real TTY and render the "NN% EXECUTING"
 # progress line build/progress.ts parses; piping "$@"'s fd 1 through anything turns
 # it into a plain FIFO from the child's point of view and silently breaks that

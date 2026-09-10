@@ -27,9 +27,10 @@
          arm64-v8a/armeabi-v7a/x86/x86_64) plus Gradle/Kotlin daemons can exhaust
          it, which crashes Docker Desktop's backend (the Engine API starts
          returning 500s) rather than just slowing the build down.
-      2. Downloads the ebl release archive (ebl.exe plus the bundled Android runner
-         build context it needs to build the runner image locally if it isn't
-         published yet) from this repo's GitHub Releases, and installs it under
+      2. Downloads the ebl release archive (just ebl.exe - the bundled Android
+         runner build context it needs to build the runner image locally, if it
+         isn't published yet, is baked into the binary itself via //go:embed) from
+         this repo's GitHub Releases, and installs it under
          %LOCALAPPDATA%\Programs\ebl.
       3. Adds %LOCALAPPDATA%\Programs\ebl\bin to your Windows PATH.
 
@@ -56,7 +57,7 @@
 
 .PARAMETER LocalInstallDir
     Used by the Inno Setup GUI installer (ebl-setup.exe), which already bundles and
-    extracts the release archive itself: points at that already-extracted bin\/share\
+    extracts the release archive itself: points at that already-extracted bin\
     tree instead of downloading one, so this script only does the Docker Desktop
     check, WSL2 tuning, and the PATH update.
 #>
@@ -242,8 +243,8 @@ if (-not $SkipWslConfig -and (Get-Command wsl.exe -ErrorAction SilentlyContinue)
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
 if ($LocalInstallDir -and ([System.IO.Path]::GetFullPath($LocalInstallDir).TrimEnd('\') -ieq [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\'))) {
-    # The Inno Setup GUI installer's [Files] section already put bin\/share\ exactly
-    # here (LocalInstallDir is always {app}, i.e. this same $InstallDir) - copying
+    # The Inno Setup GUI installer's [Files] section already put bin\ exactly here
+    # (LocalInstallDir is always {app}, i.e. this same $InstallDir) - copying
     # "$InstallDir\bin" onto "$InstallDir" would be copying a folder onto its own
     # location, which throws under $ErrorActionPreference = "Stop" and silently
     # aborted the whole script here (confirmed on real hardware: the GUI installer's
@@ -253,7 +254,6 @@ if ($LocalInstallDir -and ([System.IO.Path]::GetFullPath($LocalInstallDir).TrimE
 } elseif ($LocalInstallDir) {
     Write-Step "Installing ebl from $LocalInstallDir..."
     Copy-Item -Path (Join-Path $LocalInstallDir "bin") -Destination $InstallDir -Recurse -Force
-    Copy-Item -Path (Join-Path $LocalInstallDir "share") -Destination $InstallDir -Recurse -Force
 } else {
     Write-Step "Downloading ebl..."
     $tmpZip = Join-Path ([System.IO.Path]::GetTempPath()) "ebl-windows-amd64.zip"
@@ -262,7 +262,6 @@ if ($LocalInstallDir -and ([System.IO.Path]::GetFullPath($LocalInstallDir).TrimE
     if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
     Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
     Copy-Item -Path (Join-Path $tmpExtract "bin") -Destination $InstallDir -Recurse -Force
-    Copy-Item -Path (Join-Path $tmpExtract "share") -Destination $InstallDir -Recurse -Force
     Remove-Item -Force $tmpZip
     Remove-Item -Recurse -Force $tmpExtract
 }

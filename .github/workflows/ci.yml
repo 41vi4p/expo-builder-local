@@ -1,11 +1,12 @@
 name: CI
 
 # Build check + unit tests, on every push and pull request: does the frontend
-# (expo-builder-gui) still build; does cli/ still build+pass its unit tests natively
-# on Linux (GCC, system libcurl/OpenSSL) and for Windows (MSVC + vcpkg for
-# curl/OpenSSL); does the Inno Setup installer script (windows/installer) still
-# compile against that Windows build? Deliberately still scoped to just this — no
-# orchestrator build check, no macOS job (not supported yet at all).
+# (expo-builder-gui) still build; does cli/ still build, vet, and pass its unit
+# tests natively on Linux and Windows (actions/setup-go, no CMake/vcpkg/MSVC
+# needed anymore - the CLI is a plain Go module); does the Inno Setup installer
+# script (windows/installer) still compile against that Windows build?
+# Deliberately still scoped to just this - no orchestrator build check, no macOS
+# job (not supported yet at all).
 
 on:
   push:
@@ -44,20 +45,24 @@ jobs:
         with:
           path: expo-builder-local
 
-      # GitHub's runner image pre-registers a google-chrome.list apt source we never
-      # use here - when Google's own mirror has a transient hash-sum mismatch (real,
-      # observed failure - not caused by anything in this repo), a plain `apt-get
-      # update` fails outright even though every package we actually want is fine.
-      # Drop it first so this doesn't depend on a third party's mirror being healthy.
-      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential libcurl4-openssl-dev libssl-dev
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: expo-builder-local/cli/go.mod
 
-      # -DEBL_BUILD_TESTS=ON also builds tests/ (ebl_tests) - off by default so a
-      # normal release/install build stays exactly as fast/minimal as before; see
-      # cli/CMakeLists.txt's own comment on this option.
-      - run: cmake -S cli -B cli/build -DCMAKE_BUILD_TYPE=Release -DEBL_BUILD_TESTS=ON
-      - run: cmake --build cli/build -j"$(nproc)"
-      - run: ctest --output-on-failure --test-dir cli/build
+      # See cli/scripts/sync-runner-assets.sh's own comment - //go:embed can't
+      # reference ../docker/runner directly, so this copies it in first. Required
+      # before build/vet/test alike (runnerctx's package won't compile without it).
+      - run: ./scripts/sync-runner-assets.sh
+        working-directory: expo-builder-local/cli
+
+      - run: go build ./...
+        working-directory: expo-builder-local/cli
+      - run: go vet ./...
+        working-directory: expo-builder-local/cli
+      - run: gofmt -l . | (! grep .)
+        working-directory: expo-builder-local/cli
+      - run: go test ./...
+        working-directory: expo-builder-local/cli
 
   windows-cli-build:
     runs-on: windows-latest
@@ -69,29 +74,33 @@ jobs:
         with:
           path: expo-builder-local
 
-      # windows-latest ships MSVC + CMake preinstalled — no mingw needed, and MSVC
-      # is what a real release build should use anyway. vcpkg supplies curl/OpenSSL
-      # (static, so the release ships as a single ebl.exe with no extra DLLs).
-      - name: Set up vcpkg
-        run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat
-      - run: C:\vcpkg\vcpkg.exe install curl:x64-windows-static openssl:x64-windows-static
-      # -DEBL_BUILD_TESTS=ON: the same cli/tests/ unit tests as linux-cli-build - they
-      # only touch json.cpp/detect.cpp (no libcurl/OpenSSL, no platform-specific code),
-      # so building+running them here too is cheap cross-platform coverage.
-      - run: |
-          cmake -S cli -B cli\build `
-            -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
-            -DEBL_BUILD_TESTS=ON
-      - run: cmake --build cli\build --config Release
-      - run: ctest --output-on-failure --test-dir cli\build -C Release
-      - run: cmake --install cli\build --config Release --prefix cli\build\install
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: expo-builder-local/cli/go.mod
 
-      # windows-latest also ships Chocolatey preinstalled — use it to compile the
-      # Inno Setup installer script (ebl.iss) right after, against the tree just
-      # installed above, so a script typo doesn't only surface at release time.
+      - name: Sync docker/runner assets for //go:embed
+        shell: bash
+        run: ./scripts/sync-runner-assets.sh
+        working-directory: expo-builder-local/cli
+
+      - run: go build ./...
+        working-directory: expo-builder-local/cli
+      - run: go vet ./...
+        working-directory: expo-builder-local/cli
+      - run: go test ./...
+        working-directory: expo-builder-local/cli
+
+      # Regenerate the Windows icon/version resource (see cmd/ebl/main.go's
+      # //go:generate comment) and build the real ebl.exe, so the Inno Setup
+      # compile check below exercises the same artifact a release would produce.
+      - name: Build ebl.exe
+        shell: bash
+        run: |
+          set -e
+          VERSION="$(cat VERSION)"
+          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 -o cmd/ebl/resource_windows_amd64.syso cmd/ebl/versioninfo.json
+          go build -ldflags "-X main.version=$VERSION" -o build/install/bin/ebl.exe ./cmd/ebl
+        working-directory: expo-builder-local/cli
+
       - run: choco install innosetup -y
       - run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" windows\installer\ebl.iss'

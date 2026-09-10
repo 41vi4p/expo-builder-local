@@ -20,7 +20,7 @@ die() { log "error: $*"; exit 1; }
 command -v curl >/dev/null 2>&1 || die "curl is required"
 
 if [ "$(uname -s)" != "Linux" ]; then
-  die "this installer only supports Linux (Linux x86_64); on other platforms, build from source (see cli/CMakeLists.txt)."
+  die "this installer only supports Linux (Linux x86_64); on other platforms, build from source (see cli/go.mod)."
 fi
 if [ "$(uname -m)" != "x86_64" ]; then
   die "prebuilt releases are x86_64 only; build from source for other architectures."

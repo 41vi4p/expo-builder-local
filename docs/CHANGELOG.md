@@ -3,6 +3,69 @@
 Version history for the orchestrator + GUI (versioned together - see
 [../CLAUDE.md](../CLAUDE.md#-version-management)). Most recent first.
 
+## v0.28.0 - The `ebl` CLI is now Go, not C++
+
+**Date:** 2026-09-10
+**Type:** Refactor
+
+- **Full rewrite of `cli/` from C++17/CMake to a single pure-Go module**
+  (`github.com/41vi4p/expo-builder-local/cli`) - external behavior is
+  unchanged (every subcommand, flag, config file format, and completion
+  script matches the old binary byte-for-byte where it matters - encrypted
+  `config.json`/`machine.key` round-trip identically, so existing users'
+  saved tokens/config keep working with no migration step), which is why
+  this ships as a MINOR bump rather than a MAJOR one despite touching every
+  file in the CLI.
+- Three vetted dependencies replace what libcurl/OpenSSL/hand-rolled Windows
+  code used to cover: `golang.org/x/term` (raw terminal mode, hidden
+  password input, TTY detection), `golang.org/x/sys` (Windows registry,
+  console mode), and `github.com/Microsoft/go-winio` (the
+  `\\.\pipe\docker_engine` named-pipe dialer - the same library Docker and
+  Kubernetes use for this). Everything else is stdlib: `encoding/json`,
+  `net/http` + a Unix-socket dialer, `crypto/aes`+`crypto/cipher`,
+  `archive/tar`, `os/exec`, and `//go:embed` to bundle `docker/runner/`
+  directly into the binary (no more runtime self-exe-relative asset lookup,
+  and no separate `share/` tree in any package - `.deb`, Arch, and Windows
+  installer all just ship one static binary now).
+- Goroutines + channels (`os/signal.Notify` + a `buildFinished` channel)
+  replace the old `std::thread`/`std::atomic`/signal-handler plumbing for
+  build cancellation; `os/exec` replaces the manual `fork`/`exec`/`pipe` and
+  `CreateProcess`/`CreatePipe` branches in the old process-streaming code.
+- Verified via real-Docker integration tests (synthetic "fake runner" images
+  emitting the real `@@PHASE:`/`@@PROGRESS:`/`@@ENGINE:`/`@@ARTIFACT:`/
+  `@@BUILD_NUMBER:` marker protocol), real-pty-driven tests for every
+  raw-terminal-mode code path (arrow-key menu, live dashboard, hidden
+  password prompts), and byte-for-byte cross-checks against small C++
+  harnesses compiled from the actual (not-yet-removed) old source, for the
+  crypto/config-store wire format, all four shell completion scripts, the
+  build-status dashboard's rendering, and the host-info OS-version string.
+- **Packaging/CI cutover**: `.deb` now built with `CGO_ENABLED=0 go build` +
+  [`nfpm`](https://github.com/goreleaser/nfpm) (no more `dpkg-shlibdeps`
+  auto-detection needed - a static binary declares zero runtime deps, so
+  `depends: []`); `packaging/arch/PKGBUILD` now depends on `go` instead of
+  `cmake`+`curl`+`openssl`; the Windows build drops vcpkg/MSVC entirely
+  (`go build` + `goversioninfo` for the icon/version resource, replacing
+  CMake's automatic `rc.exe` invocation); `ci.yml`'s two CLI jobs now run
+  `go build`/`go vet`/`go test ./...` on Linux and Windows instead of
+  CMake/vcpkg/ctest.
+- The C++ source is preserved (not deleted) at `cli-cpp-legacy/` via a plain
+  git rename, kept around until a real release has shipped through this new
+  Go pipeline and been confirmed working - it will be removed in a
+  follow-up once that's done, not as part of this change.
+- `cli/VERSION` (a plain text file) replaces `cli/CMakeLists.txt`'s
+  `project(... VERSION ...)` as the canonical version source, read via
+  `-ldflags -X main.version=$(cat cli/VERSION)` at build time.
+
+**Files modified:** entire `cli/` tree (new Go module, ~80 files);
+`cli-cpp-legacy/` (renamed from the old `cli/`, unmodified);
+`.github/workflows/ci.yml`, `.github/workflows/release.yml`; `Makefile`;
+`packaging/arch/PKGBUILD`, `packaging/arch/.SRCINFO`; `packaging/deb/nfpm.yaml`
+(new); `windows/install.ps1`, `windows/installer/ebl.iss`; `install.sh`,
+`docker-compose.yml`, `scripts/publish-images.sh`,
+`docker/runner/build-entrypoint.sh` (comment references only);
+`docs/RELEASING.md`, `docs/APT_REPO_SETUP_GUIDE.md`, `../CLAUDE.md`;
+`orchestrator/package.json`, `expo-builder-gui/package.json` (version bump)
+
 ## v0.27.1 - Fix: build-tool spinners were corrupting the live dashboard's log tail
 
 **Date:** 2026-09-10

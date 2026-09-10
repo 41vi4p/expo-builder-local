@@ -1,9 +1,10 @@
 # Maintainer: 41vi4p <https://github.com/41vi4p>
 #
-# Builds the `ebl` CLI from source against the distro's own curl/openssl, so there's
-# no prebuilt-binary ABI mismatch risk the way there would be shipping the .deb's
-# ubuntu:24.04-linked binary here (see ../../cli/CMakeLists.txt and
-# ../../docs/RELEASING.md). Not (yet) published to the AUR — see
+# Builds the `ebl` CLI from source with the distro's own Go toolchain, so there's no
+# prebuilt-binary ABI mismatch risk the way there would be shipping the .deb's
+# statically-linked binary here (see ../../cli/go.mod and ../../docs/RELEASING.md).
+# CGO_ENABLED=0 keeps this fully static regardless — no runtime library deps at all,
+# same as the .deb (see ../deb/nfpm.yaml). Not (yet) published to the AUR — see
 # ../../CLAUDE.md#-version-management for why pkgver here is bumped by hand in step
 # with the other four version fields, and ../../docs/RELEASING.md for the sha256sums
 # note below. Usable right now either via `makepkg -si` directly in this directory,
@@ -12,7 +13,7 @@
 # Remember to regenerate .SRCINFO (`makepkg --printsrcinfo > .SRCINFO`) any time
 # this file changes.
 pkgname=ebl
-pkgver=0.27.1
+pkgver=0.28.0
 pkgrel=1
 pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
 # Matches every other release artifact in this repo (CI, the .deb, the Windows
@@ -20,8 +21,8 @@ pkgdesc="Build managed Expo projects into signed Android APK/AABs in a disposabl
 arch=('x86_64')
 url="https://github.com/41vi4p/expo-builder-local"
 license=('GPL3')
-depends=('curl' 'openssl')
-makedepends=('cmake')
+depends=()
+makedepends=('go')
 optdepends=('docker: required at runtime to actually run builds')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # Real checksum of the tag archive, computed by hand after tagging (there's no
@@ -35,12 +36,16 @@ sha256sums=('SKIP')
 
 build() {
   cd "expo-builder-local-$pkgver/cli"
-  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-  cmake --build build
+  # //go:embed can't reference ../docker/runner directly — see
+  # scripts/sync-runner-assets.sh's own comment for why this copy step exists.
+  ./scripts/sync-runner-assets.sh
+  # No share/ install step needed — docker/runner is baked into the binary above,
+  # unlike the old CMake build's separate share/ebl/runner/ tree.
+  CGO_ENABLED=0 go build -ldflags "-X main.version=$pkgver" -o build/ebl ./cmd/ebl
 }
 
 package() {
   cd "expo-builder-local-$pkgver/cli"
-  DESTDIR="$pkgdir" cmake --install build
+  install -Dm755 build/ebl "$pkgdir/usr/bin/ebl"
   install -Dm644 ../LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

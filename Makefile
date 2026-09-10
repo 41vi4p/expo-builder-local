@@ -11,7 +11,7 @@ help:
 	@echo "  make restart      Recreate the GUI + orchestrator after a code change"
 	@echo "  make ps           Show status of the builder's containers"
 	@echo "  make clean        Stop everything and remove the data/cache volumes (destructive)"
-	@echo "  make install-cli  Build (CMake/C++) and install the 'ebl' CLI to ~/.local/bin"
+	@echo "  make install-cli  Build (Go) and install the 'ebl' CLI to ~/.local/bin"
 	@echo "  make deb          Build a signed-locally-if-configured .deb package for the CLI"
 	@echo "  make publish-images       Build the 3 Docker Hub images locally (no push)"
 	@echo "  make publish-images-push  Build AND push them — needs DOCKERHUB_NAMESPACE + docker login"
@@ -43,28 +43,22 @@ ps:
 clean:
 	docker compose down -v
 
-# Built out-of-tree in ~/.cache rather than cli/build: if this checkout sits on a
-# slow or network-backed filesystem, CMake's own configure/build (many small file
-# writes — object files, compiler feature checks) can be dramatically slower there
-# than on your actual root filesystem. Building elsewhere sidesteps that entirely;
-# CLI_BUILD_DIR is overridable if you'd rather build in-tree.
-CLI_BUILD_DIR ?= $(HOME)/.cache/expo-builder-local/cli-build
+CLI_VERSION := $(shell cat cli/VERSION)
 
 install-cli:
-	cmake -S cli -B $(CLI_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(HOME)/.local
-	cmake --build $(CLI_BUILD_DIR) -j
-	cmake --install $(CLI_BUILD_DIR)
+	cd cli && ./scripts/sync-runner-assets.sh
+	cd cli && CGO_ENABLED=0 go build -ldflags "-X main.version=$(CLI_VERSION)" -o $(HOME)/.local/bin/ebl ./cmd/ebl
 	@echo ""
 	@echo "Installed to $(HOME)/.local/bin/ebl"
 	@echo "Make sure ~/.local/bin is on your PATH, then try: ebl --help"
 
 deb:
-	cmake -S cli -B $(CLI_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
-	cmake --build $(CLI_BUILD_DIR) -j
-	cd $(CLI_BUILD_DIR) && cpack -G DEB
+	cd cli && ./scripts/sync-runner-assets.sh
+	cd cli && CGO_ENABLED=0 go build -ldflags "-X main.version=$(CLI_VERSION)" -o build/ebl ./cmd/ebl
+	VERSION=$(CLI_VERSION) nfpm package --config packaging/deb/nfpm.yaml --packager deb --target cli/build/
 	@echo ""
 	@echo "Package(s):"
-	@ls -1 $(CLI_BUILD_DIR)/*.deb
+	@ls -1 cli/build/*.deb
 
 publish-images:
 	./scripts/publish-images.sh

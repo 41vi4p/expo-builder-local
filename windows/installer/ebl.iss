@@ -1,22 +1,23 @@
 ; Inno Setup script for the ebl (expo-local-builder) Windows installer.
 ;
-; ebl.exe here is the real, native CLI (built from ../../cli, same source every
-; other platform uses) - not a WSL2 forwarder. This installer bundles the
-; `cmake --install`ed bin\/share\ tree (see ../../cli/CMakeLists.txt) plus
-; install.ps1/uninstall.ps1, and just runs install.ps1 -LocalInstallDir to do the
-; Docker Desktop check (offering to download+launch its official installer if
-; missing) + WSL2 tuning + PATH update - all the real logic for that lives in
-; exactly one place (install.ps1), so the one-line `irm | iex` install and this GUI
-; installer can never drift apart.
+; ebl.exe here is the real, native CLI (built from ../../cli, same Go module every
+; other platform uses) - not a WSL2 forwarder. This installer bundles the built
+; ebl.exe (a single static binary - docker/runner/ is baked in via //go:embed, so
+; there's no separate share\ tree to ship anymore) plus install.ps1/uninstall.ps1,
+; and just runs install.ps1 -LocalInstallDir to do the Docker Desktop check
+; (offering to download+launch its official installer if missing) + WSL2 tuning +
+; PATH update - all the real logic for that lives in exactly one place
+; (install.ps1), so the one-line `irm | iex` install and this GUI installer can
+; never drift apart.
 ;
 ; Build with: iscc ebl.iss  (from a Windows machine/CI runner with Inno Setup 6
 ; installed - https://jrsoftware.org/isinfo.php). Expects
-; ..\..\cli\build\install\bin\ebl.exe and ..\..\cli\build\install\share\... to
-; already exist (see ../../.github/workflows/release.yml's windows-build-and-publish
-; job for the `cmake --install` step that produces them).
+; ..\..\cli\build\install\bin\ebl.exe to already exist (see
+; ../../.github/workflows/release.yml's windows-build-and-publish job, or
+; ci.yml's windows-cli-build job, for the `go build` step that produces it).
 
 #define MyAppName "ebl (expo-local-builder)"
-#define MyAppVersion "0.27.1"
+#define MyAppVersion "0.28.0"
 #define MyAppPublisher "41vi4p"
 #define MyAppURL "https://github.com/41vi4p/expo-builder-local"
 #define MyAppExeName "ebl.exe"
@@ -50,10 +51,10 @@ OutputBaseFilename=ebl-setup-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-; Same icon ebl.exe itself embeds (see ../../cli/resources/ebl.rc) - generated from
-; ../../docs/assets/ebl_logo.png - so the installer .exe isn't just Inno Setup's
-; generic default icon before it's even run.
-SetupIconFile=..\..\cli\resources\ebl.ico
+; Same icon ebl.exe itself embeds (see ../../cli/cmd/ebl/versioninfo.json) -
+; generated from ../../docs/assets/ebl_logo.png - so the installer .exe isn't just
+; Inno Setup's generic default icon before it's even run.
+SetupIconFile=..\..\cli\cmd\ebl\ebl.ico
 UninstallDisplayIcon={app}\bin\{#MyAppExeName}
 ; The installer .exe's own Win32 version resource (Explorer → Properties → Details) —
 ; distinct from AppVersion above, which only sets the *installed application's*
@@ -67,8 +68,7 @@ VersionInfoDescription={#MyAppName} Setup
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\..\cli\build\install\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
-Source: "..\..\cli\build\install\share\*"; DestDir: "{app}\share"; Flags: ignoreversion recursesubdirs
+Source: "..\..\cli\build\install\bin\ebl.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 

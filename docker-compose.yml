@@ -1,5 +1,5 @@
 # Image tags default to the "ebllocal" Docker Hub namespace placeholder — the SAME
-# default the CLI (cli/src/config_store.hpp) uses to pull/build these three images.
+# default the CLI (cli/internal/config/config.go) uses to pull/build these three images.
 # Building here with matching tags means `docker compose build && docker push
 # <tag>` (once you've swapped DOCKERHUB_NAMESPACE for your real namespace and are
 # logged in) publishes exactly what `ebl setup`/`ebl start` will later pull.

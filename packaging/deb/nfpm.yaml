@@ -1,0 +1,31 @@
+# nfpm config for the `ebl` .deb - replaces cli/CMakeLists.txt's CPack DEB
+# section now that the CLI is a statically-linked Go binary instead of a
+# CMake/C++ build. See ../../docs/RELEASING.md.
+#
+# Built with (from the repo root - nfpm resolves `contents[].src` relative to
+# the current working directory, not this config file's location):
+#   VERSION=$(cat cli/VERSION) nfpm package --config packaging/deb/nfpm.yaml --packager deb --target <dir>
+#
+# CGO_ENABLED=0 `go build` already produces a fully static binary with no
+# libcurl/OpenSSL (or any other shared library) dependency - unlike CPack's
+# CPACK_DEBIAN_PACKAGE_SHLIBDEPS (which ran dpkg-shlibdeps to compute the
+# right libcurl4/libssl3-style versioned Depends: automatically), there is
+# nothing to auto-detect here: `depends` below is deliberately empty.
+name: ebl
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: devel
+priority: optional
+maintainer: "expo-builder-local maintainers <noreply@example.com>"
+vendor: "expo-builder-local"
+homepage: "https://github.com/41vi4p/expo-builder-local"
+description: "Build managed Expo projects into signed Android APK/AABs in a disposable Docker container"
+license: GPL-3.0
+depends: []
+
+contents:
+  - src: cli/build/ebl
+    dst: /usr/bin/ebl
+    file_info:
+      mode: 0755

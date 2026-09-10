@@ -35,7 +35,7 @@ func TestCompletionPwshAliasWorks(t *testing.T) {
 
 // TestCompletionScriptsMatchCppByteForByte cross-checks each script constant
 // against the real C++ CLI's own output for the same shell, captured to
-// cli-go/internal/commands/testdata/completion_cpp_<shell>.txt from a real
+// cli/internal/commands/testdata/completion_cpp_<shell>.txt from a real
 // build (see the session history in docs/CHANGELOG.md around the Go
 // migration for how these fixtures were produced) - this is ~250 lines of
 // hand-transcribed shell script, so a byte-for-byte diff against the

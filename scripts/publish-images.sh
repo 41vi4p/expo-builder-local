@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds and (optionally) pushes the three expo-builder-local images to Docker Hub —
 # runner, orchestrator, web — all under the same namespace/tag scheme the CLI
-# (cli/src/config_store.hpp) and docker-compose.yml expect.
+# (cli/internal/config/config.go) and docker-compose.yml expect.
 #
 # Usage:
 #   DOCKERHUB_NAMESPACE=yourusername ./scripts/publish-images.sh          # build only
